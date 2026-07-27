@@ -1,0 +1,64 @@
+/* ============================================================
+   디자인 토큰 — 색 조합: 토스 · 클린 블루 / 폰트: Noto Sans KR
+   레시피에서 지정한 HEX 값을 그대로 사용한다.
+   ============================================================ */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap');
+
+:root {
+  /* --- 레시피 지정 색상 (변경 금지) --- */
+  --primary: #3182F6;
+  --primary-dark: #1B64DA;
+  --text: #4E5968;
+  --sub: #8B95A1;
+  --bg: #F2F4F6;
+  --surface: #FFFFFF;
+  --border: #E5E8EB;
+
+  /* --- 접근성 보강 토큰 (내 메모: 명도 대비 4.5:1 이상) ---
+     #8B95A1 은 흰 배경에서 3.08:1 → 작은 본문 텍스트에 쓸 수 없다.
+     #5F6B7A 은 흰 배경 5.43:1 / 회색 배경(#F2F4F6) 4.92:1 로 둘 다 통과한다.
+     --sub 은 아이콘·구분선·placeholder·비활성 컨트롤에만 쓴다.
+     흰 글자 기준 #3182F6 은 3.71:1, #1B64DA 은 5.41:1 → CTA 배경은 --primary-dark.
+     원래 톤(#3182F6)으로 되돌리려면 --cta-bg 한 줄만 --primary 로 바꾸면 된다. */
+  --sub-strong: #5F6B7A;   /* 작은 보조 텍스트용 */
+  --link: var(--primary-dark);  /* 흰 배경 링크 (5.41:1) */
+  --cta-bg: var(--primary-dark);
+  --cta-bg-hover: #1957BC;
+
+  /* --- 상태 색 --- */
+  --primary-weak: #E8F2FE;   /* 선택 상태 배경 */
+  --danger: #D93A3A;
+  --success: #16A34A;
+
+  /* --- 반경 --- */
+  --radius-pill: 999px;      /* 버튼: 둥근 알약 */
+  --radius-lg: 20px;
+  --radius-md: 14px;
+  --radius-sm: 8px;
+
+  /* --- 그림자 --- */
+  --shadow-sm: 0 1px 2px rgba(0, 23, 51, .04);
+  --shadow-md: 0 4px 16px rgba(0, 23, 51, .07);
+  --shadow-lg: 0 12px 32px rgba(0, 23, 51, .10);
+
+  /* --- 간격 --- */
+  --gap-xs: 6px;
+  --gap-sm: 10px;
+  --gap: 16px;
+  --gap-lg: 24px;
+  --gap-xl: 40px;
+
+  /* --- 레이아웃 --- */
+  --container: 1120px;
+  --header-h: 64px;
+
+  /* --- 모션 --- */
+  --ease: cubic-bezier(.25, .8, .35, 1);
+  --dur: .15s;
+}
+
+/* 모션 최소화 선호 사용자 존중 */
+@media (prefers-reduced-motion: reduce) {
+  :root { --dur: .001s; }
+  * { animation-duration: .001s !important; transition-duration: .001s !important; }
+}

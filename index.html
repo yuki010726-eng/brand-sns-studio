@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="브랜드 상품별 SNS 게시물을 문서화하고, 이미지를 만들고, 카드뉴스 템플릿까지 한 번에 완성하는 스튜디오" />
+  <title>브랜드 SNS 스튜디오</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+  <link rel="stylesheet" href="./styles/tokens.css" />
+  <link rel="stylesheet" href="./styles/base.css" />
+  <link rel="stylesheet" href="./styles/components.css" />
+  <link rel="stylesheet" href="./styles/pages.css" />
+</head>
+<body>
+  <!-- 키보드 사용자용 본문 바로가기 -->
+  <a class="skip-link" href="#main">본문 바로가기</a>
+
+  <div id="header-root"></div>
+
+  <!-- 라우터가 페이지를 그려 넣는 영역 -->
+  <main id="main" tabindex="-1"></main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <p>브랜드 SNS 스튜디오 · 게시 전 일정·접수 상태·금액은 공식 자료로 다시 확인하세요.</p>
+    </div>
+  </footer>
+
+  <!-- 토스트 알림 (스크린리더에 변경 사항 전달) -->
+  <div id="toast-root" class="toast-root" role="status" aria-live="polite"></div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
