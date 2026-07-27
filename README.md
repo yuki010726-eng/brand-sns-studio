@@ -12,21 +12,67 @@ python -m http.server 5610 --directory brand-sns-studio
 
 이후 http://localhost:5610 접속. (Claude Code 에서는 `.claude/launch.json` 의 `brand-sns-studio` 설정으로 자동 실행된다.)
 
-## 다른 컴퓨터에서 이어서 작업하기
+## 새 컴퓨터에서 시작하기
 
-이 폴더는 OneDrive 안에 있으므로 파일은 자동으로 따라온다. 새 컴퓨터에서 할 일은 아래가 전부다.
+필요한 것은 **Claude Code + GitHub CLI + Python** 세 개다. 순서대로 하면 된다.
 
-1. OneDrive 동기화가 끝났는지 확인 (탐색기에서 폴더 아이콘이 초록 체크인지)
-2. Python 설치 여부 확인 — `python --version` (안 되면 `py --version`)
-3. 프로젝트 폴더를 작업 디렉토리로 열고 서버 실행
+### 1. 설치
+
+```bash
+winget install --id GitHub.cli
+```
+
+Claude Code는 https://claude.ai/download 에서 받거나 `npm i -g @anthropic-ai/claude-code`.
+Python은 `python --version`으로 확인하고, 없으면 https://www.python.org/downloads/ 에서 설치한다
+(설치 시 **Add Python to PATH** 체크).
+
+### 2. GitHub 로그인
+
+```bash
+gh auth login
+```
+
+`GitHub.com` → `HTTPS` → `Yes` → `Login with a web browser` 순서로 고른다.
+
+### 3. 저장소 받기
+
+```bash
+gh repo clone yuki010726-eng/brand-sns-studio
+```
+
+저장소는 **Private**이라 로그인이 되어 있어야 받아진다.
+
+### 4. 실행
+
+`serve.cmd`를 더블클릭하거나:
 
 ```bash
 python -m http.server 5610
 ```
 
-`python`이 없고 `py`만 있으면 `.claude/launch.json`의 `runtimeExecutable`을 `py`로 바꾼다.
-Node가 깔려 있다면 `npx serve -l 5610` 같은 정적 서버도 상관없다. ES 모듈을 쓰므로
-`file://`로 직접 열면 동작하지 않는다는 점만 지키면 된다.
+http://localhost:5610 접속. Claude Code에서는 `.claude/launch.json`이 등록돼 있어
+`brand-sns-studio` 설정으로 바로 띄울 수 있다.
+`python`이 없고 `py`만 있으면 `launch.json`의 `runtimeExecutable`을 `py`로 바꾼다.
+
+ES 모듈을 쓰므로 `file://`로 직접 열면 동작하지 않는다. 반드시 서버로 띄운다.
+
+### 5. Claude Code에게
+
+프로젝트 폴더를 열면 `CLAUDE.md`가 자동으로 읽힌다. 그대로 이렇게 말하면 된다.
+
+> STEP 4부터 이어서 해줘
+
+디자인 토큰·접근성 규칙·사실성 원칙·지금까지의 결정·STEP 4 명세가 모두 `CLAUDE.md`에 있다.
+
+### 작업을 마칠 때
+
+자동 동기화가 아니다. 기기를 옮기기 전에 반드시:
+
+```bash
+git add -A && git commit -m "작업 내용" && git push
+```
+
+다른 기기에서 시작할 때는 먼저 `git pull` 한다.
 
 ### 따라오지 않는 것 (브라우저에 저장되는 값)
 
