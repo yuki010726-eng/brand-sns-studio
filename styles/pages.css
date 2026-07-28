@@ -328,7 +328,7 @@
 
 .shot__frame {
   position: relative;
-  aspect-ratio: 1 / 1;
+  aspect-ratio: 4 / 5;   /* 카드가 4:5 세로형이라 미리보기도 같은 비율로 본다 */
   border-radius: var(--radius-md);
   overflow: hidden;
   background: var(--bg);
@@ -381,6 +381,178 @@
 @media (max-width: 560px) {
   .concept-grid, .shots { grid-template-columns: 1fr; }
   .shot-head__actions .btn { flex: 1; }
+}
+
+/* ============================================================
+   4단계 — 카드뉴스 템플릿
+   왼쪽 미리보기 · 오른쪽 슬롯별 입력. 입력칸과 카드 위치가 눈으로 이어지게 둔다.
+   ============================================================ */
+
+/* ---- 카드 선택 탭 ---- */
+.tpl-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-top: var(--gap-lg); }
+.tpl-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--sub-strong);
+  cursor: pointer;
+  transition: all var(--dur) var(--ease);
+}
+.tpl-tab:hover { border-color: var(--primary); }
+.tpl-tab__no { font-weight: 700; font-variant-numeric: tabular-nums; }
+.tpl-tab[aria-selected='true'] {
+  background: var(--cta-bg);
+  border-color: var(--cta-bg);
+  color: #fff;
+}
+
+/* ---- 본체 ---- */
+.tpl-editor {
+  display: grid;
+  grid-template-columns: minmax(0, 420px) minmax(0, 1fr);
+  gap: var(--gap-lg);
+  align-items: start;
+  margin-top: var(--gap);
+}
+
+/* 미리보기는 스크롤을 따라온다 — 아래쪽 입력칸을 고칠 때도 결과가 보여야 한다 */
+.tpl-stage {
+  position: sticky;
+  top: calc(var(--header-h) + 16px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+/* 4:5 세로형 — 레퍼런스 세 계정과 같은 비율 */
+.tpl-stage__canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 5;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg);
+  box-shadow: var(--shadow-md);
+}
+.tpl-stage__note { font-size: 13px; color: var(--sub-strong); }
+.tpl-stage__actions { display: flex; gap: var(--gap-sm); flex-wrap: wrap; }
+
+/* ---- 오른쪽 입력 폼 ---- */
+.tpl-form { padding: var(--gap-lg); display: flex; flex-direction: column; gap: var(--gap); }
+.tpl-form__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-sm);
+  flex-wrap: wrap;
+}
+.tpl-form__legend {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--sub-strong);
+  letter-spacing: .02em;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.tpl-field { gap: 6px; }
+.tpl-ta { min-height: 0; }
+
+.tpl-drop { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.tpl-drop__box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  width: 100%;
+  padding: 22px 16px;
+  border: 1.5px dashed var(--border);
+  border-radius: var(--radius-md);
+  text-align: center;
+  font-size: 13.5px;
+  color: var(--sub-strong);
+  cursor: pointer;
+  transition: all var(--dur) var(--ease);
+}
+.tpl-drop__box:hover { border-color: var(--primary); background: #FBFDFF; }
+.tpl-drop__box em { font-style: normal; font-size: 12.5px; }
+/* 시각적으로 숨긴 file input 의 포커스링을 라벨에 전달한다 */
+#tpl-file:focus-visible + .tpl-drop__box { outline: 3px solid var(--primary); outline-offset: 2px; }
+
+/* ---- 강조 색상 (매거진형) ---- */
+.accent { display: flex; flex-direction: column; gap: var(--gap-sm); }
+.accent__swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.accent__item { display: flex; position: relative; }
+.accent__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  font-size: 13px;
+  color: var(--sub-strong);
+  cursor: pointer;
+  transition: all var(--dur) var(--ease);
+}
+.accent__chip:hover { border-color: var(--primary); }
+/* 색 견본은 어두운 배경 위에 올려야 형광색이 제대로 보인다 */
+.accent__dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--sw);
+  box-shadow: 0 0 0 3px #22303C;
+}
+.accent__input:checked + .accent__chip {
+  border-color: var(--cta-bg);
+  box-shadow: 0 0 0 1px var(--cta-bg);
+  color: #191F28;
+  font-weight: 700;
+}
+.accent__input:focus-visible + .accent__chip { outline: 3px solid var(--primary); outline-offset: 2px; }
+/* 마크 칩은 색 견본이 없어 글자만 들어간다 */
+#mark-swatches .accent__chip { padding: 8px 15px; }
+
+/* ---- 노트형 본문 서식 넣기 ---- */
+.tpl-inserts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.tpl-insert {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--sub-strong);
+  cursor: pointer;
+  transition: all var(--dur) var(--ease);
+}
+.tpl-insert:hover { border-color: var(--primary); color: var(--link); }
+
+.accent__custom { display: flex; align-items: center; gap: var(--gap-sm); flex-wrap: wrap; }
+.accent__hex { max-width: 180px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+@media (max-width: 1024px) {
+  .tpl-editor { grid-template-columns: 1fr; }
+  .tpl-stage { position: static; }
+}
+@media (max-width: 560px) {
+  .tpl-stage__actions .btn { flex: 1; }
 }
 
 /* ---------- 임시(스텁) 화면 ---------- */

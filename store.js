@@ -3,7 +3,10 @@
  * 프레임워크 없이 쓰므로 상태 변경은 반드시 setState() 를 통해서만 한다.
  */
 
+import { CONCEPTS } from './lib/concepts.js';
+
 const KEY = 'bboggl.sns-studio.v1';
+const CONCEPT_IDS = CONCEPTS.map((c) => c.id);
 
 /**
  * @typedef {Object} AppState
@@ -29,7 +32,9 @@ const INITIAL = {
   generated: {},
   variants: {},        // 채널별 재생성 횟수 — 누를 때마다 다른 후킹·근거 조합이 나온다
   draftKey: '',
-  concept: 'photo',    // 카드뉴스 컨셉 id (lib/concepts.js)
+  concept: 'magazine', // 카드뉴스 템플릿 id (lib/concepts.js)
+  accent: '#B9F73E',   // 매거진형 강조 색상 (lib/concepts.js 의 DEFAULT_ACCENT)
+  mark: 'asterisk',    // 카드형 우상단 마크 (lib/concepts.js 의 MARKS)
   image: null,         // { variant, at } — 카드 문구 조합
   images: {},          // { [카드번호]: { source:'ai'|'upload', at } } · 실제 Blob 은 IndexedDB
   card: null,
@@ -50,7 +55,15 @@ export const STEPS = [
 function load() {
   try {
     const raw = localStorage.getItem(KEY);
-    return raw ? { ...INITIAL, ...JSON.parse(raw) } : { ...INITIAL };
+    const s = raw ? { ...INITIAL, ...JSON.parse(raw) } : { ...INITIAL };
+
+    // 템플릿 개편(2026-07-28) 이전에 저장된 값 정리.
+    // 없어진 컨셉 id(photo/mono/cinematic)가 남아 있으면 4단계 문구 슬롯이 조용히 어긋난다.
+    if (!CONCEPT_IDS.includes(s.concept)) {
+      s.concept = INITIAL.concept;
+      s.card = null;
+    }
+    return s;
   } catch {
     return { ...INITIAL };
   }
@@ -94,8 +107,9 @@ export function navigate(path) {
 
 /** 현재까지 진행된 단계 수 (스테퍼 활성/비활성 판단용) */
 export function reachedStep() {
-  if (Object.keys(state.images).length) return 4;   // 카드 이미지가 하나라도 있으면 템플릿으로
-  if (Object.keys(state.drafts).length) return 3;
+  // 배경 이미지는 선택 사항이다 — 없으면 컨셉별 기본 배경으로 그리므로
+  // 글귀만 있으면 템플릿까지 진행할 수 있다.
+  if (Object.keys(state.drafts).length) return 4;
   if (state.productId && state.topic.trim()) return 2;
   return 1;
 }
