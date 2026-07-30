@@ -7,6 +7,11 @@ import { CHANNELS, BANNED_PHRASES, getProduct } from '../data/products.js';
 import { stepperHTML, bindStepper } from '../components/stepper.js';
 import { getState, setState, navigate, draftKeyOf } from '../store.js';
 import { generate, findBanned, TONE_LABEL } from '../lib/copywriter.js';
+import { generateWithAI } from '../lib/copyai.js';
+import {
+  PROVIDERS, getProvider, setProvider, currentProvider,
+  MODELS, getModel, setModel, hasKey, maskedKey, setKey,
+} from '../lib/llm.js';
 import { toast } from '../components/toast.js';
 
 export const title = '아이디어 문서화';
@@ -53,11 +58,18 @@ export function render(root) {
               ${icon('arrowLeft', 'icon--sm')} 조건 수정
             </a>
             <button type="button" class="btn btn--soft btn--sm" id="regen-all"
-                    aria-label="모든 채널 글귀를 새로 생성하기">
+                    aria-label="규칙 기반으로 모든 채널 글귀를 새로 생성하기">
               ${icon('refresh', 'icon--sm')} 전체 재생성
+            </button>
+            <button type="button" class="btn btn--sm" id="ai-all"
+                    aria-label="AI로 모든 채널 글귀를 새로 쓰기" ${hasKey() ? '' : 'disabled'}>
+              ${icon('sparkles', 'icon--sm')} 전체 AI로 쓰기
             </button>
           </div>
         </div>
+
+        <div class="aibar card" id="aibar">${aibarHTML()}</div>
+        <div id="ai-status"></div>
 
         <div id="stale-slot">${staleNoticeHTML()}</div>
 
@@ -80,9 +92,9 @@ export function render(root) {
                   aria-label="모든 채널 글귀를 한 번에 복사하기">
             ${icon('copy', 'icon--sm')} 전체 복사
           </button>
-          <button type="button" class="btn btn--lg" id="go-image"
-                  aria-label="이미지 제작 단계로 이동">
-            이미지 제작으로 ${icon('arrowRight', 'icon--sm')}
+          <button type="button" class="btn btn--lg" id="go-template"
+                  aria-label="카드뉴스 템플릿 단계로 이동">
+            카드뉴스 만들기 ${icon('arrowRight', 'icon--sm')}
           </button>
         </div>
       </section>
@@ -91,6 +103,19 @@ export function render(root) {
   bindStepper(root);
   bindTabs(root);
   bindPanel(root);
+  bindAibar(root);
+
+  root.querySelector('#ai-all')?.addEventListener('click', () => {
+    if (hasEdits() && !confirm('편집한 내용이 있습니다. 모두 AI 글로 덮어쓸까요?')) return;
+    aiAll(root);
+  });
+
+  // 키가 있으면 들어오자마자 AI가 쓴다.
+  // 버튼을 눌러야만 돌던 때는 그냥 들어온 사람이 규칙 기반 글만 보고 나갔다.
+  const st = getState();
+  if (st.autoAI !== false && hasKey() && st.aiKey !== draftKeyOf(st) && !hasEdits()) {
+    queueMicrotask(() => aiAll(root, { auto: true }));
+  }
 
   root.querySelector('#regen-all')?.addEventListener('click', () => {
     if (hasEdits() && !confirm('편집한 내용이 있습니다. 모두 새 글귀로 덮어쓸까요?')) return;
@@ -108,7 +133,127 @@ export function render(root) {
     copyText(text, `${channels.length}개 채널 글귀를 복사했습니다.`);
   });
 
-  root.querySelector('#go-image')?.addEventListener('click', () => navigate('/image'));
+  root.querySelector('#go-template')?.addEventListener('click', () => navigate('/template'));
+}
+
+/* ---------------- AI 설정 ---------------- */
+
+/**
+ * 규칙 기반 생성은 키 없이 늘 동작한다. AI 는 '더 좋게 다시 쓰는' 선택지다.
+ * 그래서 이 바는 접어 두고, 켜고 싶을 때만 열게 한다.
+ */
+function aibarHTML() {
+  const on = hasKey();
+  const p = currentProvider();
+  return `
+    <div class="aibar__row">
+      <span class="keybar__state ${on ? 'is-on' : ''}">
+        ${icon(on ? 'check' : 'sparkles', 'icon--sm')}
+        ${on ? `${esc(p.name)} 연결됨 · ${esc(maskedKey())}` : 'AI로 글을 다시 쓰려면 API 키가 필요합니다'}
+      </span>
+      <button type="button" class="btn btn--ghost btn--sm" id="ai-toggle"
+              aria-expanded="false" aria-controls="ai-form" aria-label="AI 글쓰기 설정 열기">
+        ${on ? '설정 변경' : 'AI 켜기'}
+      </button>
+    </div>
+
+    <div class="aibar__form" id="ai-form" hidden>
+      <div class="notice notice--info" role="note">
+        <span class="notice__icon" aria-hidden="true">${icon('alert', 'icon--sm')}</span>
+        <div>
+          <strong>Gemini 텍스트 모델은 무료 한도가 있습니다</strong>
+          <p>이미지와 달리 결제 설정 없이 키만 있으면 글을 쓸 수 있습니다.
+             키는 이 브라우저에만 저장되고 코드·저장소에는 남지 않습니다.</p>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="field__label" for="ai-provider">어디로 쓸까요</label>
+        <select class="select" id="ai-provider">
+          ${PROVIDERS.map((x) => `<option value="${x.id}" ${x.id === getProvider() ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}
+        </select>
+        <p class="field__hint">${esc(p.note)}</p>
+      </div>
+
+      <div class="field">
+        <label class="field__label" for="ai-key">${esc(p.name)} API 키</label>
+        <input class="input" type="password" id="ai-key" autocomplete="off" spellcheck="false" />
+        <p class="field__hint">이미지 생성과 같은 키를 씁니다. 이미 넣으셨다면 다시 넣지 않아도 됩니다.</p>
+      </div>
+
+      <div class="field">
+        <label class="field__label" for="ai-model">모델</label>
+        <select class="select" id="ai-model">
+          ${MODELS().map((m) => `<option value="${m.id}" ${m.id === getModel() ? 'selected' : ''}>${esc(m.label)}</option>`).join('')}
+        </select>
+        <p class="field__hint">${esc(MODELS().find((m) => m.id === getModel())?.note || '')}</p>
+      </div>
+
+      <label class="channel" for="ai-auto" style="cursor:pointer">
+        <input type="checkbox" id="ai-auto" autocomplete="off"
+               ${getState().autoAI !== false ? 'checked' : ''}
+               aria-label="이 화면에 들어오면 자동으로 AI가 쓰게 하기" />
+        <span>
+          <strong>들어오면 자동으로 AI가 쓰기</strong>
+          <em>끄면 「AI로 쓰기」를 눌렀을 때만 실행됩니다.</em>
+        </span>
+      </label>
+
+      <div class="keybar__actions">
+        <button type="button" class="btn btn--sm" id="ai-save" aria-label="AI 설정 저장하기">저장</button>
+        ${on ? '<button type="button" class="btn btn--text btn--sm" id="ai-clear" aria-label="저장된 API 키 삭제하기">키 삭제</button>' : ''}
+      </div>
+    </div>`;
+}
+
+function refreshAibar(root) {
+  const bar = root.querySelector('#aibar');
+  if (!bar) return;
+  bar.innerHTML = aibarHTML();
+  bindAibar(root);
+  root.querySelectorAll('#ai-all, [data-ai]').forEach((b) => { b.disabled = !hasKey(); });
+}
+
+function bindAibar(root) {
+  const form = root.querySelector('#ai-form');
+  const toggle = root.querySelector('#ai-toggle');
+
+  toggle?.addEventListener('click', () => {
+    const open = form.hidden;
+    form.hidden = !open;
+    toggle.setAttribute('aria-expanded', String(open));
+    if (open) root.querySelector('#ai-key')?.focus();
+  });
+
+  root.querySelector('#ai-provider')?.addEventListener('change', (e) => {
+    setProvider(e.target.value);
+    refreshAibar(root);
+    root.querySelector('#ai-form').hidden = false;
+    root.querySelector('#ai-toggle')?.setAttribute('aria-expanded', 'true');
+  });
+
+  root.querySelector('#ai-model')?.addEventListener('change', (e) => setModel(e.target.value));
+
+  root.querySelector('#ai-auto')?.addEventListener('change', (e) => {
+    setState({ autoAI: e.target.checked });
+    toast(e.target.checked ? '들어올 때 자동으로 AI가 씁니다.' : '자동 실행을 껐습니다.');
+  });
+
+  root.querySelector('#ai-save')?.addEventListener('click', () => {
+    const input = root.querySelector('#ai-key');
+    const value = input.value.trim();
+    if (value) setKey(value);
+    setModel(root.querySelector('#ai-model').value);
+    input.value = '';                       // 화면에 남기지 않는다
+    refreshAibar(root);
+    toast(hasKey() ? 'AI 글쓰기를 켰습니다.' : '키를 입력해 주세요.');
+  });
+
+  root.querySelector('#ai-clear')?.addEventListener('click', () => {
+    setKey('');
+    refreshAibar(root);
+    toast('저장된 키를 삭제했습니다.');
+  });
 }
 
 /* ---------------- 패널 ---------------- */
@@ -127,6 +272,7 @@ function panelHTML() {
         <div class="panel__meta">
           <span class="badge">${c.name}</span>
           <span class="panel__hint">${c.hint}</span>
+          ${s.sources[activeTab] === 'ai' ? '<span class="badge">AI가 씀</span>' : ''}
           ${edited ? '<span class="badge badge--neutral">편집됨</span>' : ''}
         </div>
         <div class="panel__tools">
@@ -135,8 +281,12 @@ function panelHTML() {
             ${text.length.toLocaleString()} / ${c.limit.toLocaleString()}자
           </output>
           <button type="button" class="btn btn--ghost btn--sm" data-regen="${c.id}"
-                  aria-label="${c.name} 글귀만 새로 생성하기">
+                  aria-label="${c.name} 글귀를 규칙 기반으로 새로 생성하기">
             ${icon('refresh', 'icon--sm')} 재생성
+          </button>
+          <button type="button" class="btn btn--soft btn--sm" data-ai="${c.id}"
+                  aria-label="${c.name} 글귀를 AI로 다시 쓰기" ${hasKey() ? '' : 'disabled'}>
+            ${icon('sparkles', 'icon--sm')} AI로 쓰기
           </button>
           <button type="button" class="btn btn--sm" data-copy="${c.id}"
                   aria-label="${c.name} 글귀 복사하기">
@@ -280,7 +430,105 @@ function bindPanel(root) {
     toast('글귀를 새로 만들었습니다.');
   });
 
+  root.querySelector('[data-ai]')?.addEventListener('click', (e) => {
+    const id = e.currentTarget.dataset.ai;
+    const s = getState();
+    if (s.drafts[id] !== s.generated[id] && !confirm('편집한 내용을 AI 글로 덮어쓸까요?')) return;
+    aiOne(root, id);
+  });
+
   bindStale(root);
+}
+
+/* ---------------- AI 생성 ---------------- */
+
+let aiBusy = false;
+
+function setAiBusy(root, on, label) {
+  aiBusy = on;
+  root.querySelectorAll('#ai-all, [data-ai]').forEach((b) => { b.disabled = on || !hasKey(); });
+  const btn = root.querySelector('[data-ai]');
+  if (btn && label) btn.innerHTML = on ? `<span class="spinner" aria-hidden="true"></span> ${label}` : btn.innerHTML;
+}
+
+async function aiOne(root, id) {
+  if (aiBusy) { toast('이미 쓰는 중입니다.'); return; }
+  const c = CHANNELS.find((x) => x.id === id);
+  setAiBusy(root, true, '쓰는 중…');
+  toast(`${c.name} 글을 AI가 쓰고 있습니다…`, 3000);
+  try {
+    const text = await generateWithAI(id, ctx(0));
+    const s = getState();
+    setState({
+      drafts: { ...s.drafts, [id]: text },
+      generated: { ...s.generated, [id]: text },
+      sources: { ...s.sources, [id]: 'ai' },
+      draftKey: draftKeyOf(s),
+    });
+    refreshPanel(root);
+    refreshStale(root);
+    toast(`${c.name} 글을 새로 썼습니다.`);
+  } catch (e) {
+    // 검수를 통과 못 했거나 호출이 실패하면 기존 글을 그대로 둔다 — 나쁜 글로 덮어쓰지 않는다
+    toast(`${c.name} 실패 · ${e.message}`, 5000);
+    refreshPanel(root);
+  } finally {
+    setAiBusy(root, false);
+  }
+}
+
+/**
+ * 세 채널을 **동시에** 부른다.
+ * 한 채널에 20~40초 걸려서 순서대로 돌리면 2분 가까이 기다려야 했다.
+ */
+async function aiAll(root, { auto = false } = {}) {
+  if (aiBusy) return;
+  const channels = CHANNELS.filter((c) => getState().channels.includes(c.id));
+  setAiBusy(root, true);
+  showAiStatus(root, `AI가 ${channels.length}개 채널 글을 쓰고 있습니다… 30초쯤 걸립니다.`);
+
+  const results = await Promise.allSettled(channels.map((c) => generateWithAI(c.id, ctx(0))));
+
+  let ok = 0;
+  results.forEach((r, i) => {
+    const c = channels[i];
+    if (r.status !== 'fulfilled') {
+      // 실패하면 기존 글을 그대로 둔다 — 나쁜 글로 덮어쓰지 않는다
+      toast(`${c.name} 실패 · ${r.reason?.message || r.reason}`, 5000);
+      return;
+    }
+    const s = getState();
+    setState({
+      drafts: { ...s.drafts, [c.id]: r.value },
+      generated: { ...s.generated, [c.id]: r.value },
+      sources: { ...s.sources, [c.id]: 'ai' },
+      draftKey: draftKeyOf(s),
+    });
+    ok++;
+  });
+
+  // 성공하든 실패하든 기록해 둔다. 안 그러면 실패할 때마다 자동 실행이 무한 반복된다.
+  setState({ aiKey: draftKeyOf(getState()) });
+
+  setAiBusy(root, false);
+  showAiStatus(root, '');
+  refreshPanel(root);
+  refreshStale(root);
+
+  if (ok) toast(auto ? `AI가 글 ${ok}개를 새로 썼습니다.` : `${ok}개 채널을 AI로 새로 썼습니다.`);
+  else if (auto) toast('AI 생성에 실패해 기본 글을 그대로 뒀습니다.', 5000);
+}
+
+/** 진행 상황 한 줄 — 30초 넘게 걸려서 아무 표시가 없으면 멈춘 줄 안다 */
+function showAiStatus(root, message) {
+  const slot = root.querySelector('#ai-status');
+  if (!slot) return;
+  slot.innerHTML = message
+    ? `<div class="notice notice--info" role="status">
+         <span class="spinner" aria-hidden="true"></span>
+         <div><strong>${esc(message)}</strong></div>
+       </div>`
+    : '';
 }
 
 /** 카운터와 경고 문구만 갱신 — 입력 중 캐럿이 튀지 않도록 textarea 는 건드리지 않는다 */
@@ -318,6 +566,7 @@ function regenerateOne(id, { advance = true } = {}) {
     drafts: { ...s.drafts, [id]: text },
     generated: { ...s.generated, [id]: text },
     variants: { ...s.variants, [id]: Math.max(variant, 0) },
+    sources: { ...s.sources, [id]: 'rule' },
     draftKey: draftKeyOf(s),
   });
 }
@@ -326,11 +575,13 @@ function regenerateAll() {
   const s = getState();
   const drafts = {};
   const variants = { ...s.variants };
+  const sources = { ...s.sources };
   s.channels.forEach((id) => {
     variants[id] = (s.variants[id] ?? -1) + 1;
     drafts[id] = generate(id, ctx(variants[id]));
+    sources[id] = 'rule';
   });
-  setState({ drafts, generated: { ...drafts }, variants, draftKey: draftKeyOf(s) });
+  setState({ drafts, generated: { ...drafts }, variants, sources, draftKey: draftKeyOf(s) });
 }
 
 function hasEdits() {

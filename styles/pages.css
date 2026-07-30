@@ -204,6 +204,17 @@
 .ctxbar__list dd { margin: 0; font-size: 14px; font-weight: 500; color: #191F28; }
 .ctxbar__actions { display: flex; gap: var(--gap-sm); flex-wrap: wrap; }
 
+/* AI 글쓰기 설정 — 평소엔 접어 둔다. 규칙 기반 생성은 키 없이도 늘 동작한다. */
+.aibar { margin-top: var(--gap); padding: 16px 20px; }
+.aibar__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap);
+  flex-wrap: wrap;
+}
+.aibar__form { margin-top: var(--gap); display: flex; flex-direction: column; gap: var(--gap); }
+
 /* 글귀 편집 패널 */
 .panel { display: flex; flex-direction: column; gap: 12px; }
 .panel__bar {
@@ -298,7 +309,7 @@
   display: inline-flex; align-items: center; gap: 7px;
   font-size: 14px; font-weight: 500; color: var(--sub-strong);
 }
-.keybar__state.is-on { color: var(--success); }
+.keybar__state.is-on { color: var(--success-text); }
 .keybar__form { margin-top: var(--gap); display: flex; flex-direction: column; gap: var(--gap); }
 .keybar__actions { display: flex; align-items: center; gap: var(--gap-sm); }
 
@@ -421,10 +432,9 @@
   margin-top: var(--gap);
 }
 
-/* 미리보기는 스크롤을 따라온다 — 아래쪽 입력칸을 고칠 때도 결과가 보여야 한다 */
+/* 미리보기 아래에 이미지 패널이 붙어 열이 길어졌다.
+   sticky 로 두면 화면보다 긴 열의 아래쪽에 닿지 못해 고정을 뺐다. */
 .tpl-stage {
-  position: sticky;
-  top: calc(var(--header-h) + 16px);
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -462,28 +472,6 @@
 }
 .tpl-field { gap: 6px; }
 .tpl-ta { min-height: 0; }
-
-.tpl-drop { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
-.tpl-drop__box {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  width: 100%;
-  padding: 22px 16px;
-  border: 1.5px dashed var(--border);
-  border-radius: var(--radius-md);
-  text-align: center;
-  font-size: 13.5px;
-  color: var(--sub-strong);
-  cursor: pointer;
-  transition: all var(--dur) var(--ease);
-}
-.tpl-drop__box:hover { border-color: var(--primary); background: #FBFDFF; }
-.tpl-drop__box em { font-style: normal; font-size: 12.5px; }
-/* 시각적으로 숨긴 file input 의 포커스링을 라벨에 전달한다 */
-#tpl-file:focus-visible + .tpl-drop__box { outline: 3px solid var(--primary); outline-offset: 2px; }
 
 /* ---- 강조 색상 (매거진형) ---- */
 .accent { display: flex; flex-direction: column; gap: var(--gap-sm); }
@@ -528,6 +516,46 @@
 .accent__input:focus-visible + .accent__chip { outline: 3px solid var(--primary); outline-offset: 2px; }
 /* 마크 칩은 색 견본이 없어 글자만 들어간다 */
 #mark-swatches .accent__chip { padding: 8px 15px; }
+
+/* ---- 이미지 패널 (문구 입력칸 반대쪽) ---- */
+.imgpanel {
+  margin-top: var(--gap-sm);
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.imgpanel__head { display: flex; align-items: center; justify-content: space-between; gap: var(--gap-sm); }
+.imgpanel__title { font-size: 15px; color: #191F28; }
+.imgpanel__lead { margin: 0; }
+.imgpanel__actions { display: flex; flex-wrap: wrap; gap: var(--gap-sm); align-items: center; }
+.imgpanel__upload { cursor: pointer; }
+.imgpanel__busy {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--link);
+}
+.imgpanel__prompt summary {
+  font-size: 13px;
+  color: var(--link);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+.imgpanel__prompt > * + * { margin-top: 8px; }
+.imgpanel__keybar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-sm);
+  flex-wrap: wrap;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.imgpanel__key { display: flex; flex-direction: column; gap: var(--gap); }
+.imgpanel__all { align-self: flex-start; }
 
 /* ---- 노트형 본문 서식 넣기 ---- */
 .tpl-inserts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }

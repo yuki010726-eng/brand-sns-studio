@@ -457,8 +457,10 @@ export const BANNED_PHRASES = [
 
 /** 채널 정의 — 2단계(아이디어 문서화)에서 사용 */
 export const CHANNELS = [
-  { id: 'blog', name: '블로그', icon: 'blog', hint: '검색 유입 중심 · 1,000자 내외 · 소제목 구성',
-    limit: 1400, limitLabel: '권장 1,000자 내외' },
+  // 블로그는 '정확한 정보를 지루하지 않게' 전달하는 채널이라 분량이 필요하다.
+  // 요약·근거·이미지 자리까지 넣으면 1,400자로는 모자라 요청자 요구(내용 보강)와 충돌했다.
+  { id: 'blog', name: '블로그', icon: 'blog', hint: '검색 유입 중심 · 1,500~2,000자 · 소제목 + 이미지 자리 표시',
+    limit: 2600, limitLabel: '권장 1,500~2,000자' },
   { id: 'instagram', name: '인스타그램', icon: 'instagram', hint: '첫 두 줄 후킹 · 해시태그 · 카드뉴스 연계',
     limit: 2200, limitLabel: '캡션 최대 2,200자' },
   { id: 'threads', name: '쓰레드', icon: 'thread', hint: '짧은 대화체 · 500자 제한 · 질문형 마무리',

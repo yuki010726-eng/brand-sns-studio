@@ -5,17 +5,18 @@
 import { renderHeader } from './components/header.js';
 import * as HomePage from './pages/home.js';
 import * as CopyPage from './pages/copy.js';
-import * as ImagePage from './pages/image.js';
 import * as TemplatePage from './pages/template.js';
 import * as LibraryPage from './pages/library.js';
 
 const ROUTES = {
   '/': HomePage,
   '/copy': CopyPage,
-  '/image': ImagePage,
   '/template': TemplatePage,
   '/library': LibraryPage,
 };
+
+/** 없어진 경로 → 현재 경로. 이미지 제작 단계는 템플릿 안으로 합쳤다. */
+const MOVED = { '/image': '/template' };
 
 const headerRoot = document.getElementById('header-root');
 const mainRoot = document.getElementById('main');
@@ -27,6 +28,9 @@ function currentPath() {
 }
 
 function route() {
+  const raw = location.hash.replace(/^#/, '');
+  if (MOVED[raw]) { location.replace(`#${MOVED[raw]}`); return; }
+
   const path = currentPath();
   const page = ROUTES[path];
 

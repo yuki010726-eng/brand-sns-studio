@@ -31,6 +31,9 @@ const INITIAL = {
   drafts: {},
   generated: {},
   variants: {},        // 채널별 재생성 횟수 — 누를 때마다 다른 후킹·근거 조합이 나온다
+  sources: {},         // 채널별 생성 방식 { [채널]: 'rule' | 'ai' } — 화면에 표시만 한다
+  autoAI: true,        // 키가 있으면 2단계 진입 시 자동으로 AI가 쓴다
+  aiKey: '',           // AI가 마지막으로 쓴 시점의 상품·주제·톤 조합 (자동 재실행 방지)
   draftKey: '',
   concept: 'magazine', // 카드뉴스 템플릿 id (lib/concepts.js)
   accent: '#B9F73E',   // 매거진형 강조 색상 (lib/concepts.js 의 DEFAULT_ACCENT)
@@ -44,12 +47,15 @@ const INITIAL = {
 /** 현재 입력 조합의 지문 — 상품·주제·톤이 바뀌면 초안이 낡았다고 판단한다 */
 export const draftKeyOf = (s) => `${s.productId}|${s.topic.trim()}|${s.tone}`;
 
-/** 4단계 흐름 정의 — 스테퍼·라우터 가드가 함께 사용 */
+/**
+ * 3단계 흐름 정의 — 스테퍼·라우터 가드가 함께 사용.
+ * 이미지 제작은 별도 단계였다가 템플릿 안으로 합쳤다.
+ * 이미지가 필수가 아닌데 단계로 세워 두니 흐름을 막는 것처럼 보였기 때문이다.
+ */
 export const STEPS = [
   { n: 1, path: '/',         label: '상품·주제 선택',  icon: 'sparkles' },
   { n: 2, path: '/copy',     label: '아이디어 문서화', icon: 'fileText' },
-  { n: 3, path: '/image',    label: '이미지 제작',     icon: 'image' },
-  { n: 4, path: '/template', label: '카드뉴스 템플릿', icon: 'layout' },
+  { n: 3, path: '/template', label: '카드뉴스 템플릿', icon: 'layout' },
 ];
 
 function load() {
@@ -94,8 +100,8 @@ export function subscribe(fn) {
 
 export function resetFlow() {
   setState({
-    productId: null, topic: '', drafts: {}, generated: {}, variants: {},
-    draftKey: '', image: null, images: {}, card: null,
+    productId: null, topic: '', drafts: {}, generated: {}, variants: {}, sources: {},
+    draftKey: '', aiKey: '', image: null, images: {}, card: null,
   });
 }
 
@@ -107,9 +113,9 @@ export function navigate(path) {
 
 /** 현재까지 진행된 단계 수 (스테퍼 활성/비활성 판단용) */
 export function reachedStep() {
-  // 배경 이미지는 선택 사항이다 — 없으면 컨셉별 기본 배경으로 그리므로
+  // 이미지는 선택 사항이다 — 없으면 템플릿 기본 배경으로 그리므로
   // 글귀만 있으면 템플릿까지 진행할 수 있다.
-  if (Object.keys(state.drafts).length) return 4;
+  if (Object.keys(state.drafts).length) return 3;
   if (state.productId && state.topic.trim()) return 2;
   return 1;
 }

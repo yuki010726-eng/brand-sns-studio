@@ -19,6 +19,9 @@ import { getState, setState, navigate, draftKeyOf } from '../store.js';
 import { buildDeck, DECK_SIZE, TONE_LABEL, findBanned } from '../lib/copywriter.js';
 import { getImage, putImage, deleteImage, imageKey } from '../lib/imagestore.js';
 import { renderCard, loadImage, cardAlt, downloadCanvas, ensureFonts, W, H } from '../lib/cardrender.js';
+import { buildPrompt, buildPromptSheet } from '../lib/imageprompt.js';
+import { generateImage, hasKey } from '../lib/imagegen.js';
+import { imagePanelHTML, bindImagePanel } from '../components/imagepanel.js';
 import { toast } from '../components/toast.js';
 
 export const title = '카드뉴스 템플릿';
@@ -42,6 +45,7 @@ let deck = [];
 let active = 0;
 let bitmaps = [];
 let repaintTimer = null;
+let busy = false;      // 이미지 생성 중 중복 실행 방지
 
 /* ---------------- 문구 상태 ---------------- */
 
@@ -135,8 +139,8 @@ export function render(root) {
             <div><dt>톤</dt><dd>${esc(TONE_LABEL[s.tone] || s.tone)}</dd></div>
           </dl>
           <div class="ctxbar__actions">
-            <a class="btn btn--ghost btn--sm" href="#/image" aria-label="이미지 단계로 돌아가기">
-              ${icon('arrowLeft', 'icon--sm')} 이미지 수정
+            <a class="btn btn--ghost btn--sm" href="#/copy" aria-label="글귀 단계로 돌아가기">
+              ${icon('arrowLeft', 'icon--sm')} 글귀 수정
             </a>
             <button type="button" class="btn btn--soft btn--sm" id="reset-all"
                     aria-label="모든 카드 문구를 추천 문구로 되돌리기">
@@ -174,15 +178,18 @@ export function render(root) {
                 ${icon('download', 'icon--sm')} ${DECK_SIZE}장 모두 저장
               </button>
             </div>
+
+            <!-- 문구 입력칸 반대쪽. 이미지는 필수가 아니라 원할 때만 쓰는 자리다. -->
+            <div id="tpl-image">${imagePanelSlot()}</div>
           </div>
 
           <div class="tpl-form card" id="tpl-form">${formHTML()}</div>
         </div>
 
         <div class="flow-actions">
-          <button type="button" class="btn btn--ghost" id="go-image"
-                  aria-label="이미지 제작 단계로 돌아가기">
-            ${icon('arrowLeft', 'icon--sm')} 이미지 단계로
+          <button type="button" class="btn btn--ghost" id="go-copy"
+                  aria-label="아이디어 문서화 단계로 돌아가기">
+            ${icon('arrowLeft', 'icon--sm')} 글귀 단계로
           </button>
         </div>
       </section>
@@ -193,11 +200,12 @@ export function render(root) {
   bindTabs(root);
   bindForm(root);
   bindNotices(root);
+  bindImagePanelHere(root);
 
   root.querySelector('#reset-all')?.addEventListener('click', () => resetAll(root));
   root.querySelector('#save-one')?.addEventListener('click', () => saveOne(root));
   root.querySelector('#save-all')?.addEventListener('click', () => saveAll(root));
-  root.querySelector('#go-image')?.addEventListener('click', () => navigate('/image'));
+  root.querySelector('#go-copy')?.addEventListener('click', () => navigate('/copy'));
 
   (async () => {
     await ensureFonts();
@@ -242,15 +250,31 @@ function tabHTML(card, i) {
 
 /* ---------------- 오른쪽 입력 폼 ---------------- */
 
+/** 마무리 카드(카드형)는 단색 배경 고정이라 이미지를 쓰지 않는다 */
+const usesImage = (conceptId, kind) => !(conceptId === 'card' && roleOf('card', kind) === 'outro');
+
+function imagePanelSlot() {
+  const s = getState();
+  const concept = getConcept(s.concept);
+  const info = IMAGE_ROLE[concept.id] || IMAGE_ROLE.magazine;
+  return imagePanelHTML({
+    index: active,
+    total: deck.length,
+    hasImage: Boolean(s.images[active]),
+    source: s.images[active]?.source || null,
+    prompt: buildPrompt(deck[active], s.concept),
+    label: info.label,
+    disabled: !usesImage(s.concept, deck[active].kind),
+    busy,
+  });
+}
+
 function formHTML() {
   const s = getState();
   const concept = getConcept(s.concept);
   const t = s.card.texts[active] || {};
   const edited = isEdited(s.card, active);
-  const has = Boolean(s.images[active]);
   const slots = slotsFor(s.concept, deck[active].kind);
-  const img = IMAGE_ROLE[concept.id] || IMAGE_ROLE.magazine;
-  const usesImage = !(concept.id === 'card' && roleOf('card', deck[active].kind) === 'outro');
 
   return `
     <div class="tpl-form__head">
@@ -264,25 +288,6 @@ function formHTML() {
         ${icon('refresh', 'icon--sm')} 추천 문구로
       </button>
     </div>
-
-    ${usesImage ? `
-      <h3 class="tpl-form__legend">${img.label}</h3>
-      <div class="tpl-drop">
-        <input class="sr-only" type="file" id="tpl-file" accept="image/*" autocomplete="off"
-               aria-label="${active + 1}번 카드 ${img.label} 파일 선택" />
-        <label class="tpl-drop__box" for="tpl-file">
-          ${icon('image')}
-          <span>${has ? '다른 이미지로 바꾸기' : `클릭해서 ${img.label} 올리기`}</span>
-          <em>${img.desc} 없어도 기본 배경으로 그려집니다.</em>
-        </label>
-        ${has ? `
-          <button type="button" class="btn btn--text btn--sm" id="tpl-file-clear"
-                  aria-label="${active + 1}번 카드 이미지 지우기">
-            ${icon('trash', 'icon--sm')} 이미지 지우기
-          </button>` : ''}
-      </div>` : `
-      <h3 class="tpl-form__legend">이미지</h3>
-      <p class="field__hint">마무리 카드는 파랑 단색 배경으로 고정입니다 — 이미지를 쓰지 않습니다.</p>`}
 
     <h3 class="tpl-form__legend">문구</h3>
     ${slots.map((f) => fieldHTML(f, t[f.id] ?? '', concept.id)).join('')}
@@ -457,6 +462,7 @@ function selectCard(root, i) {
     t.tabIndex = on ? 0 : -1;
   });
   refreshForm(root);
+  refreshImagePanel(root);
   refreshSource(root);
   paint(root);
 }
@@ -551,35 +557,111 @@ function bindForm(root) {
     toast(`${active + 1}번 카드를 추천 문구로 되돌렸습니다.`);
   });
 
-  root.querySelector('#tpl-file')?.addEventListener('change', async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith('image/')) { toast('이미지 파일만 올릴 수 있습니다.'); return; }
-    const s = getState();
-    await putImage(imageKey(s.productId, s.concept, active), file);
-    setState({ images: { ...getState().images, [active]: { source: 'upload', at: Date.now() } } });
-    bitmaps[active] = await loadImage(file).catch(() => null);
-    e.target.value = '';
-    refreshForm(root);
-    refreshNotices(root);
-    refreshSource(root);
-    paint(root);
-    toast('이미지를 올렸습니다.');
-  });
+}
 
-  root.querySelector('#tpl-file-clear')?.addEventListener('click', async () => {
-    const s = getState();
-    await deleteImage(imageKey(s.productId, s.concept, active));
+/* ---------------- 이미지 패널 ---------------- */
+
+function refreshImagePanel(root) {
+  const slot = root.querySelector('#tpl-image');
+  if (!slot) return;
+  slot.innerHTML = imagePanelSlot();
+  bindImagePanelHere(root);
+}
+
+function bindImagePanelHere(root) {
+  bindImagePanel(root, {
+    onGenerate: () => generateOne(root, active),
+    onGenerateAll: () => generateAll(root),
+    onUpload: (file) => putUploaded(root, file),
+    onDelete: () => removeImage(root),
+    onCopy: () => copyText(buildPrompt(deck[active], getState().concept), `${active + 1}번 프롬프트를 복사했습니다.`),
+    onCopyAll: () => copyText(buildPromptSheet(deck, getState().concept), '프롬프트를 모두 복사했습니다.'),
+    onKeyChange: (ok, message) => {
+      toast(message);
+      if (ok === null) return;                 // 입력값이 비었을 뿐이면 화면을 건드리지 않는다
+      refreshImagePanel(root);
+      // 설정 도중이므로 열어 둔 상태를 유지한다 — 다시 눌러 들어가게 하면 번거롭다
+      const form = root.querySelector('#imgpanel-key');
+      const toggle = root.querySelector('[data-img-keytoggle]');
+      if (form && toggle) { form.hidden = false; toggle.setAttribute('aria-expanded', 'true'); }
+    },
+  });
+}
+
+/** 이미지가 바뀌면 미리보기·안내문·패널을 함께 맞춘다 */
+async function applyImage(root, i, blob, source) {
+  const s = getState();
+  if (blob) {
+    await putImage(imageKey(s.productId, s.concept, i), blob);
+    setState({ images: { ...getState().images, [i]: { source, at: Date.now() } } });
+    bitmaps[i] = await loadImage(blob).catch(() => null);
+  } else {
+    await deleteImage(imageKey(s.productId, s.concept, i));
     const images = { ...s.images };
-    delete images[active];
+    delete images[i];
     setState({ images });
-    bitmaps[active] = null;
-    refreshForm(root);
-    refreshNotices(root);
+    bitmaps[i] = null;
+  }
+  if (i === active) {
+    refreshImagePanel(root);
     refreshSource(root);
     paint(root);
-    toast('이미지를 지웠습니다.');
-  });
+  }
+  refreshNotices(root);
+}
+
+async function putUploaded(root, file) {
+  if (!file.type.startsWith('image/')) { toast('이미지 파일만 올릴 수 있습니다.'); return; }
+  await applyImage(root, active, file, 'upload');
+  toast('이미지를 올렸습니다.');
+}
+
+async function removeImage(root) {
+  await applyImage(root, active, null);
+  toast('이미지를 지웠습니다.');
+}
+
+function setBusy(root, on) {
+  busy = on;
+  const el = root.querySelector('[data-img-busy]');
+  if (el) el.hidden = !on;
+  root.querySelectorAll('[data-img-gen], [data-img-genall]').forEach((b) => { b.disabled = on || !hasKey(); });
+}
+
+async function generateOne(root, i) {
+  if (busy) { toast('이미 생성 중입니다.'); return; }
+  setBusy(root, true);
+  try {
+    const blob = await generateImage(buildPrompt(deck[i], getState().concept));
+    await applyImage(root, i, blob, 'ai');
+    toast(`${i + 1}번 이미지를 만들었습니다.`);
+  } catch (e) {
+    toast(e.message, 4200);
+  } finally {
+    setBusy(root, false);
+  }
+}
+
+async function generateAll(root) {
+  if (busy) return;
+  setBusy(root, true);
+  let ok = 0;
+  try {
+    for (let i = 0; i < deck.length; i++) {
+      if (!usesImage(getState().concept, deck[i].kind)) continue;
+      try {
+        const blob = await generateImage(buildPrompt(deck[i], getState().concept));
+        await applyImage(root, i, blob, 'ai');
+        ok++;
+      } catch (e) {
+        toast(`${i + 1}번 실패 · ${e.message}`, 4200);
+        break;   // 키·크레딧 문제면 나머지도 실패하므로 멈춘다
+      }
+    }
+  } finally {
+    setBusy(root, false);
+  }
+  if (ok) toast(`${ok}장을 만들었습니다.`);
 }
 
 function refreshNotices(root) {
@@ -686,6 +768,25 @@ async function saveAll(root) {
 }
 
 /* ---------------- 유틸 ---------------- */
+
+/** 클립보드 복사 — 권한이 막힌 환경을 위해 execCommand 폴백을 둔다 */
+async function copyText(text, okMessage) {
+  if (!String(text).trim()) { toast('복사할 내용이 없습니다.'); return; }
+  try {
+    await navigator.clipboard.writeText(text);
+    toast(okMessage);
+  } catch {
+    const tmp = document.createElement('textarea');
+    tmp.value = text;
+    tmp.setAttribute('readonly', '');
+    tmp.style.cssText = 'position:fixed;left:-9999px';
+    document.body.appendChild(tmp);
+    tmp.select();
+    const ok = document.execCommand('copy');
+    tmp.remove();
+    toast(ok ? okMessage : '복사에 실패했습니다. 직접 선택해 복사해 주세요.');
+  }
+}
 
 const esc = (str = '') =>
   String(str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
