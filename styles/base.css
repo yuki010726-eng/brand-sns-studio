@@ -3,6 +3,16 @@
    ============================================================ */
 *, *::before, *::after { box-sizing: border-box; }
 
+/**
+ * hidden 속성이 항상 이긴다.
+ *
+ * 브라우저 기본 스타일의 [hidden]{display:none} 은 우선순위가 가장 낮아서,
+ * 클래스에 display 를 주면 조용히 덮인다. 실제로 `.aibar__form{display:flex}` 때문에
+ * AI 설정 폼이 접히지 않고 617px 를 계속 차지했다 — 접기 버튼은 멀쩡히 동작하는데도.
+ * 개별 선택자로 땜질하면 같은 사고가 다른 곳에서 또 난다.
+ */
+[hidden] { display: none !important; }
+
 html, body { height: 100%; }
 
 body {

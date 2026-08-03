@@ -3,12 +3,14 @@
  * 각 페이지 모듈은 render(root) 를 내보내고, 선택적으로 guard() 로 접근 조건을 정한다.
  */
 import { renderHeader } from './components/header.js';
+import * as ProfilePage from './pages/profile.js';
 import * as HomePage from './pages/home.js';
 import * as CopyPage from './pages/copy.js';
 import * as TemplatePage from './pages/template.js';
 import * as LibraryPage from './pages/library.js';
 
 const ROUTES = {
+  '/profile': ProfilePage,
   '/': HomePage,
   '/copy': CopyPage,
   '/template': TemplatePage,

@@ -24,6 +24,9 @@ const CONCEPT_IDS = CONCEPTS.map((c) => c.id);
 
 /** @type {AppState} */
 const INITIAL = {
+  // 1단계 프로필 세팅 — 게시물이 아니라 **계정** 정보라 resetFlow() 에서 지우지 않는다
+  profile: null,       // { typeId, name, bio, slug, link, imagePrompt }
+  profileSeed: 0,      // 「다시 뽑기」 횟수 — 누를 때마다 다른 조합이 나온다
   productId: null,
   topic: '',
   tone: 'trust',
@@ -48,14 +51,19 @@ const INITIAL = {
 export const draftKeyOf = (s) => `${s.productId}|${s.topic.trim()}|${s.tone}`;
 
 /**
- * 3단계 흐름 정의 — 스테퍼·라우터 가드가 함께 사용.
+ * 4단계 흐름 정의 — 스테퍼·라우터 가드가 함께 사용.
+ *
  * 이미지 제작은 별도 단계였다가 템플릿 안으로 합쳤다.
  * 이미지가 필수가 아닌데 단계로 세워 두니 흐름을 막는 것처럼 보였기 때문이다.
+ *
+ * 프로필 세팅은 2026-08-03에 **맨 앞에** 붙였다. 게시물마다 하는 일이 아니라
+ * 계정을 한 번 세팅하는 단계라서 **건너뛸 수 있다** — reachedStep() 참고.
  */
 export const STEPS = [
-  { n: 1, path: '/',         label: '상품·주제 선택',  icon: 'sparkles' },
-  { n: 2, path: '/copy',     label: '아이디어 문서화', icon: 'fileText' },
-  { n: 3, path: '/template', label: '카드뉴스 템플릿', icon: 'layout' },
+  { n: 1, path: '/profile',  label: '프로필 세팅',     icon: 'sparkles' },
+  { n: 2, path: '/',         label: '상품·주제 선택',  icon: 'sparkles' },
+  { n: 3, path: '/copy',     label: '아이디어 문서화', icon: 'fileText' },
+  { n: 4, path: '/template', label: '카드뉴스 템플릿', icon: 'layout' },
 ];
 
 function load() {
@@ -115,7 +123,9 @@ export function navigate(path) {
 export function reachedStep() {
   // 이미지는 선택 사항이다 — 없으면 템플릿 기본 배경으로 그리므로
   // 글귀만 있으면 템플릿까지 진행할 수 있다.
-  if (Object.keys(state.drafts).length) return 3;
-  if (state.productId && state.topic.trim()) return 2;
-  return 1;
+  if (Object.keys(state.drafts).length) return 4;
+  if (state.productId && state.topic.trim()) return 3;
+  // 프로필 세팅은 계정을 한 번 잡는 단계라 **필수가 아니다.**
+  // 여기서 1을 돌려주면 프로필을 만들기 전에는 상품 선택으로 못 넘어간다.
+  return 2;
 }

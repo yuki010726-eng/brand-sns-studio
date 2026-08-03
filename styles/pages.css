@@ -311,7 +311,8 @@
 }
 .keybar__state.is-on { color: var(--success-text); }
 .keybar__form { margin-top: var(--gap); display: flex; flex-direction: column; gap: var(--gap); }
-.keybar__actions { display: flex; align-items: center; gap: var(--gap-sm); }
+/* 버튼이 셋 이상이면 375px 에서 줄을 넘겨야 한다 — 안 그러면 페이지에 가로 스크롤이 생긴다 */
+.keybar__actions { display: flex; align-items: center; gap: var(--gap-sm); flex-wrap: wrap; }
 
 /* ---- 카드 목록 ---- */
 .shot-head {
@@ -607,3 +608,24 @@
   .notice--info { flex-wrap: wrap; }
   .notice--info .btn { margin-left: 0; width: 100%; }
 }
+
+/* ============================================================
+   1단계 — 프로필 세팅
+   ============================================================ */
+.profile-draft { display: flex; flex-direction: column; gap: var(--gap); padding: 20px; }
+
+/* litt.ly/ 접두사와 입력칸을 한 줄로 붙인다 — 주소 전체가 한눈에 보여야 한다 */
+.inline-field { display: flex; align-items: stretch; }
+.inline-field__prefix {
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-right: 0;
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+  background: var(--bg);
+  color: var(--sub-strong);
+  font-size: 14px;
+  white-space: nowrap;
+}
+.inline-field .input { border-radius: 0 var(--radius-md) var(--radius-md) 0; }
