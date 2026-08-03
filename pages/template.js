@@ -12,11 +12,11 @@
  */
 import { icon } from '../assets/icons.js';
 import { getProduct, BANNED_PHRASES } from '../data/products.js';
-import { CONCEPTS, ACCENTS, MARKS, getConcept } from '../lib/concepts.js';
+import { CONCEPTS, ACCENTS, MARKS, CARD_THEMES, NOTE_SYMBOLS, NOTE_PAPERS, NOTE_GRAINS, getConcept } from '../lib/concepts.js';
 import { slotsFor, defaultsFor, roleOf } from '../lib/templates.js';
 import { stepperHTML, bindStepper } from '../components/stepper.js';
 import { getState, setState, navigate, draftKeyOf } from '../store.js';
-import { buildDeck, DECK_SIZE, TONE_LABEL, findBanned } from '../lib/copywriter.js';
+import { buildDeck, TONE_LABEL, findBanned } from '../lib/copywriter.js';
 import { getImage, putImage, deleteImage, imageKey } from '../lib/imagestore.js';
 import { renderCard, loadImage, cardAlt, downloadCanvas, ensureFonts, W, H } from '../lib/cardrender.js';
 import { buildPrompt, buildPromptSheet } from '../lib/imageprompt.js';
@@ -115,7 +115,7 @@ export function render(root) {
   const p = getProduct(s.productId);
   const concept = getConcept(s.concept);
 
-  deck = buildDeck({ product: p, topic: s.topic.trim(), tone: s.tone, variant: s.image?.variant ?? 0 });
+  deck = buildDeck({ product: p, topic: s.topic.trim(), tone: s.tone, variant: s.image?.variant ?? 0, cardCount: s.cardCount });
   ensureTexts(p);
   if (active >= deck.length) active = 0;
 
@@ -127,7 +127,7 @@ export function render(root) {
         <div class="section__head">
           <h1>템플릿을 고르고 문구를 얹습니다</h1>
           <p class="section__desc">
-            템플릿 3종 중 하나를 고르면 카드 ${DECK_SIZE}장의 문구가 자동으로 채워집니다.
+            템플릿 3종 중 하나를 고르면 카드 ${deck.length}장의 문구가 자동으로 채워집니다.
             오른쪽 입력칸에서 고치면 왼쪽 미리보기에 바로 반영됩니다. 규격은 ${W}×${H}(4:5)입니다.
           </p>
         </div>
@@ -174,8 +174,8 @@ export function render(root) {
                 ${icon('download', 'icon--sm')} 이 카드 저장
               </button>
               <button type="button" class="btn btn--sm" id="save-all"
-                      aria-label="카드 ${DECK_SIZE}장 모두 PNG로 저장하기">
-                ${icon('download', 'icon--sm')} ${DECK_SIZE}장 모두 저장
+                      aria-label="카드 ${deck.length}장 모두 PNG로 저장하기">
+                ${icon('download', 'icon--sm')} ${deck.length}장 모두 저장
               </button>
             </div>
 
@@ -293,6 +293,9 @@ function formHTML() {
     ${slots.map((f) => fieldHTML(f, t[f.id] ?? '', concept.id)).join('')}
 
     ${concept.accentPicker ? accentHTML(s.accent) : ''}
+    ${concept.id === 'note' ? notePaperHTML(s.notePaper, s.noteGrain) : ''}
+    ${concept.id === 'note' ? noteSymbolHTML(s.noteSymbol) : ''}
+    ${concept.id === 'card' ? cardThemeHTML(s.cardTheme) : ''}
     ${concept.id === 'card' ? markHTML(s.mark) : ''}
 
     <div id="tpl-warn">${warnHTML(t)}</div>`;
@@ -332,6 +335,72 @@ function fieldHTML(f, value, conceptId) {
       ${tools}
       <p class="field__hint" id="h-${f.id}">${f.hint}</p>
     </div>`;
+}
+
+/** 노트형 종이 — 색과 결(자글자글) 강도를 따로 고른다 */
+function notePaperHTML(paper, grain) {
+  const swatch = (name, list, current, prefix) => `
+    <fieldset class="accent__swatches" id="${prefix}-swatches">
+      <legend class="sr-only">${name}을 선택하세요</legend>
+      ${list.map((x) => `
+        <div class="accent__item">
+          <input class="sr-only accent__input" type="radio" name="${prefix}" id="${prefix}-${x.id}"
+                 value="${x.id}" autocomplete="off" ${String(x.id) === String(current) ? 'checked' : ''}
+                 aria-label="${name} ${x.name}" />
+          <label class="accent__chip" for="${prefix}-${x.id}">
+            ${x.hex ? `<span class="accent__dot" style="background:${x.hex};border:1px solid #D6D6D4"></span>` : ''}${x.name}
+          </label>
+        </div>`).join('')}
+    </fieldset>`;
+  return `
+    <h3 class="tpl-form__legend">종이 색</h3>
+    ${swatch('종이 색', NOTE_PAPERS, paper || 'white', 'paper')}
+    <h3 class="tpl-form__legend">종이 결</h3>
+    ${swatch('종이 결', NOTE_GRAINS, grain ?? 1, 'grain')}
+    <p class="field__hint">모든 장에 함께 적용됩니다. 결이 강할수록 자글자글해집니다.</p>`;
+}
+
+/**
+ * 노트형 좌상단 심볼 — 레퍼런스의 실험실 아이콘과 같은 결로 여러 개 둔다.
+ * 실제 로고 이미지를 넣으면 그쪽이 우선이고 이 심볼은 그려지지 않는다.
+ */
+function noteSymbolHTML(current) {
+  return `
+    <h3 class="tpl-form__legend">좌상단 심볼</h3>
+    <fieldset class="accent__swatches" id="symbol-swatches">
+      <legend class="sr-only">노트형 좌상단 심볼을 선택하세요</legend>
+      ${NOTE_SYMBOLS.map((x) => `
+        <div class="accent__item">
+          <input class="sr-only accent__input" type="radio" name="notesymbol" id="ns-${x.id}"
+                 value="${x.id}" autocomplete="off" ${x.id === (current || 'flask') ? 'checked' : ''}
+                 aria-label="심볼 ${x.name}" />
+          <label class="accent__chip" for="ns-${x.id}">${x.name}</label>
+        </div>`).join('')}
+    </fieldset>
+    <p class="field__hint">모든 본문 장의 왼쪽 위에 함께 들어갑니다. 이미지를 넣으면 그 이미지가 대신 그려집니다.</p>`;
+}
+
+/**
+ * 카드형 테마 색.
+ * ⚠️ 카드마다 두지 않는다. 한 곳(state.cardTheme)에만 두고 모든 장이 그 값을 본다 —
+ *    요청자 요구가 "한번 바꾸면 나머지 페이지도 다 바뀌도록" 이다.
+ */
+function cardThemeHTML(current) {
+  return `
+    <h3 class="tpl-form__legend">테마 색상</h3>
+    <fieldset class="accent__swatches" id="theme-swatches">
+      <legend class="sr-only">카드 테마 색상을 선택하세요</legend>
+      ${CARD_THEMES.map((c) => `
+        <div class="accent__item">
+          <input class="sr-only accent__input" type="radio" name="cardtheme" id="ct-${c.id}"
+                 value="${c.id}" autocomplete="off" ${c.id === (current || 'blue') ? 'checked' : ''}
+                 aria-label="테마 ${c.name}" />
+          <label class="accent__chip" for="ct-${c.id}">
+            <span class="accent__dot" style="background:${c.hex}"></span>${c.name}
+          </label>
+        </div>`).join('')}
+    </fieldset>
+    <p class="field__hint">모든 장에 함께 적용됩니다. 흰 글씨 대비를 지키는 색만 넣어 뒀습니다.</p>`;
 }
 
 /** 카드형 우상단 마크 — 레퍼런스의 별표 말고도 고를 수 있게 */
@@ -513,6 +582,31 @@ function bindForm(root) {
     paint(root);
   });
 
+  // 테마 색은 모든 장에 걸린다. 상태 한 곳만 바꾸면 나머지 장은 다시 그릴 때 따라온다.
+  root.querySelector('#theme-swatches')?.addEventListener('change', (e) => {
+    if (e.target.name !== 'cardtheme') return;
+    setState({ cardTheme: e.target.value });
+    paint(root);
+  });
+
+  root.querySelector('#symbol-swatches')?.addEventListener('change', (e) => {
+    if (e.target.name !== 'notesymbol') return;
+    setState({ noteSymbol: e.target.value });
+    paint(root);
+  });
+
+  root.querySelector('#paper-swatches')?.addEventListener('change', (e) => {
+    if (e.target.name !== 'paper') return;
+    setState({ notePaper: e.target.value });
+    paint(root);
+  });
+
+  root.querySelector('#grain-swatches')?.addEventListener('change', (e) => {
+    if (e.target.name !== 'grain') return;
+    setState({ noteGrain: Number(e.target.value) });
+    paint(root);
+  });
+
   root.querySelectorAll('[data-insert]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const ta = root.querySelector('#f-body');
@@ -689,7 +783,8 @@ async function loadBitmaps() {
 function opts(s, i) {
   return {
     conceptId: s.concept, kind: deck[i].kind, image: bitmaps[i] || null,
-    accent: s.accent, mark: s.mark,
+    accent: s.accent, cardTheme: s.cardTheme, mark: s.mark,
+    noteSymbol: s.noteSymbol, notePaper: s.notePaper, noteGrain: s.noteGrain,
   };
 }
 

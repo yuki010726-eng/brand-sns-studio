@@ -629,3 +629,31 @@
   white-space: nowrap;
 }
 .inline-field .input { border-radius: 0 var(--radius-md) var(--radius-md) 0; }
+
+/**
+ * 짧은 선택지를 한 줄에 늘어놓는 알약 버튼.
+ * ⚠️ components.css 의 `.chip` 과 이름이 겹치면 안 된다 — 그쪽은 aria-pressed 로 동작하는
+ *    노트형 서식 버튼이다. 그래서 접두사를 따로 뒀다.
+ */
+.pickrow { display: flex; flex-wrap: wrap; gap: 8px; }
+.pick {
+  display: inline-flex;
+  align-items: center;
+  padding: 9px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--dur) var(--ease);
+}
+.pick:hover { border-color: var(--primary); }
+.pick__input:checked + .pick {
+  background: var(--cta-bg);
+  border-color: var(--cta-bg);
+  color: #fff;
+  font-weight: 700;
+}
+.pick__input:focus-visible + .pick { outline: 3px solid var(--primary); outline-offset: 2px; }

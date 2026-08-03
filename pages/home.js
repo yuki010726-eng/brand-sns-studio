@@ -153,6 +153,18 @@ function briefHTML() {
         </div>
 
         <fieldset class="field">
+          <legend class="field__label">카드뉴스 장수</legend>
+          <div class="pickrow" role="radiogroup" aria-label="카드뉴스 장수 선택">
+            ${[1, 2, 3, 4, 5, 6].map((n) => `
+              <input class="sr-only pick__input" type="radio" name="cardcount" id="cc-${n}" value="${n}"
+                     autocomplete="off" aria-label="카드 ${n}장"
+                     ${(getState().cardCount || 6) === n ? 'checked' : ''} />
+              <label class="pick" for="cc-${n}">${n}장</label>`).join('')}
+          </div>
+          <p class="field__hint" id="cc-hint">${cardCountHint(getState().cardCount || 6)}</p>
+        </fieldset>
+
+        <fieldset class="field">
           <legend class="field__label">내보낼 채널</legend>
           <ul class="channel-row">
             ${CHANNELS.map((c) => `
@@ -212,6 +224,15 @@ function bindBrief(root) {
     syncCta(root);
   });
 
+  root.querySelectorAll('input[name="cardcount"]').forEach((el) => {
+    el.addEventListener('change', () => {
+      const n = Number(el.value);
+      setState({ cardCount: n });
+      const hint = root.querySelector('#cc-hint');
+      if (hint) hint.textContent = cardCountHint(n);
+    });
+  });
+
   root.querySelector('#tone-select')?.addEventListener('change', (e) => {
     setState({ tone: e.target.value });
   });
@@ -258,6 +279,22 @@ function bindBrief(root) {
   });
 
   syncCta(root);
+}
+
+/**
+ * 장수를 줄여도 글은 기승전결을 그대로 쓴다. 줄어드는 것은 이미지뿐이다.
+ * 그래서 안내도 '무엇이 빠지는지'가 아니라 '카드가 무엇을 담는지'로 적는다.
+ */
+function cardCountHint(n) {
+  const plan = {
+    1: '표지 한 장에 후킹과 마무리를 함께 얹습니다.',
+    2: '표지 · 마무리',
+    3: '표지 · 본문 1 · 마무리',
+    4: '표지 · 본문 2 · 마무리',
+    5: '표지 · 본문 2 · 반론 · 마무리',
+    6: '표지 · 본문 3 · 반론 · 마무리',
+  }[n] || '';
+  return `${plan} 장수를 줄여도 블로그·인스타 글은 기승전결을 그대로 씁니다. 이미지만 줄어듭니다.`;
 }
 
 function isReady() {

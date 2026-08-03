@@ -94,25 +94,21 @@ export function render(root) {
  */
 function brandHTML(profile) {
   if (profile?.typeId !== 'awards') return '';
+  const current = AWARD_BRANDS.find((b) => b.id === profile.brandId) || AWARD_BRANDS[0];
   return `
     <fieldset class="field" style="margin-top:var(--gap)">
       <legend class="field__label">어느 브랜드인가요?</legend>
-      <ul class="channel-row">
+      <!-- 한 줄짜리 칩으로 둔다. 예전에는 4개가 큰 카드로 세로로 쌓여 화면을 다 먹었다. -->
+      <div class="pickrow">
         ${AWARD_BRANDS.map((b) => `
-          <li>
-            <input class="sr-only channel__input" type="radio" name="pbrand" id="pbrand-${b.id}"
-                   value="${b.id}" autocomplete="off"
-                   aria-label="${escAttr(b.label)} — 주소 litt.ly/${escAttr(b.slug)}"
-                   ${profile.brandId === b.id ? 'checked' : ''} />
-            <label class="channel" for="pbrand-${b.id}">
-              ${icon('award', 'icon--sm')}
-              <span>
-                <strong>${esc(b.label)}</strong>
-                <em>litt.ly/${esc(b.slug)}</em>
-              </span>
-            </label>
-          </li>`).join('')}
-      </ul>
+          <input class="sr-only pick__input" type="radio" name="pbrand" id="pbrand-${b.id}"
+                 value="${b.id}" autocomplete="off"
+                 aria-label="${escAttr(b.label)} — 주소 litt.ly/${escAttr(b.slug)}"
+                 ${profile.brandId === b.id ? 'checked' : ''} />
+          <label class="pick" for="pbrand-${b.id}" title="litt.ly/${escAttr(b.slug)}">${esc(b.short)}</label>
+        `).join('')}
+      </div>
+      <p class="field__hint">${esc(current.label)} · litt.ly/${esc(current.slug)}</p>
     </fieldset>`;
 }
 

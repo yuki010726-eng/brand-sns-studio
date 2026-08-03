@@ -31,6 +31,7 @@ const INITIAL = {
   topic: '',
   tone: 'trust',
   channels: ['blog', 'instagram', 'threads'],
+  cardCount: 6,        // 카드뉴스 장수 1~6 — API 비용을 줄이려고 요청자가 고르게 했다
   drafts: {},
   generated: {},
   variants: {},        // 채널별 재생성 횟수 — 누를 때마다 다른 후킹·근거 조합이 나온다
@@ -41,6 +42,10 @@ const INITIAL = {
   concept: 'magazine', // 카드뉴스 템플릿 id (lib/concepts.js)
   accent: '#B9F73E',   // 매거진형 강조 색상 (lib/concepts.js 의 DEFAULT_ACCENT)
   mark: 'asterisk',    // 카드형 우상단 마크 (lib/concepts.js 의 MARKS)
+  cardTheme: 'blue',   // 카드형 테마 색 — 한 곳에만 둔다. 바꾸면 모든 장이 함께 바뀐다.
+  noteSymbol: 'flask', // 노트형 좌상단 실험실 심볼 (lib/concepts.js 의 NOTE_SYMBOLS)
+  notePaper: 'white',  // 노트형 종이 색
+  noteGrain: 1,        // 종이 결(자글자글) 강도 0~3
   image: null,         // { variant, at } — 카드 문구 조합
   images: {},          // { [카드번호]: { source:'ai'|'upload', at } } · 실제 Blob 은 IndexedDB
   card: null,
@@ -48,7 +53,7 @@ const INITIAL = {
 };
 
 /** 현재 입력 조합의 지문 — 상품·주제·톤이 바뀌면 초안이 낡았다고 판단한다 */
-export const draftKeyOf = (s) => `${s.productId}|${s.topic.trim()}|${s.tone}`;
+export const draftKeyOf = (s) => `${s.productId}|${s.topic.trim()}|${s.tone}|${s.cardCount}`;
 
 /**
  * 4단계 흐름 정의 — 스테퍼·라우터 가드가 함께 사용.

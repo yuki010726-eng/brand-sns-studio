@@ -552,7 +552,7 @@ function autoGrow(ta) {
 
 function ctx(variant) {
   const s = getState();
-  return { product: getProduct(s.productId), topic: s.topic.trim(), tone: s.tone, variant };
+  return { product: getProduct(s.productId), topic: s.topic.trim(), tone: s.tone, variant, cardCount: s.cardCount };
 }
 
 /**
