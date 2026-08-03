@@ -4,6 +4,7 @@
  */
 
 import { CONCEPTS } from './lib/concepts.js';
+import { scheduleSync, isApplying } from './lib/sync.js';
 
 const KEY = 'bboggl.sns-studio.v1';
 const CONCEPT_IDS = CONCEPTS.map((c) => c.id);
@@ -103,6 +104,12 @@ export function setState(patch) {
     /* 용량 초과 등은 무시 — 화면 동작은 유지 */
   }
   listeners.forEach((fn) => fn(state));
+
+  /**
+   * 로그인돼 있으면 서버에도 올린다. 로그인 전이거나 서버 내용을 받아 얹는 중이면 아무 일도 안 한다.
+   * 타이핑 한 글자마다 올라가지 않도록 sync 쪽에서 모아 보낸다.
+   */
+  if (!isApplying()) scheduleSync(state);
 }
 
 /** @param {(s: AppState) => void} fn @returns {() => void} 구독 해제 */

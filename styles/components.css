@@ -329,3 +329,35 @@
   .nav__link { padding: 8px 10px; font-size: 13px; }
   .card { padding: 18px; border-radius: var(--radius-md); }
 }
+
+/* ---------- 로그인 (헤더 우측) ---------- */
+.authbox { display: flex; align-items: center; margin-left: auto; }
+.authbox__user { display: flex; align-items: center; gap: 8px; }
+.authbox__avatar {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--bg);
+  flex-shrink: 0;
+}
+.authbox__avatar--text {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--cta-bg);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+}
+/* 긴 이름이 헤더를 밀지 않도록 자른다 */
+.authbox__name {
+  font-size: 13px;
+  color: var(--text);
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 560px) {
+  .authbox__name { display: none; }
+}
