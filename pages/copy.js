@@ -6,7 +6,7 @@ import { icon } from '../assets/icons.js';
 import { CHANNELS, BANNED_PHRASES, getProduct } from '../data/products.js';
 import { stepperHTML, bindStepper } from '../components/stepper.js';
 import { getState, setState, navigate, draftKeyOf } from '../store.js';
-import { generate, findBanned, TONE_LABEL } from '../lib/copywriter.js';
+import { generate, findBanned, TONE_LABEL, IMAGE_PLAN } from '../lib/copywriter.js';
 import { generateWithAI } from '../lib/copyai.js';
 import {
   PROVIDERS, getProvider, setProvider, currentProvider,
@@ -300,6 +300,7 @@ function panelHTML() {
                 spellcheck="false" autocomplete="off"
                 aria-describedby="limit-${c.id}">${esc(text)}</textarea>
       <p class="field__hint" id="limit-${c.id}">${c.limitLabel} · 내용은 자동 저장됩니다.</p>
+      <p class="field__hint">🖼 ${esc(IMAGE_PLAN[c.id] || '')} 카드는 3단계에서 한 벌만 만들어 세 채널에 나눠 씁니다.</p>
 
       <div id="warn-slot">${warnHTML(banned, over, c)}</div>
     </div>`;
@@ -557,28 +558,30 @@ function ctx(variant) {
   return { product: getProduct(s.productId), topic: s.topic.trim(), tone: s.tone, variant };
 }
 
-/** 재생성할 때마다 variant 가 올라가 다른 후킹·근거 조합이 나온다 */
+/**
+ * ⚠️ 한 채널만 다시 뽑지 않는다. **세 채널을 항상 함께 뽑는다.**
+ *
+ * 세 채널은 같은 내용을 말해야 한다(요청자 요구). 내용을 정하는 것은 variant 하나이므로,
+ * 한 채널만 variant 를 올리면 그 채널만 다른 사실을 다루게 되어 통일이 깨진다.
+ * 그래서 채널별 「다시 쓰기」도 전체 재생성으로 넘긴다.
+ */
 function regenerateOne(id, { advance = true } = {}) {
-  const s = getState();
-  const variant = (s.variants[id] ?? -1) + (advance ? 1 : 0);
-  const text = generate(id, ctx(Math.max(variant, 0)));
-  setState({
-    drafts: { ...s.drafts, [id]: text },
-    generated: { ...s.generated, [id]: text },
-    variants: { ...s.variants, [id]: Math.max(variant, 0) },
-    sources: { ...s.sources, [id]: 'rule' },
-    draftKey: draftKeyOf(s),
-  });
+  regenerateAll({ advance });
 }
 
-function regenerateAll() {
+/** 재생성할 때마다 variant 가 올라가 다른 후킹·근거 조합이 나온다 (세 채널 동시에) */
+function regenerateAll({ advance = true } = {}) {
   const s = getState();
+  // 채널마다 따로 두지 않고 하나의 값을 공유한다 — 이게 내용 통일의 조건이다
+  const variant = Math.max(...s.channels.map((id) => s.variants[id] ?? -1), -1) + (advance ? 1 : 0);
+  const shared = Math.max(variant, 0);
+
   const drafts = {};
   const variants = { ...s.variants };
   const sources = { ...s.sources };
   s.channels.forEach((id) => {
-    variants[id] = (s.variants[id] ?? -1) + 1;
-    drafts[id] = generate(id, ctx(variants[id]));
+    variants[id] = shared;
+    drafts[id] = generate(id, ctx(shared));
     sources[id] = 'rule';
   });
   setState({ drafts, generated: { ...drafts }, variants, sources, draftKey: draftKeyOf(s) });

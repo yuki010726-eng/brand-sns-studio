@@ -459,8 +459,10 @@ export const BANNED_PHRASES = [
 export const CHANNELS = [
   // 블로그는 '정확한 정보를 지루하지 않게' 전달하는 채널이라 분량이 필요하다.
   // 요약·근거·이미지 자리까지 넣으면 1,400자로는 모자라 요청자 요구(내용 보강)와 충돌했다.
-  { id: 'blog', name: '블로그', icon: 'blog', hint: '검색 유입 중심 · 1,500~2,000자 · 소제목 + 이미지 자리 표시',
-    limit: 2600, limitLabel: '권장 1,500~2,000자' },
+  // 레퍼런스 3편 실측이 본문 2,011 / 2,343 / 2,077자였다. 여기에 이미지 캡션 6줄과
+  // 개요표가 더 붙으므로 상한을 3,000자로 둔다.
+  { id: 'blog', name: '블로그', icon: 'blog', hint: '검색 유입 중심 · 1,800~2,400자 · \'~다\' 평서형 + 이미지 6장 + 캡션',
+    limit: 3000, limitLabel: '권장 1,800~2,400자' },
   { id: 'instagram', name: '인스타그램', icon: 'instagram', hint: '첫 두 줄 후킹 · 해시태그 · 카드뉴스 연계',
     limit: 2200, limitLabel: '캡션 최대 2,200자' },
   { id: 'threads', name: '쓰레드', icon: 'thread', hint: '짧은 대화체 · 500자 제한 · 질문형 마무리',
