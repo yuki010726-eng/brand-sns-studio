@@ -57,13 +57,12 @@ export function render(root) {
             <a class="btn btn--ghost btn--sm" href="#/" aria-label="상품과 주제를 다시 선택하기">
               ${icon('arrowLeft', 'icon--sm')} 조건 수정
             </a>
-            <button type="button" class="btn btn--soft btn--sm" id="regen-all"
-                    aria-label="규칙 기반으로 모든 채널 글귀를 새로 생성하기">
-              ${icon('refresh', 'icon--sm')} 전체 재생성
-            </button>
-            <button type="button" class="btn btn--sm" id="ai-all"
-                    aria-label="AI로 모든 채널 글귀를 새로 쓰기" ${hasKey() ? '' : 'disabled'}>
-              ${icon('sparkles', 'icon--sm')} 전체 AI로 쓰기
+            <!-- 버튼은 하나다. 키가 있으면 AI 로, 없으면 규칙 기반으로 다시 쓴다.
+                 예전엔 「전체 재생성」(규칙 기반)과 「전체 AI로 쓰기」가 나란히 있어 헷갈렸다. -->
+            <button type="button" class="btn btn--sm" id="regen-all"
+                    aria-label="${hasKey() ? 'AI로 모든 채널 글귀를 새로 쓰기' : '모든 채널 글귀를 새로 생성하기'}">
+              ${icon(hasKey() ? 'sparkles' : 'refresh', 'icon--sm')}
+              ${hasKey() ? '전체 다시 쓰기 (AI)' : '전체 재생성'}
             </button>
           </div>
         </div>
@@ -105,20 +104,22 @@ export function render(root) {
   bindPanel(root);
   bindAibar(root);
 
-  root.querySelector('#ai-all')?.addEventListener('click', () => {
-    if (hasEdits() && !confirm('편집한 내용이 있습니다. 모두 AI 글로 덮어쓸까요?')) return;
-    aiAll(root);
-  });
-
-  // 키가 있으면 들어오자마자 AI가 쓴다.
-  // 버튼을 눌러야만 돌던 때는 그냥 들어온 사람이 규칙 기반 글만 보고 나갔다.
+  /**
+   * 키가 있으면 **항상 AI 로 쓴다** (요청자 지시 2026-08-03).
+   * 규칙 기반은 키가 없거나 AI 가 검수를 통과 못 했을 때만 남는 최후 수단이다.
+   *
+   * 같은 조건(상품·주제·톤)으로 다시 들어오면 부르지 않는다. 이미 AI 글이 있는데
+   * 또 부르면 할당량만 쓰고 결과는 그대로다.
+   */
   const st = getState();
-  if (st.autoAI !== false && hasKey() && st.aiKey !== draftKeyOf(st) && !hasEdits()) {
+  if (hasKey() && st.aiKey !== draftKeyOf(st) && !hasEdits()) {
     queueMicrotask(() => aiAll(root, { auto: true }));
   }
 
   root.querySelector('#regen-all')?.addEventListener('click', () => {
-    if (hasEdits() && !confirm('편집한 내용이 있습니다. 모두 새 글귀로 덮어쓸까요?')) return;
+    const useAI = hasKey();
+    if (hasEdits() && !confirm(`편집한 내용이 있습니다. 모두 ${useAI ? 'AI 글' : '새 글귀'}로 덮어쓸까요?`)) return;
+    if (useAI) { aiAll(root); return; }
     regenerateAll();
     refreshPanel(root);
     refreshStale(root);
@@ -189,15 +190,14 @@ function aibarHTML() {
         <p class="field__hint">${esc(MODELS().find((m) => m.id === getModel())?.note || '')}</p>
       </div>
 
-      <label class="channel" for="ai-auto" style="cursor:pointer">
-        <input type="checkbox" id="ai-auto" autocomplete="off"
-               ${getState().autoAI !== false ? 'checked' : ''}
-               aria-label="이 화면에 들어오면 자동으로 AI가 쓰게 하기" />
-        <span>
-          <strong>들어오면 자동으로 AI가 쓰기</strong>
-          <em>끄면 「AI로 쓰기」를 눌렀을 때만 실행됩니다.</em>
-        </span>
-      </label>
+      <div class="notice notice--info" role="note">
+        <span class="notice__icon" aria-hidden="true">${icon('sparkles', 'icon--sm')}</span>
+        <div>
+          <strong>키가 있으면 항상 AI가 씁니다</strong>
+          <p>이 화면에 들어오면 세 채널을 자동으로 다시 씁니다.
+             같은 상품·주제·톤으로 다시 들어올 때는 부르지 않습니다.</p>
+        </div>
+      </div>
 
       <div class="keybar__actions">
         <button type="button" class="btn btn--sm" id="ai-save" aria-label="AI 설정 저장하기">저장</button>
@@ -211,7 +211,7 @@ function refreshAibar(root) {
   if (!bar) return;
   bar.innerHTML = aibarHTML();
   bindAibar(root);
-  root.querySelectorAll('#ai-all, [data-ai]').forEach((b) => { b.disabled = !hasKey(); });
+  root.querySelectorAll('[data-ai]').forEach((b) => { b.disabled = !hasKey(); });
 }
 
 function bindAibar(root) {
@@ -233,11 +233,6 @@ function bindAibar(root) {
   });
 
   root.querySelector('#ai-model')?.addEventListener('change', (e) => setModel(e.target.value));
-
-  root.querySelector('#ai-auto')?.addEventListener('change', (e) => {
-    setState({ autoAI: e.target.checked });
-    toast(e.target.checked ? '들어올 때 자동으로 AI가 씁니다.' : '자동 실행을 껐습니다.');
-  });
 
   root.querySelector('#ai-save')?.addEventListener('click', () => {
     const input = root.querySelector('#ai-key');
@@ -447,7 +442,9 @@ let aiBusy = false;
 
 function setAiBusy(root, on, label) {
   aiBusy = on;
-  root.querySelectorAll('#ai-all, [data-ai]').forEach((b) => { b.disabled = on || !hasKey(); });
+  root.querySelectorAll('[data-ai]').forEach((b) => { b.disabled = on || !hasKey(); });
+  const regen = root.querySelector('#regen-all');
+  if (regen) regen.disabled = on;
   const btn = root.querySelector('[data-ai]');
   if (btn && label) btn.innerHTML = on ? `<span class="spinner" aria-hidden="true"></span> ${label}` : btn.innerHTML;
 }

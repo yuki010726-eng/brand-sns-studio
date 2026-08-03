@@ -35,7 +35,7 @@ const INITIAL = {
   generated: {},
   variants: {},        // 채널별 재생성 횟수 — 누를 때마다 다른 후킹·근거 조합이 나온다
   sources: {},         // 채널별 생성 방식 { [채널]: 'rule' | 'ai' } — 화면에 표시만 한다
-  autoAI: true,        // 키가 있으면 2단계 진입 시 자동으로 AI가 쓴다
+  // autoAI 토글은 없앴다(2026-08-03). 키가 있으면 항상 AI 가 쓴다 — 요청자 지시.
   aiKey: '',           // AI가 마지막으로 쓴 시점의 상품·주제·톤 조합 (자동 재실행 방지)
   draftKey: '',
   concept: 'magazine', // 카드뉴스 템플릿 id (lib/concepts.js)
