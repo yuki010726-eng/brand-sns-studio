@@ -12,7 +12,7 @@
  */
 import { icon } from '../assets/icons.js';
 import { getProduct, BANNED_PHRASES } from '../data/products.js';
-import { CONCEPTS, ACCENTS, MARKS, CARD_THEMES, NOTE_SYMBOLS, NOTE_PAPERS, NOTE_GRAINS, getConcept } from '../lib/concepts.js';
+import { CONCEPTS, ACCENTS, MARKS, CARD_THEMES, NOTE_SYMBOLS, NOTE_PAPERS, DEFAULT_NOTE_GRAIN, getConcept } from '../lib/concepts.js';
 import { slotsFor, defaultsFor, roleOf } from '../lib/templates.js';
 import { stepperHTML, bindStepper } from '../components/stepper.js';
 import { getState, setState, navigate, draftKeyOf } from '../store.js';
@@ -262,7 +262,7 @@ function imagePanelSlot() {
     total: deck.length,
     hasImage: Boolean(s.images[active]),
     source: s.images[active]?.source || null,
-    prompt: buildPrompt(deck[active], s.concept),
+    prompt: promptFor(active),
     label: info.label,
     disabled: !usesImage(s.concept, deck[active].kind),
     busy,
@@ -352,12 +352,22 @@ function notePaperHTML(paper, grain) {
           </label>
         </div>`).join('')}
     </fieldset>`;
+  // 결은 눈으로 맞추는 값이라 단계로 끊지 않고 슬라이더로 둔다 (요청자 요구)
+  const g = Number.isFinite(Number(grain)) ? Number(grain) : DEFAULT_NOTE_GRAIN;
+  const level = Number.isInteger(g) && g <= 3 ? [0, 25, 55, 85][g] : g;
   return `
     <h3 class="tpl-form__legend">종이 색</h3>
     ${swatch('종이 색', NOTE_PAPERS, paper || 'white', 'paper')}
     <h3 class="tpl-form__legend">종이 결</h3>
-    ${swatch('종이 결', NOTE_GRAINS, grain ?? 1, 'grain')}
-    <p class="field__hint">모든 장에 함께 적용됩니다. 결이 강할수록 자글자글해집니다.</p>`;
+    <div class="grain">
+      <input class="grain__range" type="range" id="grain-range" min="0" max="100" step="5"
+             value="${level}" autocomplete="off"
+             aria-label="종이 결 강도" aria-describedby="grain-hint" />
+      <output class="grain__value" id="grain-value" for="grain-range">${level}</output>
+    </div>
+    <p class="field__hint" id="grain-hint">
+      0이면 매끈한 단색, 올릴수록 섬유가 살아나 바스락거리는 종이가 됩니다. 모든 장에 함께 적용됩니다.
+    </p>`;
 }
 
 /**
@@ -366,7 +376,7 @@ function notePaperHTML(paper, grain) {
  */
 function noteSymbolHTML(current) {
   return `
-    <h3 class="tpl-form__legend">좌상단 심볼</h3>
+    <h3 class="tpl-form__legend">좌상단 심볼 (본문·마무리)</h3>
     <fieldset class="accent__swatches" id="symbol-swatches">
       <legend class="sr-only">노트형 좌상단 심볼을 선택하세요</legend>
       ${NOTE_SYMBOLS.map((x) => `
@@ -601,10 +611,13 @@ function bindForm(root) {
     paint(root);
   });
 
-  root.querySelector('#grain-swatches')?.addEventListener('change', (e) => {
-    if (e.target.name !== 'grain') return;
-    setState({ noteGrain: Number(e.target.value) });
-    paint(root);
+  // 슬라이더는 끄는 동안 계속 그리면 무거워서 캔버스만 모아 그린다
+  root.querySelector('#grain-range')?.addEventListener('input', (e) => {
+    const v = Number(e.target.value);
+    setState({ noteGrain: v });
+    const out = root.querySelector('#grain-value');
+    if (out) out.textContent = String(v);
+    schedulePaint(root);
   });
 
   root.querySelectorAll('[data-insert]').forEach((btn) => {
@@ -668,8 +681,8 @@ function bindImagePanelHere(root) {
     onGenerateAll: () => generateAll(root),
     onUpload: (file) => putUploaded(root, file),
     onDelete: () => removeImage(root),
-    onCopy: () => copyText(buildPrompt(deck[active], getState().concept), `${active + 1}번 프롬프트를 복사했습니다.`),
-    onCopyAll: () => copyText(buildPromptSheet(deck, getState().concept), '프롬프트를 모두 복사했습니다.'),
+    onCopy: () => copyText(promptFor(active), `${active + 1}번 프롬프트를 복사했습니다.`),
+    onCopyAll: () => copyText(buildPromptSheet(deck, getState().concept, allTitles()), '프롬프트를 모두 복사했습니다.'),
     onKeyChange: (ok, message) => {
       toast(message);
       if (ok === null) return;                 // 입력값이 비었을 뿐이면 화면을 건드리지 않는다
@@ -726,7 +739,7 @@ async function generateOne(root, i) {
   if (busy) { toast('이미 생성 중입니다.'); return; }
   setBusy(root, true);
   try {
-    const blob = await generateImage(buildPrompt(deck[i], getState().concept));
+    const blob = await generateImage(promptFor(i));
     await applyImage(root, i, blob, 'ai');
     toast(`${i + 1}번 이미지를 만들었습니다.`);
   } catch (e) {
@@ -744,7 +757,7 @@ async function generateAll(root) {
     for (let i = 0; i < deck.length; i++) {
       if (!usesImage(getState().concept, deck[i].kind)) continue;
       try {
-        const blob = await generateImage(buildPrompt(deck[i], getState().concept));
+        const blob = await generateImage(promptFor(i));
         await applyImage(root, i, blob, 'ai');
         ok++;
       } catch (e) {
@@ -779,6 +792,20 @@ async function loadBitmaps() {
     if (blob) bitmaps[i] = await loadImage(blob).catch(() => null);
   }
 }
+
+/**
+ * 그림 프롬프트 — 지금 화면에 보이는 **대주제**를 함께 넘긴다.
+ * 노트형은 그 주제를 아이콘으로 그리므로 제목이 빠지면 엉뚱한 그림이 나온다.
+ */
+const promptFor = (i) => {
+  const s = getState();
+  return buildPrompt(deck[i], s.concept, { title: s.card?.texts?.[i]?.title || deck[i].title });
+};
+
+const allTitles = () => {
+  const s = getState();
+  return deck.map((c, i) => s.card?.texts?.[i]?.title || c.title);
+};
 
 function opts(s, i) {
   return {

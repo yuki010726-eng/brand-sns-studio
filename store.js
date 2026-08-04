@@ -44,9 +44,9 @@ const INITIAL = {
   accent: '#B9F73E',   // 매거진형 강조 색상 (lib/concepts.js 의 DEFAULT_ACCENT)
   mark: 'asterisk',    // 카드형 우상단 마크 (lib/concepts.js 의 MARKS)
   cardTheme: 'blue',   // 카드형 테마 색 — 한 곳에만 둔다. 바꾸면 모든 장이 함께 바뀐다.
-  noteSymbol: 'flask', // 노트형 좌상단 실험실 심볼 (lib/concepts.js 의 NOTE_SYMBOLS)
+  noteSymbol: 'flask',  // 노트형 좌상단 실험실 심볼 (lib/concepts.js 의 NOTE_SYMBOLS)
   notePaper: 'white',  // 노트형 종이 색
-  noteGrain: 1,        // 종이 결(자글자글) 강도 0~3
+  noteGrain: 35,       // 종이 결 강도 0~100 (예전 0~3 값은 getNoteGrain 이 올려 준다)
   image: null,         // { variant, at } — 카드 문구 조합
   images: {},          // { [카드번호]: { source:'ai'|'upload', at } } · 실제 Blob 은 IndexedDB
   card: null,

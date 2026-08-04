@@ -558,6 +558,19 @@
 .imgpanel__key { display: flex; flex-direction: column; gap: var(--gap); }
 .imgpanel__all { align-self: flex-start; }
 
+/* ---- 종이 결 강도 슬라이더 ---- */
+.grain { display: flex; align-items: center; gap: var(--gap); }
+.grain__range { flex: 1; min-width: 0; accent-color: var(--cta-bg); cursor: pointer; }
+.grain__range:focus-visible { outline: 3px solid var(--primary); outline-offset: 3px; }
+.grain__value {
+  min-width: 3.2em;
+  text-align: right;
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--sub-strong);
+}
+
 /* ---- 노트형 본문 서식 넣기 ---- */
 .tpl-inserts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
 .tpl-insert {
