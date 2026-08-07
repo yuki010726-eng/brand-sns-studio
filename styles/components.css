@@ -317,6 +317,43 @@
   to   { opacity: 1; transform: none; }
 }
 
+/* ---------- 안내 모달 ---------- */
+.message-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+.message-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(25, 31, 40, .55);
+}
+.message-modal__dialog {
+  position: relative;
+  width: min(100%, 420px);
+  padding: 30px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  text-align: center;
+  animation: modal-in .2s var(--ease);
+}
+.message-modal__dialog h2 { color: #191F28; }
+.message-modal__dialog p {
+  margin-top: 12px;
+  color: var(--sub-strong);
+  line-height: 1.7;
+  word-break: keep-all;
+}
+.message-modal__button { width: 100%; margin-top: 24px; }
+@keyframes modal-in {
+  from { opacity: 0; transform: translateY(8px) scale(.98); }
+  to { opacity: 1; transform: none; }
+}
+
 /* ---------- 빈 상태 ---------- */
 .empty {
   text-align: center;

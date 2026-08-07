@@ -3,7 +3,7 @@
  * 각 페이지 모듈은 render(root) 를 내보내고, 선택적으로 guard() 로 접근 조건을 정한다.
  */
 import { renderHeader } from './components/header.js';
-import { initAuth, onAuth } from './lib/auth.js';
+import { initAuth, onAuth, getUser } from './lib/auth.js';
 import { pull, applyRemote } from './lib/sync.js';
 import { setState } from './store.js';
 import { toast } from './components/toast.js';
@@ -12,14 +12,20 @@ import * as HomePage from './pages/home.js';
 import * as CopyPage from './pages/copy.js';
 import * as TemplatePage from './pages/template.js';
 import * as LibraryPage from './pages/library.js';
+import * as LoginPage from './pages/login.js';
 
 const ROUTES = {
+  '/login': LoginPage,
   '/profile': ProfilePage,
   '/': HomePage,
   '/copy': CopyPage,
   '/template': TemplatePage,
   '/library': LibraryPage,
 };
+
+const LOGIN_PATH = '/login';
+const RETURN_PATH_KEY = 'auth:return-path';
+let authReady = false;
 
 /** 없어진 경로 → 현재 경로. 이미지 제작 단계는 템플릿 안으로 합쳤다. */
 const MOVED = { '/image': '/template' };
@@ -40,6 +46,25 @@ function route() {
   const path = currentPath();
   const page = ROUTES[path];
 
+  // 인증 확인 전에는 보호된 화면을 잠깐이라도 노출하지 않는다.
+  if (!authReady) return;
+
+  const user = getUser();
+  const hasAccess = user?.status === 'approved';
+  if (!hasAccess && path !== LOGIN_PATH) {
+    sessionStorage.setItem(RETURN_PATH_KEY, path);
+    location.replace(`#${LOGIN_PATH}`);
+    return;
+  }
+
+  if (hasAccess && path === LOGIN_PATH) {
+    const savedPath = sessionStorage.getItem(RETURN_PATH_KEY);
+    sessionStorage.removeItem(RETURN_PATH_KEY);
+    const destination = savedPath && ROUTES[savedPath] && savedPath !== LOGIN_PATH ? savedPath : '/';
+    location.replace(`#${destination}`);
+    return;
+  }
+
   // 접근 조건 확인 — 조건 미달이면 지정한 경로로 되돌린다
   const redirect = page.guard?.();
   if (redirect) {
@@ -47,7 +72,13 @@ function route() {
     return;
   }
 
-  renderHeader(headerRoot, path);
+  if (path === LOGIN_PATH) {
+    headerRoot.innerHTML = '';
+    document.body.classList.add('is-login-page');
+  } else {
+    document.body.classList.remove('is-login-page');
+    renderHeader(headerRoot, path);
+  }
   mainRoot.innerHTML = '';
   page.render(mainRoot);
 
@@ -68,7 +99,9 @@ function route() {
 let restored = false;
 
 onAuth((user) => {
-  if (!user) { restored = false; return; }
+  if (!authReady) return;
+  route();
+  if (user?.status !== 'approved') { restored = false; return; }
   if (restored) return;
   restored = true;
 
@@ -84,8 +117,9 @@ window.addEventListener('hashchange', route);
 
 // 해시가 없으면 기본 경로를 채워 넣고 시작
 if (!location.hash) location.replace('#/');
-route();
 
-// 화면을 그린 뒤에 조용히 로그인 상태를 복구한다.
-// 먼저 기다렸다가 그리면, 설정이 없거나 네트워크가 막힌 환경에서 흰 화면이 뜬다.
-initAuth();
+// 인증 상태 확인이 끝난 뒤 로그인 또는 보호된 화면을 그린다.
+initAuth().finally(() => {
+  authReady = true;
+  route();
+});

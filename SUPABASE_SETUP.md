@@ -1,4 +1,4 @@
-# 구글 로그인 · 기기 간 이어서 작업 — 설치 안내
+# 이메일 로그인 · 관리자 승인 · 기기 간 이어서 작업 — 설치 안내
 
 작업 내용을 계정에 붙여 두고 **집 PC 에서 쓴 걸 회사 PC 에서 이어서** 보기 위한 설정이다.
 전부 무료이고, 한 번만 하면 된다. **10분** 정도 걸린다.
@@ -40,17 +40,16 @@ create policy "본인 줄만 수정" on public.studio_state
   for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
 ```
 
-## 3. 구글 로그인 켜기
+## 3. 이메일 로그인 설정
 
-**Authentication → Sign In / Providers → Google** 을 켠다.
+**Authentication → Sign In / Providers → Email** 에서 이메일 로그인을 켠다.
 
-거기 적힌 **Callback URL** 을 복사해서 구글 쪽에 등록해야 한다.
+관리자 승인은 `public.users.status`로 별도 관리하므로 **Confirm email은 끈다.** 그러면 신규
+가입자는 이메일 링크 확인 없이 Auth 로그인이 가능하고, 앱은 `status = 'approved'`인 경우에만
+접근을 허용한다.
 
-1. <https://console.cloud.google.com> → 프로젝트 만들기
-2. **API 및 서비스 → OAuth 동의 화면** — 외부, 앱 이름만 넣고 저장
-3. **사용자 인증 정보 → 사용자 인증 정보 만들기 → OAuth 클라이언트 ID → 웹 애플리케이션**
-4. **승인된 리디렉션 URI** 에 2번에서 복사한 Supabase Callback URL 을 붙여넣는다
-5. 발급된 **클라이언트 ID / 보안 비밀** 을 Supabase 의 Google 설정에 넣고 저장
+이미 Confirm email이 켜진 상태에서 가입한 사용자는 **Authentication → Users**에서 해당 사용자의
+이메일을 한 번 Confirm 처리해야 한다. 이메일 미확인과 관리자 승인 대기는 서로 다른 상태다.
 
 ## 4. 돌아올 주소 등록
 
@@ -85,7 +84,7 @@ export const SUPABASE = {
 
 ## 어떻게 동작하나
 
-- 오른쪽 위 **「구글 로그인」** 을 누르면 구글 화면으로 갔다가 돌아온다
+- 아이디와 비밀번호로 로그인하며, 관리자가 `public.users.status`를 `approved`로 바꾼 계정만 접근한다
 - 로그인하면 **서버에 저장된 작업을 한 번 불러온다** ("다른 기기에서 저장한 작업을 불러왔습니다")
 - 이후 상태가 바뀔 때마다 **1.5초 모아서 자동 저장**한다 (타이핑 한 글자마다 올리지 않는다)
 - 로그아웃해도 **이 기기에 저장된 내용은 그대로** 남는다

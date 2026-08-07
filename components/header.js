@@ -1,7 +1,6 @@
-/** 상단 GNB — 브랜드 로고 + 주요 이동 링크 + 구글 로그인 */
+/** 상단 GNB — 브랜드 로고 + 주요 이동 링크 + 계정 정보 */
 import { icon } from '../assets/icons.js';
-import { isConfigured } from '../lib/supabase.js';
-import { onAuth, signInWithGoogle, signOut, getUser } from '../lib/auth.js';
+import { onAuth, signOut, getUser, usernameOf } from '../lib/auth.js';
 import { toast } from './toast.js';
 
 const NAV = [
@@ -54,15 +53,7 @@ export function renderHeader(root, currentPath) {
  *    고장 난 것처럼 보인다. 로그인은 없어도 앱이 완전히 동작한다.
  */
 function authHTML(user) {
-  if (!isConfigured()) return '';
-
-  if (!user) {
-    return `
-      <button type="button" class="btn btn--ghost btn--sm" id="auth-in"
-              aria-label="구글 계정으로 로그인">
-        ${icon('sparkles', 'icon--sm')} 구글 로그인
-      </button>`;
-  }
+  if (!user) return '';
 
   const initial = (user.name || '?').trim().charAt(0);
   return `
@@ -70,18 +61,13 @@ function authHTML(user) {
       ${user.avatar
         ? `<img class="authbox__avatar" src="${esc(user.avatar)}" alt="" referrerpolicy="no-referrer" />`
         : `<span class="authbox__avatar authbox__avatar--text" aria-hidden="true">${esc(initial)}</span>`}
-      <span class="authbox__name" title="${esc(user.email)}">${esc(user.name)}</span>
+      <span class="authbox__name" title="${esc(usernameOf(user.email))}">${esc(user.name)}</span>
       <button type="button" class="btn btn--text btn--sm" id="auth-out"
               aria-label="로그아웃">로그아웃</button>
     </div>`;
 }
 
 function bindAuth(root) {
-  root.querySelector('#auth-in')?.addEventListener('click', async () => {
-    const { error } = await signInWithGoogle();
-    if (error) toast(`로그인을 시작하지 못했습니다 — ${error}`, 5000);
-  });
-
   root.querySelector('#auth-out')?.addEventListener('click', async () => {
     await signOut();
     toast('로그아웃했습니다. 이 기기에 저장된 내용은 그대로 있습니다.');
