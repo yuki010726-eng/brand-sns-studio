@@ -116,9 +116,12 @@ lib/imagegen.js       이미지 생성 제공자 선택 (화면은 이 파일만
 lib/gemini.js         Gemini(Nano Banana) 호출 — 4:5 그대로 지원
 lib/openai.js         OpenAI 호출 — 1024x1536 을 받아 잘라 씀
 lib/librarystore.js   보관함 저장·불러오기·삭제 (썸네일은 IndexedDB)
+lib/serverapi.js      서버 프록시 클라이언트 + 서버/로컬 모드 판정
 components/           header · stepper · product-card · toast · imagepanel · modal
 pages/                login · profile · home · copy · template · library
 tools/bench.html      모델 비교 — 검수 통과율과 실제 비용을 재는 개발용 도구
+api/                  서버 함수 (Vercel) — health · text · image · _shared
+vercel.json           배포 설정 (빌드 없음 · 정적 + api)
 ```
 
 ### 2단계(아이디어 문서화) 채널별 화법
@@ -222,10 +225,13 @@ http://localhost:5610/tools/bench.html
 앱의 3단계 「AI 설정」에 넣어 둔 키를 그대로 쓴다. **실제 요금이 청구되므로** 시작 전에
 예상 비용을 보여주고 확인을 받는다. 처음에는 회차 2~3으로 감을 잡는 것이 좋다.
 
-### 다음에 할 일 — PART 2 (백엔드)
+### 다음에 할 일 — 배포하고 사용 상한 걸기
 
-이미지 생성 호출을 서버 프록시로 옮기고 API 키를 서버에만 둔다.
-그 전에 배포가 필요하다 — localhost 만으로는 다른 PC 에서 접속할 주소가 없다.
+서버 프록시 코드는 끝났다. 남은 것은 실제 배포 설정(`DEPLOY.md`)이다 —
+Vercel 프로젝트 연결, 환경 변수 입력, Supabase 에 새 주소 등록.
+
+그다음이 **계정별 하루 사용 상한**이다. 지금은 '누가'(승인된 계정)와
+'한 번에 얼마나'(프롬프트·출력 상한)만 막혀 있고 '하루에 몇 번'은 열려 있다.
 
 ## 데이터 출처
 
@@ -234,13 +240,20 @@ http://localhost:5610/tools/bench.html
 
 ## API 키 취급 (중요)
 
-이미지 자동 생성은 브라우저에서 OpenAI API를 **직접** 호출한다.
-키는 사용자가 화면에서 입력하고 `localStorage`(`bboggl.openai-key`)에만 저장된다.
-코드·저장소에는 키가 없다.
+앱은 **두 모드**로 돈다. 시작할 때 `/api/health`를 한 번 찔러 보고 스스로 정한다.
 
-> ⚠️ 이 방식은 키가 브라우저에 노출되므로 **개인·내부용 로컬 실행 전용**이다.
-> 외부에 배포하면 누구나 개발자 도구로 키를 꺼내 쓸 수 있다.
-> 배포할 때는 서버 프록시(Netlify/Vercel Functions)로 옮기고 키를 서버에만 둘 것 — PART 2.
+| | 서버 모드 (배포본) | 로컬 모드 (`python -m http.server`) |
+|---|---|---|
+| 키 위치 | Vercel 환경 변수 — **브라우저에 없다** | 각자 `localStorage` |
+| 키 입력칸 | 자동으로 사라진다 | 보인다 |
+| 쓸 수 있는 사람 | 승인된 계정으로 로그인한 사람 | 키를 넣은 사람 |
+| 요금 | 서버 키 소유자 | 각자 |
+
+배포는 `DEPLOY.md`를 보면 된다. 로컬 모드에서는 콘솔에 `/api/health` 404가 한 줄 남는데,
+고장이 아니라 모드를 판정하는 방식이다.
+
+> ⚠️ **로컬 모드는 키가 브라우저에 노출된다.** 개인·내부용 로컬 실행 전용이다.
+> 인터넷에 올릴 때는 반드시 서버 모드(배포본)를 쓴다.
 
 키가 없어도 전부 동작한다. 프롬프트를 복사해 외부 도구에서 이미지를 뽑아 업로드하면 된다.
 

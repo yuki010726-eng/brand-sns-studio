@@ -12,6 +12,7 @@ import {
   hasKey, maskedKey, setKey, getModel, setModel, MODELS,
   PROVIDERS, getProvider, setProvider, currentProvider, keyStatus,
 } from '../lib/imagegen.js';
+import { isServerMode } from '../lib/serverapi.js';
 
 /**
  * @param {{index:number, total:number, hasImage:boolean, source:string|null,
@@ -85,7 +86,9 @@ export function imagePanelHTML(ctx) {
       <div class="imgpanel__keybar">
         <span class="keybar__state ${on ? 'is-on' : ''}">
           ${icon(on ? 'check' : 'alert', 'icon--sm')}
-          ${on ? `${esc(currentProvider().name)} 연결됨 · ${esc(maskedKey())}` : `${esc(currentProvider().name)} 키 없음`}
+          ${isServerMode()
+            ? `${esc(currentProvider().name)} · 서버에서 처리합니다`
+            : on ? `${esc(currentProvider().name)} 연결됨 · ${esc(maskedKey())}` : `${esc(currentProvider().name)} 키 없음`}
         </span>
         <button type="button" class="btn btn--ghost btn--sm" data-img-keytoggle
                 aria-expanded="false" aria-controls="imgpanel-key"
@@ -116,12 +119,14 @@ export function imagePanelHTML(ctx) {
              <span class="sr-only">키가 저장된 제공자 표시</span></p>
         </div>
 
+        ${isServerMode() ? `
+        <p class="field__hint">API 키는 서버에만 있습니다. 브라우저에 키를 넣지 않습니다.</p>` : `
         <div class="field">
           <label class="field__label" for="imgpanel-key-input">${esc(currentProvider().name)} API 키</label>
           <input class="input" type="password" id="imgpanel-key-input"
                  autocomplete="off" spellcheck="false" />
           <p class="field__hint">${esc(currentProvider().keyHint)}</p>
-        </div>
+        </div>`}
 
         <div class="field">
           <label class="field__label" for="imgpanel-model">모델</label>
@@ -132,8 +137,8 @@ export function imagePanelHTML(ctx) {
         </div>
 
         <div class="imgpanel__actions">
-          <button type="button" class="btn btn--sm" data-img-keysave aria-label="API 키 저장하기">저장</button>
-          ${on ? '<button type="button" class="btn btn--text btn--sm" data-img-keyclear aria-label="저장된 API 키 삭제하기">키 삭제</button>' : ''}
+          <button type="button" class="btn btn--sm" data-img-keysave aria-label="이미지 생성 설정 저장하기">저장</button>
+          ${on && !isServerMode() ? '<button type="button" class="btn btn--text btn--sm" data-img-keyclear aria-label="저장된 API 키 삭제하기">키 삭제</button>' : ''}
         </div>
       </div>
 
@@ -174,7 +179,13 @@ export function bindImagePanel(root, h) {
   });
 
   q('[data-img-keysave]')?.addEventListener('click', () => {
+    // 서버 모드에서는 키 입력칸이 없다 — 모델만 저장한다
     const input = q('#imgpanel-key-input');
+    if (!input) {
+      setModel(q('#imgpanel-model').value);
+      h.onKeyChange(true, '설정을 저장했습니다.');
+      return;
+    }
     const value = input.value.trim();
     if (!value) { h.onKeyChange(null, '키를 입력해 주세요.'); input.focus(); return; }
     setKey(value);
