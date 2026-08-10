@@ -663,6 +663,10 @@ body.is-login-page .site-footer { display: none; }
   .tpl-stage__actions .btn { flex: 1; }
 }
 
+/* 프롬프트를 들고 갈 외부 도구 링크 — 복사 버튼 옆에 한 줄로 붙는다 */
+.imgpanel__tool { padding-left: 10px; padding-right: 10px; gap: 5px; }
+.imgpanel__tool .icon { width: 15px; height: 15px; flex: none; }
+
 /* ---------- 카드 문구 글자 수 · 넘침 경고 ---------- */
 .tpl-field__head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--gap-sm); }
 .tpl-count { font-size: 12px; color: var(--sub-strong); font-variant-numeric: tabular-nums; flex: none; }

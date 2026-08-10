@@ -15,6 +15,18 @@ import {
 import { keyFieldHTML } from './keyfield.js';
 
 /**
+ * 프롬프트를 들고 갈 곳.
+ *
+ * 이 자리의 용도가 '키 없이 다른 도구에서 만들기'라, 복사만 시켜 놓고 어디로 갈지
+ * 안 알려 주면 흐름이 끊긴다. 그래서 복사 버튼 **바로 옆**에 둔다.
+ * 주소가 바뀌면 여기만 고치면 된다.
+ */
+const TOOLS = [
+  { name: 'ChatGPT', url: 'https://chatgpt.com/' },
+  { name: 'Gemini', url: 'https://gemini.google.com/app' },
+];
+
+/**
  * @param {{index:number, total:number, hasImage:boolean, source:string|null,
  *          prompt:string, label:string, disabled:boolean, busy:boolean}} ctx
  */
@@ -75,12 +87,15 @@ export function imagePanelHTML(ctx) {
                   aria-label="${n}번 카드 프롬프트 복사하기">
             ${icon('copy', 'icon--sm')} 프롬프트 복사
           </button>
-          <button type="button" class="btn btn--ghost btn--sm" data-img-copyall
-                  aria-label="카드 ${ctx.total}장 프롬프트 전체 복사하기">
-            ${icon('copy', 'icon--sm')} 전체 복사
-          </button>
+          <!-- 복사가 주된 동작이라 링크는 가볍게 둔다. 셋이 한 줄에 들어가야 '옆에'로 읽힌다. -->
+          ${TOOLS.map((t) => `
+            <a class="btn btn--text btn--sm imgpanel__tool" href="${t.url}"
+               target="_blank" rel="noopener noreferrer"
+               aria-label="${esc(t.name)} 를 새 탭에서 열기">
+              ${icon('external', 'icon--sm')} ${esc(t.name)}
+            </a>`).join('')}
         </div>
-        <p class="field__hint">키 없이 쓰려면 프롬프트를 복사해 다른 도구에서 만든 뒤 「파일 올리기」로 넣으세요.</p>
+        <p class="field__hint">프롬프트를 복사해 위 도구에서 이미지를 만든 뒤 「파일 올리기」로 넣으세요.</p>
       </details>
 
       <div class="imgpanel__keybar">
@@ -144,7 +159,7 @@ export function imagePanelHTML(ctx) {
 /**
  * @param {HTMLElement} root
  * @param {{onGenerate:Function, onGenerateAll:Function, onUpload:Function,
- *          onDelete:Function, onCopy:Function, onCopyAll:Function, onKeyChange:Function}} h
+ *          onDelete:Function, onCopy:Function, onKeyChange:Function}} h
  */
 export function bindImagePanel(root, h) {
   const q = (sel) => root.querySelector(sel);
@@ -153,7 +168,6 @@ export function bindImagePanel(root, h) {
   q('[data-img-genall]')?.addEventListener('click', () => h.onGenerateAll());
   q('[data-img-del]')?.addEventListener('click', () => h.onDelete());
   q('[data-img-copy]')?.addEventListener('click', () => h.onCopy());
-  q('[data-img-copyall]')?.addEventListener('click', () => h.onCopyAll());
 
   q('[data-img-upload]')?.addEventListener('change', (e) => {
     const file = e.target.files?.[0];

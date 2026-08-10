@@ -20,7 +20,7 @@ import { buildDeck, TONE_LABEL, findBanned } from '../lib/copywriter.js';
 import { outlineKeyOf } from '../lib/outline.js';
 import { getImage, putImage, deleteImage, imageKey } from '../lib/imagestore.js';
 import { renderCard, loadImage, cardAlt, downloadCanvas, ensureFonts, lastClipped, W, H } from '../lib/cardrender.js';
-import { buildPrompt, buildPromptSheet } from '../lib/imageprompt.js';
+import { buildPrompt } from '../lib/imageprompt.js';
 import { generateImage, hasKey } from '../lib/imagegen.js';
 import { imagePanelHTML, bindImagePanel } from '../components/imagepanel.js';
 import { toast } from '../components/toast.js';
@@ -723,7 +723,6 @@ function bindImagePanelHere(root) {
     onUpload: (file) => putUploaded(root, file),
     onDelete: () => removeImage(root),
     onCopy: () => copyText(promptFor(active), `${active + 1}번 프롬프트를 복사했습니다.`),
-    onCopyAll: () => copyText(buildPromptSheet(deck, getState().concept, allTitles()), '프롬프트를 모두 복사했습니다.'),
     onKeyChange: (ok, message) => {
       toast(message);
       if (ok === null) return;                 // 입력값이 비었을 뿐이면 화면을 건드리지 않는다
@@ -843,10 +842,6 @@ const promptFor = (i) => {
   return buildPrompt(deck[i], s.concept, { title: s.card?.texts?.[i]?.title || deck[i].title });
 };
 
-const allTitles = () => {
-  const s = getState();
-  return deck.map((c, i) => s.card?.texts?.[i]?.title || c.title);
-};
 
 function opts(s, i) {
   return {
