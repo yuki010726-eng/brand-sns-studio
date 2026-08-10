@@ -118,6 +118,7 @@ lib/openai.js         OpenAI 호출 — 1024x1536 을 받아 잘라 씀
 lib/librarystore.js   보관함 저장·불러오기·삭제 (썸네일은 IndexedDB)
 components/           header · stepper · product-card · toast · imagepanel · modal
 pages/                login · profile · home · copy · template · library
+tools/bench.html      모델 비교 — 검수 통과율과 실제 비용을 재는 개발용 도구
 ```
 
 ### 2단계(아이디어 문서화) 채널별 화법
@@ -205,6 +206,21 @@ PART 2에서 실제 AI API로 바꿀 때 이 함수만 교체하면 `pages/copy.
 
 썸네일은 이 컴퓨터에만 남는다(IndexedDB). 다른 PC 에서는 목록에 「미리보기 없음」으로 뜬다.
 글은 로그인해 두면 따라온다.
+
+### 어느 AI 모델을 쓸지 고르기
+
+모델 단가가 25배까지 차이 나서 감으로 고르면 손해다. 비교 도구를 붙여 뒀다.
+
+```
+http://localhost:5610/tools/bench.html
+```
+
+같은 주제를 모델별로 여러 번 돌려 **검수 1회 통과율**과 **실제 지불액**을 잰다.
+싼 모델은 반려되면 최대 3회까지 다시 부르므로, 통과율이 낮으면 가격 이점도 함께 사라진다.
+그래서 추천은 **통과율 70% 이상 · 폴백 0건**을 넘긴 것 중 가장 싼 모델로 정한다.
+
+앱의 3단계 「AI 설정」에 넣어 둔 키를 그대로 쓴다. **실제 요금이 청구되므로** 시작 전에
+예상 비용을 보여주고 확인을 받는다. 처음에는 회차 2~3으로 감을 잡는 것이 좋다.
 
 ### 다음에 할 일 — PART 2 (백엔드)
 
