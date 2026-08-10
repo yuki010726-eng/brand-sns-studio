@@ -121,6 +121,33 @@
 }
 .search .input { padding-left: 44px; border-radius: var(--radius-pill); }
 
+/* ---------- API 키 입력칸 (components/keyfield.js) ---------- */
+.keyfield { display: flex; flex-direction: column; gap: 8px; }
+.keyfield__label { font-size: 14px; font-weight: 700; color: #191F28; }
+.keyfield__input { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .02em; }
+.keyfield__saved {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 13px; color: var(--success-text); font-weight: 500;
+}
+.keyfield__saved .icon { color: var(--success-text); }
+
+/* 발급 안내 — 키가 없으면 아무것도 안 되므로 눈에 띄어야 한다 */
+.keyfield__hint {
+  background: var(--primary-weak);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--primary-dark);
+  word-break: keep-all;
+}
+.keyfield__link {
+  display: inline-flex; align-items: center; gap: 5px;
+  margin-top: 6px; font-weight: 700; color: var(--primary-dark);
+}
+.keyfield__link:hover { text-decoration: underline; }
+.keyfield__link .icon { width: 15px; height: 15px; flex: none; }
+
 /* ---------- 칩 / 뱃지 ---------- */
 .chip {
   display: inline-flex;

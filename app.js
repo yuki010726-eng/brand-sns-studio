@@ -4,7 +4,6 @@
  */
 import { renderHeader } from './components/header.js';
 import { initAuth, onAuth, getUser } from './lib/auth.js';
-import { detect as detectServer } from './lib/serverapi.js';
 import { pull, applyRemote } from './lib/sync.js';
 import { setState } from './store.js';
 import { toast } from './components/toast.js';
@@ -119,14 +118,8 @@ window.addEventListener('hashchange', route);
 // 해시가 없으면 기본 경로를 채워 넣고 시작
 if (!location.hash) location.replace('#/');
 
-/**
- * 인증 상태 확인이 끝난 뒤 로그인 또는 보호된 화면을 그린다.
- *
- * ⚠️ 서버 모드 판정(`detectServer`)도 **첫 렌더 전에** 끝내야 한다. 화면이 `hasKey()` 로
- *    AI 버튼을 켤지 정하는데, 판정이 늦으면 배포본에서 첫 화면만 "키가 없습니다"로 그려진다.
- *    둘 다 실패해도 진행한다 — 확인 때문에 앱이 멈추면 안 된다.
- */
-Promise.all([initAuth(), detectServer()]).finally(() => {
+// 인증 상태 확인이 끝난 뒤 로그인 또는 보호된 화면을 그린다.
+initAuth().finally(() => {
   authReady = true;
   route();
 });

@@ -22,7 +22,8 @@ const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';
  * ⚠️ 이게 없으면 **누구든 요청 본문에 비싼 모델을 적어 넣을 수 있다.** 키가 서버에 있으므로
  *    그 비용은 전부 우리가 낸다. 화면에서 고를 수 있는 것만 여기 둔다.
  */
-export const ALLOWED_TEXT_MODELS = ['gpt-5.6-luna', 'gpt-5.6-terra', 'gpt-5.6-sol', 'gemini-3.6-flash', 'gemini-2.5-pro', 'gemini-3.5-flash-lite'];
+/** ⚠️ Luna 는 뺐다 — Terra 이상만 쓴다. lib/openai.js 의 `TEXT_MODELS` 와 같이 유지할 것. */
+export const ALLOWED_TEXT_MODELS = ['gpt-5.6-terra', 'gpt-5.6-sol', 'gemini-3.6-flash', 'gemini-2.5-pro', 'gemini-3.5-flash-lite'];
 export const ALLOWED_IMAGE_MODELS = ['gpt-image-1-mini', 'gpt-image-2', 'dall-e-3', 'gemini-3.1-flash-lite-image', 'gemini-3.1-flash-image', 'gemini-3-pro-image'];
 
 /** 벤치마크에서 고르지 않으면 이걸 쓴다 (요청자 결정 2026-08-10: 전 채널 Terra) */

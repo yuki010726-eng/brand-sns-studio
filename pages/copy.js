@@ -12,7 +12,7 @@ import {
   PROVIDERS, getProvider, setProvider, currentProvider,
   MODELS, getModel, setModel, hasKey, maskedKey, setKey,
 } from '../lib/llm.js';
-import { isServerMode } from '../lib/serverapi.js';
+import { keyFieldHTML } from '../components/keyfield.js';
 import { toast } from '../components/toast.js';
 
 export const title = '아이디어 문서화';
@@ -152,18 +152,11 @@ export function render(root) {
 function aibarHTML() {
   const on = hasKey();
   const p = currentProvider();
-  /**
-   * 배포본에서는 키가 서버에만 있다. 키 입력칸을 그대로 두면 **넣을 필요가 없는 키를 넣게 되고**,
-   * 넣은 키는 브라우저에 남아 우리가 없애려던 위험이 그대로 돌아온다. 그래서 아예 감춘다.
-   */
-  const viaServer = isServerMode();
   return `
     <div class="aibar__row">
       <span class="keybar__state ${on ? 'is-on' : ''}">
         ${icon(on ? 'check' : 'sparkles', 'icon--sm')}
-        ${viaServer
-          ? `${esc(p.name)} · 서버에서 처리합니다`
-          : on ? `${esc(p.name)} 연결됨 · ${esc(maskedKey())}` : 'AI로 글을 다시 쓰려면 API 키가 필요합니다'}
+        ${on ? `${esc(p.name)} 연결됨 · ${esc(maskedKey())}` : 'AI로 글을 다시 쓰려면 API 키가 필요합니다'}
       </span>
       <button type="button" class="btn btn--ghost btn--sm" id="ai-toggle"
               aria-expanded="false" aria-controls="ai-form" aria-label="AI 글쓰기 설정 열기">
@@ -172,18 +165,6 @@ function aibarHTML() {
     </div>
 
     <div class="aibar__form" id="ai-form" hidden>
-      <div class="notice notice--info" role="note">
-        <span class="notice__icon" aria-hidden="true">${icon(viaServer ? 'shield' : 'alert', 'icon--sm')}</span>
-        <div>
-          ${viaServer
-            ? `<strong>API 키는 서버에만 있습니다</strong>
-               <p>브라우저에 키를 넣지 않습니다. 승인된 계정으로 로그인해 있으면 바로 쓸 수 있습니다.</p>`
-            : `<strong>Gemini 텍스트 모델은 무료 한도가 있습니다</strong>
-               <p>이미지와 달리 결제 설정 없이 키만 있으면 글을 쓸 수 있습니다.
-                  키는 이 브라우저에만 저장되고 코드·저장소에는 남지 않습니다.</p>`}
-        </div>
-      </div>
-
       <div class="field">
         <label class="field__label" for="ai-provider">어디로 쓸까요</label>
         <select class="select" id="ai-provider">
@@ -192,12 +173,8 @@ function aibarHTML() {
         <p class="field__hint">${esc(p.note)}</p>
       </div>
 
-      ${viaServer ? '' : `
-      <div class="field">
-        <label class="field__label" for="ai-key">${esc(p.name)} API 키</label>
-        <input class="input" type="password" id="ai-key" autocomplete="off" spellcheck="false" />
-        <p class="field__hint">이미지 생성과 같은 키를 씁니다. 이미 넣으셨다면 다시 넣지 않아도 됩니다.</p>
-      </div>`}
+      <!-- 키는 각자 발급받아 각자 넣는다. 이미지 생성과 같은 키를 쓴다. -->
+      ${keyFieldHTML({ providerId: getProvider(), inputId: 'ai-key', hasKey: on, masked: maskedKey() })}
 
       <div class="field">
         <label class="field__label" for="ai-model">모델</label>
@@ -218,7 +195,7 @@ function aibarHTML() {
 
       <div class="keybar__actions">
         <button type="button" class="btn btn--sm" id="ai-save" aria-label="AI 설정 저장하기">저장</button>
-        ${on && !viaServer ? '<button type="button" class="btn btn--text btn--sm" id="ai-clear" aria-label="저장된 API 키 삭제하기">키 삭제</button>' : ''}
+        ${on ? '<button type="button" class="btn btn--text btn--sm" id="ai-clear" aria-label="저장된 API 키 삭제하기">키 삭제</button>' : ''}
       </div>
     </div>`;
 }
@@ -252,14 +229,13 @@ function bindAibar(root) {
   root.querySelector('#ai-model')?.addEventListener('change', (e) => setModel(e.target.value));
 
   root.querySelector('#ai-save')?.addEventListener('click', () => {
-    // 서버 모드에서는 키 입력칸이 아예 없다 — 없는 걸 읽지 않도록 옵셔널로 다룬다
     const input = root.querySelector('#ai-key');
-    const value = input?.value.trim() || '';
+    const value = input.value.trim();
     if (value) setKey(value);
     setModel(root.querySelector('#ai-model').value);
-    if (input) input.value = '';             // 화면에 남기지 않는다
+    input.value = '';                       // 화면에 남기지 않는다
     refreshAibar(root);
-    toast(isServerMode() ? '설정을 저장했습니다.' : hasKey() ? 'AI 글쓰기를 켰습니다.' : '키를 입력해 주세요.');
+    toast(hasKey() ? 'AI 글쓰기를 켰습니다.' : '키를 입력해 주세요.');
   });
 
   root.querySelector('#ai-clear')?.addEventListener('click', () => {

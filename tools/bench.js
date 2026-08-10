@@ -2,7 +2,7 @@
  * 모델 비교 벤치마크 — 어느 모델이 최소 사양인지 숫자로 정한다
  *
  * 왜 필요한가
- * Luna 와 Sol 의 단가가 25배 차이라 감으로 고를 수 없다. 그런데 이 앱에는 이미
+ * Terra 와 Sol 의 단가가 2.5배 차이라 감으로 고를 수 없다. 그런데 이 앱에는 이미
  * **객관적인 판정 장치**가 있다 — `validateDraft()` 가 금지 표현·근거 없는 단정·주제 이탈을
  * 잡아낸다. 같은 주제를 모델별로 여러 번 돌려 **반려율**을 재면 답이 나온다.
  *
@@ -18,9 +18,11 @@ import { PRODUCTS, CHANNELS } from '../data/products.js';
 import { generateWithAI } from '../lib/copyai.js';
 import { TEXT_MODELS, getTextModel, setTextModel, hasKey, maskedKey } from '../lib/openai.js';
 
-/** 1M 토큰당 단가 (2026-08 공식 가격표) */
+/**
+ * 1M 토큰당 단가 (2026-08 공식 가격표).
+ * ⚠️ 고를 수 있는 모델은 `TEXT_MODELS` 가 정한다 — Luna 를 없앴으므로 여기에도 없다.
+ */
 const PRICES = {
-  'gpt-5.6-luna': { in: 0.20, out: 1.20 },
   'gpt-5.6-terra': { in: 2, out: 12 },
   'gpt-5.6-sol': { in: 5, out: 30 },
 };
