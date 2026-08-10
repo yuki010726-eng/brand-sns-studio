@@ -17,8 +17,9 @@ import { slotsFor, defaultsFor, roleOf } from '../lib/templates.js';
 import { stepperHTML, bindStepper } from '../components/stepper.js';
 import { getState, setState, navigate, draftKeyOf } from '../store.js';
 import { buildDeck, TONE_LABEL, findBanned } from '../lib/copywriter.js';
+import { outlineKeyOf } from '../lib/outline.js';
 import { getImage, putImage, deleteImage, imageKey } from '../lib/imagestore.js';
-import { renderCard, loadImage, cardAlt, downloadCanvas, ensureFonts, W, H } from '../lib/cardrender.js';
+import { renderCard, loadImage, cardAlt, downloadCanvas, ensureFonts, lastClipped, W, H } from '../lib/cardrender.js';
 import { buildPrompt, buildPromptSheet } from '../lib/imageprompt.js';
 import { generateImage, hasKey } from '../lib/imagegen.js';
 import { imagePanelHTML, bindImagePanel } from '../components/imagepanel.js';
@@ -117,7 +118,16 @@ export function render(root) {
   const p = getProduct(s.productId);
   const concept = getConcept(s.concept);
 
-  deck = buildDeck({ product: p, topic: s.topic.trim(), tone: s.tone, variant: s.image?.variant ?? 0, cardCount: s.cardCount });
+  /**
+   * ⚠️ AI 가 짠 뼈대가 있으면 **그것으로 카드를 만든다.**
+   *    예전에는 늘 규칙 기반이라 글귀를 새로 뽑아도 카드 문구가 그대로였다 — 요청자 지적.
+   *    뼈대는 2단계에서 만들어 `state.outline` 에 담긴다.
+   */
+  deck = buildDeck({
+    product: p, topic: s.topic.trim(), tone: s.tone,
+    variant: s.image?.variant ?? 0, cardCount: s.cardCount,
+    core: s.outline?.key === outlineKeyOf(s) ? s.outline.core : null,
+  });
   ensureTexts(p);
   if (active >= deck.length) active = 0;
 
@@ -170,6 +180,8 @@ export function render(root) {
             <canvas class="tpl-stage__canvas" id="tpl-canvas" width="${W}" height="${H}"
                     role="img" aria-label="카드 미리보기"></canvas>
             <p class="tpl-stage__note" id="tpl-src">이미지 확인 중…</p>
+            <!-- 글이 잘렸을 때만 채워진다. 미리보기 바로 아래라 눈에 바로 걸린다. -->
+            <div id="tpl-overflow"></div>
             <div class="tpl-stage__actions">
               <button type="button" class="btn btn--ghost btn--sm" id="save-one"
                       aria-label="이 카드 PNG로 저장하기">
@@ -335,9 +347,21 @@ function fieldHTML(f, value, conceptId) {
        </div>`
     : '';
 
+  /**
+   * 글자 수 카운터. 상한(`f.max`)은 **막는 값이 아니라 알리는 값**이다 —
+   * 요청자 지시: 처음 생성은 제한하되 이후 수정은 자유롭게. 넘으면 빨갛게만 표시한다.
+   */
+  const counter = f.max
+    ? `<span class="tpl-count${value.length > f.max ? ' tpl-count--over' : ''}" data-count="${f.id}"
+             aria-live="polite">${value.length} / ${f.max}자</span>`
+    : '';
+
   return `
     <div class="field tpl-field">
-      <label class="field__label" for="f-${f.id}">${f.label}</label>
+      <div class="tpl-field__head">
+        <label class="field__label" for="f-${f.id}">${f.label}</label>
+        ${counter}
+      </div>
       ${control}
       ${tools}
       <p class="field__hint" id="h-${f.id}">${f.hint}</p>
@@ -560,6 +584,15 @@ function refreshForm(root) {
   bindForm(root);
 }
 
+/** 카운터만 갱신한다 — 폼을 다시 그리면 입력 중 캐럿이 튄다 */
+function updateCount(root, el) {
+  const slot = slotsFor(getState().concept, deck[active].kind).find((x) => x.id === el.dataset.f);
+  const out = root.querySelector(`[data-count="${el.dataset.f}"]`);
+  if (!slot?.max || !out) return;
+  out.textContent = `${el.value.length} / ${slot.max}자`;
+  out.classList.toggle('tpl-count--over', el.value.length > slot.max);
+}
+
 function bindForm(root) {
   root.querySelectorAll('[data-f]').forEach((el) => {
     el.addEventListener('input', () => {
@@ -570,6 +603,7 @@ function bindForm(root) {
 
       // 입력 중에는 캔버스만 갱신한다 — 폼을 다시 그리면 캐럿이 튄다
       schedulePaint(root);
+      updateCount(root, el);
       const warn = root.querySelector('#tpl-warn');
       if (warn) warn.innerHTML = warnHTML(texts[active]);
       const reset = root.querySelector('#reset-one');
@@ -829,6 +863,37 @@ function paint(root) {
   const texts = s.card.texts[active];
   renderCard(canvas, texts, opts(s, active));
   canvas.setAttribute('aria-label', cardAlt(texts, active));
+  // ⚠️ 잘림 기록은 **그린 직후에만** 유효하다 (renderCard 가 매번 비운다)
+  refreshOverflow(root, lastClipped());
+}
+
+/**
+ * 글이 카드 밖으로 밀려 잘렸는지 알린다.
+ *
+ * 예전에는 렌더러가 조용히 `…` 로 잘라서 **글이 사라진 걸 아무도 몰랐다.**
+ * 막지는 않는다(직접 길게 쓰는 건 자유다) — 대신 어느 칸이 잘렸는지 정확히 짚어 준다.
+ */
+function refreshOverflow(root, clippedSlots) {
+  const slots = slotsFor(getState().concept, deck[active].kind);
+  const labelOf = (id) => slots.find((x) => x.id === id)?.label || id;
+
+  root.querySelectorAll('[data-f]').forEach((el) => {
+    el.classList.toggle('is-clipped', clippedSlots.includes(el.dataset.f));
+  });
+
+  const box = root.querySelector('#tpl-overflow');
+  if (!box) return;
+  if (!clippedSlots.length) { box.innerHTML = ''; return; }
+
+  const names = [...new Set(clippedSlots)].map(labelOf);
+  box.innerHTML = `
+    <div class="notice notice--warn" role="alert">
+      <span class="notice__icon" aria-hidden="true">${icon('alert', 'icon--sm')}</span>
+      <div>
+        <strong>글이 카드에 다 들어가지 않아 잘렸습니다</strong>
+        <p>${esc(names.join(' · '))} 를 줄여 주세요. 지금은 뒷부분이 카드에 나오지 않습니다.</p>
+      </div>
+    </div>`;
 }
 
 /** 글자 한 자마다 큰 캔버스를 다시 그리지 않도록 살짝 모아서 그린다 */

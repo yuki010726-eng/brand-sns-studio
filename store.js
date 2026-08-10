@@ -45,6 +45,12 @@ const INITIAL = {
    * @type {{blog?:string, instagram?:string, threads?:string}}
    */
   aiKey: {},
+  /**
+   * AI 가 주제로 짠 글의 뼈대 (`lib/outline.js`). 세 채널과 카드뉴스 덱이 **함께** 본다.
+   * 이게 있어야 글귀를 새로 뽑을 때 카드 문구도 같이 바뀐다.
+   * @type {{key:string, data:object}|null}
+   */
+  outline: null,
   draftKey: '',
   concept: 'magazine', // 카드뉴스 템플릿 id (lib/concepts.js)
   accent: '#B9F73E',   // 매거진형 강조 색상 (lib/concepts.js 의 DEFAULT_ACCENT)
@@ -151,7 +157,7 @@ export function subscribe(fn) {
 export function resetFlow() {
   setState({
     productId: null, topic: '', drafts: {}, generated: {}, variants: {}, sources: {},
-    draftKey: '', aiKey: {}, image: null, images: {}, card: null,
+    draftKey: '', aiKey: {}, outline: null, image: null, images: {}, card: null,
   });
 }
 

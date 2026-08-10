@@ -663,6 +663,19 @@ body.is-login-page .site-footer { display: none; }
   .tpl-stage__actions .btn { flex: 1; }
 }
 
+/* ---------- 카드 문구 글자 수 · 넘침 경고 ---------- */
+.tpl-field__head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--gap-sm); }
+.tpl-count { font-size: 12px; color: var(--sub-strong); font-variant-numeric: tabular-nums; flex: none; }
+/* 상한은 막는 값이 아니라 알리는 값이다 — 넘어도 입력은 계속된다 */
+.tpl-count--over { color: var(--danger); font-weight: 700; }
+/* 실제로 카드에서 잘린 칸만 표시한다 (글자 수 초과와 다르다) */
+.tpl-ta.is-clipped, .input.is-clipped { border-color: var(--danger); }
+.notice--warn { border-color: #F3C9C9; background: #FDF3F3; }
+.notice--warn .notice__icon { color: var(--danger); }
+.notice--warn strong { color: #8E2C2C; }
+#tpl-overflow:empty { display: none; }
+#tpl-overflow { margin-top: var(--gap-sm); }
+
 /* ============================================================
    STEP 5 — 보관함
    ============================================================ */

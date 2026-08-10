@@ -8,6 +8,7 @@ import { stepperHTML, bindStepper } from '../components/stepper.js';
 import { getState, setState, navigate, draftKeyOf } from '../store.js';
 import { generate, findBanned, TONE_LABEL, IMAGE_PLAN } from '../lib/copywriter.js';
 import { generateWithAI, promptKeyOf } from '../lib/copyai.js';
+import { coreWithOutline, outlineKeyOf } from '../lib/outline.js';
 import {
   PROVIDERS, getProvider, setProvider, currentProvider,
   MODELS, getModel, setModel, hasKey, maskedKey, setKey,
@@ -449,7 +450,8 @@ async function aiOne(root, id) {
   setAiBusy(root, true, '쓰는 중…');
   toast(`${c.name} 글을 AI가 쓰고 있습니다…`, 3000);
   try {
-    const text = await generateWithAI(id, ctx(0));
+    await ensureOutline(root);
+    const text = await generateWithAI(id, aiCtx(0));
     const s = getState();
     setState({
       drafts: { ...s.drafts, [id]: text },
@@ -482,9 +484,13 @@ async function aiAll(root, { auto = false, only = null } = {}) {
   const channels = CHANNELS.filter((c) => picked.includes(c.id) && (!only || only.includes(c.id)));
   if (!channels.length) return;
   setAiBusy(root, true);
-  showAiStatus(root, `AI가 ${channels.length}개 채널 글을 쓰고 있습니다… 30초쯤 걸립니다.`);
 
-  const results = await Promise.allSettled(channels.map((c) => generateWithAI(c.id, ctx(0))));
+  // 뼈대를 먼저 짠다. 세 채널이 같은 뼈대 위에서 써야 내용이 통일된다.
+  const outlineError = await ensureOutline(root);
+  if (outlineError) toast(`주제 뼈대를 못 만들어 기본 구성으로 씁니다 — ${outlineError}`, 5000);
+
+  showAiStatus(root, `AI가 ${channels.length}개 채널 글을 쓰고 있습니다… 30초쯤 걸립니다.`);
+  const results = await Promise.allSettled(channels.map((c) => generateWithAI(c.id, aiCtx(0))));
 
   let ok = 0;
   results.forEach((r, i) => {
@@ -559,6 +565,37 @@ function autoGrow(ta) {
 function ctx(variant) {
   const s = getState();
   return { product: getProduct(s.productId), topic: s.topic.trim(), tone: s.tone, variant, cardCount: s.cardCount };
+}
+
+/**
+ * AI 로 쓸 때 쓰는 ctx — **주제 뼈대를 함께 넘긴다.**
+ * 뼈대가 없으면 `coreBlock()` 이 규칙 기반으로 떨어진다(키가 없거나 뼈대 생성 실패).
+ */
+function aiCtx(variant) {
+  const s = getState();
+  const core = s.outline?.key === outlineKeyOf(s) ? s.outline.core : null;
+  return { ...ctx(variant), core };
+}
+
+/**
+ * 글의 뼈대를 먼저 만든다. 세 채널과 카드뉴스 덱이 **함께** 이것을 본다.
+ *
+ * ⚠️ 채널마다 알아서 주제를 쪼개게 두면 셋이 다른 이야기를 한다(요청자 요구: 세 채널 통일).
+ *    그래서 한 번 만들어 셋에 나눠 준다. 호출이 하나 늘지만 출력이 짧아 비용은 얼마 안 는다.
+ *
+ * 조건(상품·주제·톤)이 그대로면 다시 만들지 않는다 — 있는 뼈대를 또 사면 돈만 쓴다.
+ * @returns {Promise<string|null>} 실패 사유 (성공하면 null — 규칙 기반으로 이어서 쓴다)
+ */
+async function ensureOutline(root, { force = false } = {}) {
+  const s = getState();
+  const key = outlineKeyOf(s);
+  if (!force && s.outline?.key === key) return null;
+
+  showAiStatus(root, '주제를 어떻게 풀지 뼈대를 짜는 중입니다…');
+  const { core, error } = await coreWithOutline(ctx(0));
+  // 실패해도 코어는 돌아온다(규칙 기반). 그래도 다음에 다시 시도하도록 실패는 저장하지 않는다.
+  if (!error) setState({ outline: { key, core } });
+  return error;
 }
 
 /**
