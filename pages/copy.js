@@ -7,7 +7,7 @@ import { CHANNELS, BANNED_PHRASES, getProduct } from '../data/products.js';
 import { stepperHTML, bindStepper } from '../components/stepper.js';
 import { getState, setState, navigate, draftKeyOf } from '../store.js';
 import { generate, findBanned, TONE_LABEL, IMAGE_PLAN } from '../lib/copywriter.js';
-import { generateWithAI } from '../lib/copyai.js';
+import { generateWithAI, promptKeyOf } from '../lib/copyai.js';
 import {
   PROVIDERS, getProvider, setProvider, currentProvider,
   MODELS, getModel, setModel, hasKey, maskedKey, setKey,
@@ -108,12 +108,17 @@ export function render(root) {
    * 키가 있으면 **항상 AI 로 쓴다** (요청자 지시 2026-08-03).
    * 규칙 기반은 키가 없거나 AI 가 검수를 통과 못 했을 때만 남는 최후 수단이다.
    *
-   * 같은 조건(상품·주제·톤)으로 다시 들어오면 부르지 않는다. 이미 AI 글이 있는데
-   * 또 부르면 할당량만 쓰고 결과는 그대로다.
+   * ⚠️ **프롬프트가 실제로 달라진 채널만 부른다.** 예전에는 조건 한 덩어리(`draftKeyOf`)로
+   *    판단해서, 카드 장수만 바꿔도 세 채널을 다 다시 생성했다. 장수는 블로그 프롬프트에만
+   *    들어가므로 인스타·쓰레드 호출 2번은 값만 쓰고 같은 글을 받는 낭비였다.
+   *    판단 기준은 `promptKeyOf()` 하나다 — 프롬프트를 고치면 그것도 같이 고친다.
    */
   const st = getState();
-  if (hasKey() && st.aiKey !== draftKeyOf(st) && !hasEdits()) {
-    queueMicrotask(() => aiAll(root, { auto: true }));
+  if (hasKey() && !hasEdits()) {
+    const stale = CHANNELS
+      .filter((c) => st.channels.includes(c.id) && st.aiKey?.[c.id] !== promptKeyOf(c.id, st))
+      .map((c) => c.id);
+    if (stale.length) queueMicrotask(() => aiAll(root, { auto: true, only: stale }));
   }
 
   root.querySelector('#regen-all')?.addEventListener('click', () => {
@@ -462,6 +467,9 @@ async function aiOne(root, id) {
       generated: { ...s.generated, [id]: text },
       sources: { ...s.sources, [id]: 'ai' },
       draftKey: draftKeyOf(s),
+      // 방금 이 채널을 AI 로 썼다고 남긴다. 안 남기면 다음에 이 화면에 들어올 때
+      // 자동 실행이 같은 채널을 또 불러 방금 만든 글을 덮어쓴다 — 돈을 두 번 쓰는 셈이다.
+      aiKey: { ...s.aiKey, [id]: promptKeyOf(id, s) },
     });
     refreshPanel(root);
     refreshStale(root);
@@ -479,9 +487,11 @@ async function aiOne(root, id) {
  * 세 채널을 **동시에** 부른다.
  * 한 채널에 20~40초 걸려서 순서대로 돌리면 2분 가까이 기다려야 했다.
  */
-async function aiAll(root, { auto = false } = {}) {
+async function aiAll(root, { auto = false, only = null } = {}) {
   if (aiBusy) return;
-  const channels = CHANNELS.filter((c) => getState().channels.includes(c.id));
+  const picked = getState().channels;
+  const channels = CHANNELS.filter((c) => picked.includes(c.id) && (!only || only.includes(c.id)));
+  if (!channels.length) return;
   setAiBusy(root, true);
   showAiStatus(root, `AI가 ${channels.length}개 채널 글을 쓰고 있습니다… 30초쯤 걸립니다.`);
 
@@ -505,8 +515,15 @@ async function aiAll(root, { auto = false } = {}) {
     ok++;
   });
 
-  // 성공하든 실패하든 기록해 둔다. 안 그러면 실패할 때마다 자동 실행이 무한 반복된다.
-  setState({ aiKey: draftKeyOf(getState()) });
+  /**
+   * 성공하든 실패하든 **부른 채널만** 기록한다.
+   * 안 그러면 실패할 때마다 자동 실행이 무한 반복된다.
+   * 부르지 않은 채널까지 최신으로 찍어 두면 그 채널은 낡은 글을 든 채 영영 다시 안 쓴다.
+   */
+  const now = getState();
+  const marked = { ...now.aiKey };
+  channels.forEach((c) => { marked[c.id] = promptKeyOf(c.id, now); });
+  setState({ aiKey: marked });
 
   setAiBusy(root, false);
   showAiStatus(root, '');

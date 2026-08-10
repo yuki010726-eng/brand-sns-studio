@@ -663,6 +663,87 @@ body.is-login-page .site-footer { display: none; }
   .tpl-stage__actions .btn { flex: 1; }
 }
 
+/* ============================================================
+   STEP 5 — 보관함
+   ============================================================ */
+.lib-toolbar {
+  display: flex;
+  gap: var(--gap-sm);
+  align-items: center;
+  margin-bottom: var(--gap);
+}
+.lib-toolbar__search { flex: 1; min-width: 0; }
+.lib-toolbar__sort { position: relative; display: flex; align-items: center; }
+.lib-toolbar__sort .icon {
+  position: absolute;
+  left: 14px;
+  color: var(--sub);
+  pointer-events: none;
+}
+.lib-toolbar__sort .select { padding-left: 40px; border-radius: var(--radius-pill); }
+
+.lib-filters { display: flex; gap: var(--gap-xs); flex-wrap: wrap; margin-bottom: var(--gap); }
+/* 개수는 보조 정보다 — 칩 이름보다 약하게 보여야 한다 */
+.chip__count { color: var(--sub-strong); font-weight: 500; font-size: 13px; }
+.chip[aria-pressed="true"] .chip__count { color: var(--primary-dark); }
+
+.lib-count { font-size: 14px; color: var(--sub-strong); margin-bottom: var(--gap-sm); }
+
+.lib-grid {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--gap);
+}
+.lib-item { display: flex; flex-direction: column; gap: 14px; padding: 14px; }
+.lib-item__thumb {
+  aspect-ratio: 4 / 5;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--bg);
+  display: grid;
+  place-items: center;
+}
+.lib-item__thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.lib-item__noimg {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  color: var(--sub-strong);
+  font-size: 13px;
+}
+.lib-item__noimg .icon { color: var(--sub); }
+.lib-item__loading { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--border); border-top-color: var(--sub); animation: lib-spin .7s linear infinite; }
+@keyframes lib-spin { to { transform: rotate(360deg); } }
+
+.lib-item__body { display: flex; flex-direction: column; gap: 6px; flex: 1; }
+.lib-item__tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.lib-item__title {
+  font-size: 17px;
+  color: #191F28;
+  line-height: 1.4;
+  word-break: keep-all;
+  /* 주제가 길어도 카드 높이가 들쭉날쭉해지지 않게 두 줄에서 자른다 */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.lib-item__meta { font-size: 13px; color: var(--sub-strong); }
+.lib-item__date { font-size: 13px; color: var(--sub-strong); margin-top: auto; padding-top: 6px; }
+.lib-item__actions { display: flex; gap: var(--gap-xs); margin-top: 10px; }
+.lib-item__actions .btn { flex: 1; }
+
+@media (max-width: 1024px) {
+  .lib-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 560px) {
+  .lib-toolbar { flex-direction: column; align-items: stretch; }
+  .lib-toolbar__sort .select { width: 100%; }
+  .lib-grid { grid-template-columns: 1fr; }
+}
+
 /* ---------- 임시(스텁) 화면 ---------- */
 .stub { display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .stub h2 { color: #191F28; }

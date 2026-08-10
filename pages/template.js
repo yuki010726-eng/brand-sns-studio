@@ -23,6 +23,8 @@ import { buildPrompt, buildPromptSheet } from '../lib/imageprompt.js';
 import { generateImage, hasKey } from '../lib/imagegen.js';
 import { imagePanelHTML, bindImagePanel } from '../components/imagepanel.js';
 import { toast } from '../components/toast.js';
+import { confirmModal } from '../components/modal.js';
+import { saveToLibrary, getLibrary, postKeyOf } from '../lib/librarystore.js';
 
 export const title = '카드뉴스 템플릿';
 
@@ -191,6 +193,10 @@ export function render(root) {
                   aria-label="아이디어 문서화 단계로 돌아가기">
             ${icon('arrowLeft', 'icon--sm')} 글귀 단계로
           </button>
+          <button type="button" class="btn" id="save-library"
+                  aria-label="지금 게시물을 보관함에 저장하기">
+            ${icon('archive', 'icon--sm')} 보관함에 저장
+          </button>
         </div>
       </section>
     </div>`;
@@ -205,6 +211,7 @@ export function render(root) {
   root.querySelector('#reset-all')?.addEventListener('click', () => resetAll(root));
   root.querySelector('#save-one')?.addEventListener('click', () => saveOne(root));
   root.querySelector('#save-all')?.addEventListener('click', () => saveAll(root));
+  root.querySelector('#save-library')?.addEventListener('click', () => saveToArchive(root));
   root.querySelector('#go-copy')?.addEventListener('click', () => navigate('/copy'));
 
   (async () => {
@@ -886,6 +893,58 @@ async function saveAll(root) {
     toast(`${deck.length}장을 모두 저장했습니다.`);
   } finally {
     if (btn) btn.disabled = false;
+  }
+}
+
+/* ---------------- 보관함 ---------------- */
+
+/** 목록에 쓸 작은 미리보기. 4:5 비율을 유지한다 — 1080x1350 을 그대로 두면 용량이 감당이 안 된다. */
+const THUMB_W = 216;
+const THUMB_H = 270;
+
+/**
+ * 첫 카드를 줄여서 썸네일 Blob 으로 만든다.
+ * 실패해도 보관 자체는 막지 않는다 — 목록에 글자만 나올 뿐이다.
+ */
+async function makeThumb(s) {
+  try {
+    const full = document.createElement('canvas');
+    renderCard(full, s.card.texts[0], opts(s, 0));
+    const small = document.createElement('canvas');
+    small.width = THUMB_W;
+    small.height = THUMB_H;
+    small.getContext('2d').drawImage(full, 0, 0, THUMB_W, THUMB_H);
+    return await new Promise((resolve) => small.toBlob(resolve, 'image/jpeg', 0.72));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 보관함에 넣는다. 같은 상품·주제가 이미 있으면 **덮어쓰기 전에 물어본다** —
+ * 말없이 덮으면 다른 기기에서 쓴 내용을 날릴 수 있다.
+ */
+async function saveToArchive(root) {
+  const btn = root.querySelector('#save-library');
+  const s = getState();
+
+  const existing = getLibrary().find((it) => it.postKey === postKeyOf(s));
+  if (existing) {
+    const ok = await confirmModal(
+      `「${existing.title}」이(가) 이미 보관함에 있습니다. 지금 내용으로 덮어쓸까요?`,
+      { okLabel: '덮어쓰기', title: '이미 보관된 게시물' },
+    );
+    if (!ok) return;
+  }
+
+  if (btn) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); }
+  try {
+    const thumb = await makeThumb(s);
+    const result = await saveToLibrary(getState(), thumb);
+    if (!result.ok) { toast(result.error, 6000); return; }
+    toast(result.replaced ? '보관함의 게시물을 새로 덮어썼습니다.' : '보관함에 저장했습니다.');
+  } finally {
+    if (btn) { btn.disabled = false; btn.removeAttribute('aria-busy'); }
   }
 }
 

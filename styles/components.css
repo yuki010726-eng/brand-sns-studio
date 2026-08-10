@@ -38,6 +38,10 @@
 .btn--soft { background: var(--primary-weak); color: var(--primary-dark); }
 .btn--soft:hover { background: #D6E8FD; }
 
+/* 되돌릴 수 없는 동작 — 삭제 확인에만 쓴다 (#D93A3A 는 흰 글자 4.55:1) */
+.btn--danger { background: var(--danger); }
+.btn--danger:hover { background: #B92E2E; }
+
 /* 텍스트 버튼 */
 .btn--text {
   background: transparent;
@@ -349,6 +353,14 @@
   word-break: keep-all;
 }
 .message-modal__button { width: 100%; margin-top: 24px; }
+/* 확인 모달 — 취소가 왼쪽, 실행이 오른쪽. 실행 버튼이 넓어 손이 먼저 간다. */
+.message-modal__actions {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: var(--gap-sm);
+  margin-top: 24px;
+}
+.message-modal__actions .btn { width: 100%; }
 @keyframes modal-in {
   from { opacity: 0; transform: translateY(8px) scale(.98); }
   to { opacity: 1; transform: none; }
