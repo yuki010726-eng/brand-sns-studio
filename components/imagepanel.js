@@ -24,7 +24,7 @@ const TOOLS = [
 
 /**
  * @param {{index:number, total:number, hasImage:boolean, source:string|null,
- *          prompt:string, label:string, disabled:boolean}} ctx
+ *          prompt:string, label:string, disabled:boolean, lockable?:boolean, locked?:boolean}} ctx
  */
 export function imagePanelHTML(ctx) {
   const n = ctx.index + 1;
@@ -77,6 +77,13 @@ export function imagePanelHTML(ctx) {
           <input class="sr-only" type="file" accept="image/*" autocomplete="off"
                  data-img-upload aria-label="${n}번 카드 이미지 파일 선택" />
         </label>
+        ${ctx.lockable ? `
+          <button type="button" class="btn btn--ghost btn--sm imgpanel__lock${ctx.locked ? ' is-locked' : ''}"
+                  data-img-lock aria-pressed="${Boolean(ctx.locked)}"
+                  aria-label="${n}번 카드 배경 이미지 ${ctx.locked ? '잠금 해제' : '잠금'}">
+            ${icon(ctx.locked ? 'lock' : 'unlock', 'icon--sm')}
+            배경 ${ctx.locked ? '잠금됨' : '잠금'}
+          </button>` : ''}
         ${ctx.hasImage ? `
           <button type="button" class="btn btn--text btn--sm" data-img-del
                   aria-label="${n}번 카드 이미지 지우기">
@@ -88,13 +95,14 @@ export function imagePanelHTML(ctx) {
 
 /**
  * @param {HTMLElement} root
- * @param {{onUpload:Function, onDelete:Function, onCopy:Function}} h
+ * @param {{onUpload:Function, onDelete:Function, onCopy:Function, onToggleLock?:Function}} h
  */
 export function bindImagePanel(root, h) {
   const q = (sel) => root.querySelector(sel);
 
   q('[data-img-del]')?.addEventListener('click', () => h.onDelete());
   q('[data-img-copy]')?.addEventListener('click', () => h.onCopy());
+  q('[data-img-lock]')?.addEventListener('click', () => h.onToggleLock?.());
 
   q('[data-img-upload]')?.addEventListener('change', (e) => {
     const file = e.target.files?.[0];

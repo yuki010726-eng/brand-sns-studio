@@ -28,15 +28,30 @@ export function guard() {
 let activeTab = null;
 
 export function render(root) {
-  const s = getState();
+  let s = getState();
+
+  // 2단계에서 조건을 바꿨다면 이전 조건으로 만든 글을 3단계에 가져오지 않는다.
+  // 같은 조건으로 다시 들어올 때만 작성·편집 중인 내용을 그대로 이어 간다.
+  const currentDraftKey = draftKeyOf(s);
+  const hasPreviousContent = Object.keys(s.drafts).length > 0
+    || Object.keys(s.generated).length > 0;
+  if (hasPreviousContent && s.draftKey !== currentDraftKey) {
+    setState({
+      drafts: {},
+      generated: {},
+      variants: {},
+      sources: {},
+      draftKey: currentDraftKey,
+      activeAiRun: null,
+    });
+    s = getState();
+  }
+
   const p = getProduct(s.productId);
   const channels = CHANNELS.filter((c) => s.channels.includes(c.id));
-
-  // 편집한 적이 없으면 최신 입력값으로 조용히 다시 생성한다
-  if (draftKeyOf(s) !== s.draftKey && !hasEdits()) regenerateAll();
+  const hasAnyDraft = channels.some((c) => s.drafts[c.id]);
 
   if (!activeTab || !channels.some((c) => c.id === activeTab)) activeTab = channels[0].id;
-  channels.forEach((c) => { if (!getState().drafts[c.id]) regenerateOne(c.id); });
 
   root.innerHTML = `
     <div class="container">
@@ -44,8 +59,10 @@ export function render(root) {
 
       <section class="section">
         <div class="section__head">
-          <h1>추천 글귀가 준비됐습니다</h1>
-          <p class="section__desc">그대로 써도 되고, 바로 고쳐 써도 됩니다. 복사 버튼을 누르면 클립보드에 담깁니다.</p>
+          <h1>${hasAnyDraft ? '추천 글귀가 준비됐습니다' : '아래 조건으로 글귀를 만들어 보세요'}</h1>
+          <p class="section__desc">${hasAnyDraft
+            ? '그대로 써도 되고, 바로 고쳐 써도 됩니다. 복사 버튼을 누르면 클립보드에 담깁니다.'
+            : '「AI 생성」은 한 주제당 2번까지 AI 1 · AI 2 로 만들어 오가며 볼 수 있습니다.'}</p>
         </div>
 
         <!-- 어떤 조건으로 만든 글인지 항상 보이게 -->
@@ -59,20 +76,21 @@ export function render(root) {
             <a class="btn btn--ghost btn--sm" href="#/" aria-label="상품과 주제를 다시 선택하기">
               ${icon('arrowLeft', 'icon--sm')} 조건 수정
             </a>
-            <!-- 「전체 재생성」은 항상 규칙 기반, 「AI 생성」은 항상 내장 OpenAI 키로 쓴다.
-                 예전엔 하나로 합쳐 키 유무에 따라 라벨이 바뀌었는데(2026-08-10),
-                 요청자가 둘을 다시 나눠 달라고 해서 되돌렸다(2026-08-11). -->
-            <button type="button" class="btn btn--sm" id="regen-all"
-                    aria-label="모든 채널 글귀를 규칙 기반으로 새로 생성하기">
-              ${icon('refresh', 'icon--sm')} 전체 재생성
-            </button>
             <button type="button" class="btn btn--sm" id="ai-all"
-                    aria-label="2단계에서 고른 상품·주제·톤으로 AI가 세 채널 글을 쓰게 하기"
-                    ${hasKey() ? '' : 'disabled'}>
+                    aria-label="${aiAllLabel(s)}"
+                    ${aiAllDisabled(s) ? 'disabled' : ''}>
               ${icon('sparkles', 'icon--sm')} AI 생성
             </button>
           </div>
         </div>
+
+        <!--
+          「AI 생성」을 누를 때마다 결과가 AI 1 · AI 2 로 쌓인다 (요청자 지시 2026-08-11).
+          예전엔 누를 때마다 이전 AI 글을 덮어썼는데, 처음 뽑은 글과 비교해 보고 싶다는
+          요구가 있어 두 벌까지 남기고 오가며 볼 수 있게 했다. 한 주제당 2번으로 막는다 —
+          더 늘리면 다시 예전처럼 "그래서 뭘 눌러야 하나" 가 된다.
+        -->
+        <div id="ai-runs-slot">${aiRunsHTML()}</div>
 
         <!--
           ⚠️ 키가 내장돼 있으면 AI 설정 바를 **통째로 안 그린다** (요청자 지시 2026-08-11).
@@ -84,8 +102,6 @@ export function render(root) {
         -->
         ${isBuiltInKey() ? '' : `<div class="aibar card" id="aibar">${aibarHTML()}</div>`}
         <div id="ai-status"></div>
-
-        <div id="stale-slot">${staleNoticeHTML()}</div>
 
         <!-- 채널 탭 -->
         <div class="tabs" role="tablist" aria-label="채널별 글귀">
@@ -120,25 +136,19 @@ export function render(root) {
   bindAibar(root);
 
   /**
-   * 3단계에 들어와도 AI 를 자동으로 부르지 않는다 (요청자 지시 2026-08-11).
+   * 3단계에 들어와도 아무것도 자동으로 만들지 않는다 (요청자 지시 2026-08-11).
    * 대신 ctxbar 에 2단계에서 고른 상품·주제·톤을 미리보기로 보여주고,
-   * 확인 후 "AI 시작" 버튼을 직접 눌러야 그때 AI 가 호출된다.
-   * 그동안 탭에는 규칙 기반 글(위의 regenerateOne)이 미리 채워져 있어 화면이 비어 보이지 않는다.
+   * 「AI 생성」을 직접 눌러야 그때 글이 채워진다.
    */
-
-  root.querySelector('#regen-all')?.addEventListener('click', () => {
-    if (hasEdits() && !confirm('편집한 내용이 있습니다. 모두 새 글귀로 덮어쓸까요?')) return;
-    regenerateAll();
-    refreshPanel(root);
-    refreshStale(root);
-    toast('모든 채널 글귀를 새로 만들었습니다.');
-  });
 
   root.querySelector('#ai-all')?.addEventListener('click', () => {
     if (!hasKey()) { toast('OpenAI 키가 없습니다. 설정에서 먼저 입력해 주세요.'); return; }
-    if (hasEdits() && !confirm('편집한 내용이 있습니다. 모두 AI 글로 덮어쓸까요?')) return;
+    if (aiAllDisabled(getState())) { toast('이 주제로는 AI 글을 이미 2번 만들었습니다.'); return; }
+    if (hasEdits() && !confirm('편집한 내용이 있습니다. 계속하면 지금 보이는 화면이 새 AI 글로 바뀝니다.')) return;
     aiAll(root);
   });
+
+  bindAiRuns(root);
 
   root.querySelector('#copy-all')?.addEventListener('click', () => {
     const s2 = getState();
@@ -198,7 +208,11 @@ function refreshAibar(root) {
   if (!bar) return;
   bar.innerHTML = aibarHTML();
   bindAibar(root);
-  root.querySelectorAll('[data-ai]').forEach((b) => { b.disabled = !hasKey(); });
+  const aiAllBtn = root.querySelector('#ai-all');
+  if (aiAllBtn) {
+    aiAllBtn.disabled = aiAllDisabled(getState());
+    aiAllBtn.setAttribute('aria-label', aiAllLabel(getState()));
+  }
 }
 
 function bindAibar(root) {
@@ -247,7 +261,7 @@ function panelHTML() {
         <div class="panel__meta">
           <span class="badge">${c.name}</span>
           <span class="panel__hint">${c.hint}</span>
-          ${s.sources[activeTab] === 'ai' ? '<span class="badge">AI가 씀</span>' : ''}
+          ${s.sources[activeTab] === 'ai' ? `<span class="badge">${s.activeAiRun !== null ? `AI ${s.activeAiRun + 1}${josa(s.activeAiRun + 1)} 씀` : 'AI가 씀'}</span>` : ''}
           ${edited ? '<span class="badge badge--neutral">편집됨</span>' : ''}
         </div>
         <div class="panel__tools">
@@ -255,14 +269,6 @@ function panelHTML() {
                   for="draft-${c.id}" aria-live="polite">
             ${text.length.toLocaleString()} / ${c.limit.toLocaleString()}자
           </output>
-          <button type="button" class="btn btn--ghost btn--sm" data-regen="${c.id}"
-                  aria-label="${c.name} 글귀를 규칙 기반으로 새로 생성하기">
-            ${icon('refresh', 'icon--sm')} 재생성
-          </button>
-          <button type="button" class="btn btn--soft btn--sm" data-ai="${c.id}"
-                  aria-label="${c.name} 글귀를 AI로 다시 쓰기" ${hasKey() ? '' : 'disabled'}>
-            ${icon('sparkles', 'icon--sm')} AI로 쓰기
-          </button>
           <button type="button" class="btn btn--sm" data-copy="${c.id}"
                   aria-label="${c.name} 글귀 복사하기">
             ${icon('copy', 'icon--sm')} 복사
@@ -273,6 +279,7 @@ function panelHTML() {
       <label class="sr-only" for="draft-${c.id}">${c.name} 글귀 편집</label>
       <textarea class="textarea draft" id="draft-${c.id}" data-draft="${c.id}"
                 spellcheck="false" autocomplete="off"
+                placeholder="위 「AI 생성」을 눌러 글귀를 만들어 주세요."
                 aria-describedby="limit-${c.id}">${esc(text)}</textarea>
       <p class="field__hint" id="limit-${c.id}">${c.limitLabel} · 내용은 자동 저장됩니다.</p>
       <p class="field__hint">🖼 ${esc(IMAGE_PLAN[c.id] || '')} 카드는 3단계에서 한 벌만 만들어 세 채널에 나눠 씁니다.</p>
@@ -297,20 +304,73 @@ function warnHTML(banned, over, c) {
     </div>`;
 }
 
-/** 상품·주제가 바뀌었는데 편집본이 남아 있을 때만 뜨는 안내 */
-function staleNoticeHTML() {
+/* ---------------- AI 결과 버전 (AI 1 · AI 2) ---------------- */
+
+/** 지금 상품·주제·톤 조합에서 몇 벌까지 만들었는지 — 주제가 바뀌면 다시 0부터 센다 */
+function aiRunsFor(s) {
+  const key = outlineKeyOf(s);
+  return s.aiRuns?.key === key ? s.aiRuns.list : [];
+}
+
+const AI_RUN_LIMIT = 2;
+
+function aiAllDisabled(s) {
+  return !hasKey() || aiRunsFor(s).length >= AI_RUN_LIMIT;
+}
+
+function aiAllLabel(s) {
+  if (!hasKey()) return 'OpenAI 키가 없어 AI 생성을 쓸 수 없습니다';
+  if (aiRunsFor(s).length >= AI_RUN_LIMIT) return '이 주제로는 AI 글을 이미 2번 만들었습니다';
+  return '2단계에서 고른 상품·주제·톤으로 AI가 세 채널 글을 쓰게 하기';
+}
+
+/** AI 1 · AI 2 를 오가는 버튼 — 만든 적이 없으면(0벌) 아무것도 그리지 않는다 */
+function aiRunsHTML() {
   const s = getState();
-  if (draftKeyOf(s) === s.draftKey) return '';
+  const runs = aiRunsFor(s);
+  if (!runs.length) return '';
   return `
-    <div class="notice notice--info" role="status">
-      <span class="notice__icon" aria-hidden="true">${icon('alert', 'icon--sm')}</span>
-      <div>
-        <strong>조건이 바뀌었습니다</strong>
-        <p>지금 글귀는 이전 상품·주제로 만든 것입니다. 편집한 내용을 지키려면 그대로 두세요.</p>
-      </div>
-      <button type="button" class="btn btn--sm" id="stale-regen"
-              aria-label="바뀐 조건으로 글귀 새로 생성하기">새 조건으로 생성</button>
+    <div class="ai-runs" role="group" aria-label="AI가 만든 글 버전 선택">
+      ${runs.map((_, i) => `
+        <button type="button" class="chip" data-ai-run="${i}" aria-pressed="${s.activeAiRun === i}"
+                aria-label="AI가 ${i + 1}번째로 쓴 글 보기">
+          AI ${i + 1}
+        </button>`).join('')}
+      ${runs.length >= AI_RUN_LIMIT ? '' : ''}
     </div>`;
+}
+
+function refreshAiRuns(root) {
+  const slot = root.querySelector('#ai-runs-slot');
+  if (!slot) return;
+  slot.innerHTML = aiRunsHTML();
+  bindAiRuns(root);
+}
+
+function bindAiRuns(root) {
+  root.querySelectorAll('[data-ai-run]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      if (aiBusy) return;
+      switchAiRun(root, Number(btn.dataset.aiRun));
+    });
+  });
+}
+
+/** AI 1 ↔ AI 2 화면 전환 — 각 벌의 편집 상태는 그대로 보존된다 (input 리스너가 벌마다 따로 저장한다) */
+function switchAiRun(root, index) {
+  const s = getState();
+  const run = aiRunsFor(s)[index];
+  if (!run) return;
+  const sources = {};
+  Object.keys(run.drafts).forEach((id) => { sources[id] = 'ai'; });
+  setState({
+    drafts: { ...run.drafts },
+    generated: { ...run.generated },
+    sources: { ...s.sources, ...sources },
+    activeAiRun: index,
+  });
+  refreshPanel(root);
+  refreshAiRuns(root);
 }
 
 /* ---------------- 바인딩 ---------------- */
@@ -351,23 +411,6 @@ function refreshPanel(root) {
   bindPanel(root);
 }
 
-function refreshStale(root) {
-  const slot = root.querySelector('#stale-slot');
-  if (slot) {
-    slot.innerHTML = staleNoticeHTML();
-    bindStale(root);
-  }
-}
-
-function bindStale(root) {
-  root.querySelector('#stale-regen')?.addEventListener('click', () => {
-    regenerateAll();
-    refreshPanel(root);
-    refreshStale(root);
-    toast('새 조건으로 글귀를 다시 만들었습니다.');
-  });
-}
-
 /** 창 크기가 바뀌면 줄바꿈이 달라지므로 높이를 다시 잰다 */
 let onResize = null;
 
@@ -386,7 +429,17 @@ function bindPanel(root) {
   window.addEventListener('resize', onResize);
 
   ta.addEventListener('input', () => {
-    setState({ drafts: { ...getState().drafts, [ta.dataset.draft]: ta.value } });
+    const s = getState();
+    const id = ta.dataset.draft;
+    const patch = { drafts: { ...s.drafts, [id]: ta.value } };
+    // 지금 보고 있는 게 AI 1·AI 2 중 하나면, 그 벌에도 편집을 같이 남긴다.
+    // 안 남기면 다른 벌로 갔다 돌아왔을 때 방금 고친 내용이 사라진다.
+    const runs = aiRunsFor(s);
+    if (s.activeAiRun !== null && runs[s.activeAiRun]) {
+      const list = runs.map((r, i) => (i === s.activeAiRun ? { ...r, drafts: { ...r.drafts, [id]: ta.value } } : r));
+      patch.aiRuns = { ...s.aiRuns, list };
+    }
+    setState(patch);
     autoGrow(ta);
     updateCounter(root, ta);
   });
@@ -395,25 +448,6 @@ function bindPanel(root) {
     const id = e.currentTarget.dataset.copy;
     copyText(getState().drafts[id] || '', `${CHANNELS.find((c) => c.id === id).name} 글귀를 복사했습니다.`);
   });
-
-  root.querySelector('[data-regen]')?.addEventListener('click', (e) => {
-    const id = e.currentTarget.dataset.regen;
-    const s = getState();
-    if (s.drafts[id] !== s.generated[id] && !confirm('편집한 내용을 새 글귀로 덮어쓸까요?')) return;
-    regenerateOne(id);
-    refreshPanel(root);
-    refreshStale(root);
-    toast('글귀를 새로 만들었습니다.');
-  });
-
-  root.querySelector('[data-ai]')?.addEventListener('click', (e) => {
-    const id = e.currentTarget.dataset.ai;
-    const s = getState();
-    if (s.drafts[id] !== s.generated[id] && !confirm('편집한 내용을 AI 글로 덮어쓸까요?')) return;
-    aiOne(root, id);
-  });
-
-  bindStale(root);
 }
 
 /* ---------------- AI 생성 ---------------- */
@@ -461,61 +495,29 @@ function makeAiSession() {
   };
 }
 
-function setAiBusy(root, on, label) {
+function setAiBusy(root, on) {
   aiBusy = on;
-  root.querySelectorAll('[data-ai]').forEach((b) => { b.disabled = on || !hasKey(); });
-  const regen = root.querySelector('#regen-all');
-  if (regen) regen.disabled = on;
   const aiAllBtn = root.querySelector('#ai-all');
-  if (aiAllBtn) aiAllBtn.disabled = on || !hasKey();
-  const btn = root.querySelector('[data-ai]');
-  if (btn && label) btn.innerHTML = on ? `<span class="spinner" aria-hidden="true"></span> ${label}` : btn.innerHTML;
-}
-
-async function aiOne(root, id) {
-  if (aiBusy) { toast('이미 쓰는 중입니다.'); return; }
-  const c = CHANNELS.find((x) => x.id === id);
-  const session = makeAiSession();
-  aiSession = session;
-  setAiBusy(root, true, '쓰는 중…');
-  toast(`${c.name} 글을 AI가 쓰고 있습니다…`, 3000);
-  try {
-    await ensureOutline(root, { session });
-    const runningMessage = `${c.name} 글을 AI가 쓰고 있습니다…`;
-    showAiStatus(root, runningMessage, session);
-    const text = await generateWithAI(id, aiCtx(0), { signal: session.signal, waitIfPaused: session.waitIfPaused });
-    const s = getState();
-    setState({
-      drafts: { ...s.drafts, [id]: text },
-      generated: { ...s.generated, [id]: text },
-      sources: { ...s.sources, [id]: 'ai' },
-      draftKey: draftKeyOf(s),
-      // 방금 이 채널을 AI 로 썼다고 남긴다. 안 남기면 다음에 이 화면에 들어올 때
-      // 자동 실행이 같은 채널을 또 불러 방금 만든 글을 덮어쓴다 — 돈을 두 번 쓰는 셈이다.
-      aiKey: { ...s.aiKey, [id]: promptKeyOf(id, s) },
-    });
-    refreshPanel(root);
-    refreshStale(root);
-    toast(`${c.name} 글을 새로 썼습니다.`);
-  } catch (e) {
-    // 검수를 통과 못 했거나 호출이 실패하면 기존 글을 그대로 둔다 — 나쁜 글로 덮어쓰지 않는다
-    if (e.name === 'AbortError') toast(`${c.name} 생성을 취소했습니다.`);
-    else toast(`${c.name} 실패 · ${e.message}`, 5000);
-    refreshPanel(root);
-  } finally {
-    setAiBusy(root, false);
-    showAiStatus(root, '');
-    aiSession = null;
+  if (aiAllBtn) {
+    aiAllBtn.disabled = on || aiAllDisabled(getState());
+    if (!on) aiAllBtn.setAttribute('aria-label', aiAllLabel(getState()));
   }
+  root.querySelectorAll('[data-ai-run]').forEach((b) => { b.disabled = on; });
 }
 
 /**
  * 세 채널을 **동시에** 부른다.
  * 한 채널에 20~40초 걸려서 순서대로 돌리면 2분 가까이 기다려야 했다.
+ *
+ * ⚠️ 결과는 기존 벌을 덮어쓰지 않고 `aiRuns.list` 뒤에 **새 벌**로 쌓는다(AI 1 → AI 2).
+ *    처음 뽑은 글과 비교해 보고 싶다는 요구라 한 주제당 `AI_RUN_LIMIT`(2)까지만 쌓는다.
+ *    실패한 채널은 지금 화면에 보이는 값을 그대로 새 벌에 담는다 — 나쁜 글로 덮어쓰지 않는다.
  */
 async function aiAll(root) {
   if (aiBusy) return;
-  const picked = getState().channels;
+  const s0 = getState();
+  if (aiAllDisabled(s0)) return;
+  const picked = s0.channels;
   const channels = CHANNELS.filter((c) => picked.includes(c.id));
   if (!channels.length) return;
   const session = makeAiSession();
@@ -532,6 +534,10 @@ async function aiAll(root) {
     const results = await Promise.allSettled(channels.map((c) =>
       generateWithAI(c.id, aiCtx(0), { signal: session.signal, waitIfPaused: session.waitIfPaused })));
 
+    // 새 벌은 지금 화면 값에서 시작해, 성공한 채널만 AI 글로 바꾼다.
+    const base = getState();
+    const runDrafts = { ...base.drafts };
+    const runSources = { ...base.sources };
     let ok = 0;
     let cancelled = 0;
     results.forEach((r, i) => {
@@ -543,30 +549,37 @@ async function aiAll(root) {
         toast(`${c.name} 실패 · ${r.reason?.message || r.reason}`, 5000);
         return;
       }
-      const s = getState();
-      setState({
-        drafts: { ...s.drafts, [c.id]: r.value },
-        generated: { ...s.generated, [c.id]: r.value },
-        sources: { ...s.sources, [c.id]: 'ai' },
-        draftKey: draftKeyOf(s),
-      });
+      runDrafts[c.id] = r.value;
+      runSources[c.id] = 'ai';
       ok++;
     });
 
-    /**
-     * 성공하든 실패하든 **부른 채널만** 기록한다.
-     * 안 그러면 실패할 때마다 자동 실행이 무한 반복된다.
-     * 부르지 않은 채널까지 최신으로 찍어 두면 그 채널은 낡은 글을 든 채 영영 다시 안 쓴다.
-     */
-    const now = getState();
-    const marked = { ...now.aiKey };
-    channels.forEach((c) => { marked[c.id] = promptKeyOf(c.id, now); });
-    setState({ aiKey: marked });
+    let runNo = 0;
+    if (ok) {
+      const key = outlineKeyOf(base);
+      const prevList = base.aiRuns?.key === key ? base.aiRuns.list : [];
+      const list = [...prevList, { drafts: { ...runDrafts }, generated: { ...runDrafts } }];
+      runNo = list.length;
+
+      // 성공한 채널만 방금 이 지문으로 썼다고 남긴다 — 안 남기면 다음에 들어올 때 또 부른다.
+      const marked = { ...base.aiKey };
+      channels.forEach((c) => { if (runSources[c.id] === 'ai') marked[c.id] = promptKeyOf(c.id, base); });
+
+      setState({
+        drafts: runDrafts,
+        generated: { ...runDrafts },
+        sources: runSources,
+        draftKey: draftKeyOf(base),
+        aiKey: marked,
+        aiRuns: { key, list },
+        activeAiRun: list.length - 1,
+      });
+    }
 
     refreshPanel(root);
-    refreshStale(root);
+    refreshAiRuns(root);
 
-    if (ok) toast(`${ok}개 채널을 AI로 새로 썼습니다.`);
+    if (ok) toast(`AI ${runNo} — ${ok}개 채널 글을 새로 썼습니다.`);
     if (cancelled) toast(`${cancelled}개 채널 생성을 취소했습니다.`);
   } catch (e) {
     // 아웃라인 단계에서 취소하면 채널 호출까지 가지 않고 여기로 곧장 떨어진다
@@ -675,17 +688,10 @@ async function ensureOutline(root, { force = false, session } = {}) {
 }
 
 /**
- * ⚠️ 한 채널만 다시 뽑지 않는다. **세 채널을 항상 함께 뽑는다.**
- *
- * 세 채널은 같은 내용을 말해야 한다(요청자 요구). 내용을 정하는 것은 variant 하나이므로,
- * 한 채널만 variant 를 올리면 그 채널만 다른 사실을 다루게 되어 통일이 깨진다.
- * 그래서 채널별 「다시 쓰기」도 전체 재생성으로 넘긴다.
+ * 재생성할 때마다 variant 가 올라가 다른 후킹·근거 조합이 나온다 (세 채널 동시에).
+ * `activeAiRun` 을 null 로 돌린다 — 규칙 기반 글로 화면이 바뀌었으니 AI 1·AI 2 선택은 풀린다.
+ * (AI 1·AI 2 자체는 지우지 않는다. 버튼으로 다시 돌아가 볼 수 있다.)
  */
-function regenerateOne(id, { advance = true } = {}) {
-  regenerateAll({ advance });
-}
-
-/** 재생성할 때마다 variant 가 올라가 다른 후킹·근거 조합이 나온다 (세 채널 동시에) */
 function regenerateAll({ advance = true } = {}) {
   const s = getState();
   // 채널마다 따로 두지 않고 하나의 값을 공유한다 — 이게 내용 통일의 조건이다
@@ -700,7 +706,7 @@ function regenerateAll({ advance = true } = {}) {
     drafts[id] = generate(id, ctx(shared));
     sources[id] = 'rule';
   });
-  setState({ drafts, generated: { ...drafts }, variants, sources, draftKey: draftKeyOf(s) });
+  setState({ drafts, generated: { ...drafts }, variants, sources, draftKey: draftKeyOf(s), activeAiRun: null });
 }
 
 function hasEdits() {
@@ -730,6 +736,10 @@ async function copyText(text, okMessage) {
 /* ---------------- 유틸 ---------------- */
 
 const toneLabel = (id) => TONE_LABEL[id] || id;
+
+/** "AI 1이" · "AI 2가" — 숫자를 읽을 때 받침 유무에 따라 이/가가 갈린다. AI_RUN_LIMIT 범위(1~10)만 다룬다 */
+const NO_BATCHIM = new Set([2, 4, 5, 9]); // 이·사·오·구 — 받침 없이 끝난다
+const josa = (n) => (NO_BATCHIM.has(n) ? '가' : '이');
 
 const esc = (str = '') =>
   str.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

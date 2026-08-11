@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>harness</title>
+<link rel="stylesheet" href="./styles/tokens.css" />
+<link rel="stylesheet" href="./styles/base.css" />
+<link rel="stylesheet" href="./styles/components.css" />
+<link rel="stylesheet" href="./styles/pages.css" />
+</head>
+<body>
+<div id="main"></div>
+<div id="toast-root" class="toast-root" role="status" aria-live="polite"></div>
+<script type="module">
+  import { setState } from './store.js';
+  import * as TemplatePage from './pages/template.js';
+
+  setState({
+    productId: 'kbsn',
+    topic: '수상 이력을 홍보에 활용하는 법',
+    tone: 'trust',
+    channels: ['blog', 'instagram', 'threads'],
+    cardCount: 6,
+    concept: 'magazine',
+    accent: '#B9F73E',
+  });
+
+  TemplatePage.render(document.getElementById('main'));
+  window.__harnessReady = true;
+</script>
+</body>
+</html>

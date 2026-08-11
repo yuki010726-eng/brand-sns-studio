@@ -16,13 +16,13 @@ import {
   CONCEPTS, ACCENTS, MARKS, CARD_THEMES, NOTE_SYMBOLS, NOTE_PAPERS, DEFAULT_NOTE_GRAIN,
   getConcept, getCardTheme, getMark, isHex, contrastWithWhite,
 } from '../lib/concepts.js';
-import { slotsFor, defaultsFor, roleOf } from '../lib/templates.js';
+import { slotsFor, defaultsFor, roleOf, objectsFor } from '../lib/templates.js';
 import { stepperHTML, bindStepper } from '../components/stepper.js';
 import { getState, setState, navigate, draftKeyOf } from '../store.js';
 import { buildDeck, TONE_LABEL, findBanned } from '../lib/copywriter.js';
 import { outlineKeyOf } from '../lib/outline.js';
 import { getImage, putImage, deleteImage, imageKey } from '../lib/imagestore.js';
-import { renderCard, loadImage, cardAlt, downloadCanvas, ensureFonts, lastClipped, W, H } from '../lib/cardrender.js';
+import { renderCard, loadImage, cardAlt, downloadCanvas, ensureFonts, lastClipped, lastBoxes, lastSizes, W, H } from '../lib/cardrender.js';
 import { buildPrompt } from '../lib/imageprompt.js';
 import { imagePanelHTML, bindImagePanel } from '../components/imagepanel.js';
 import { toast } from '../components/toast.js';
@@ -50,6 +50,115 @@ let deck = [];
 let active = 0;
 let bitmaps = [];
 let repaintTimer = null;
+let currentRoot = null;
+
+/* ---------------- 작업 되돌리기·다시 실행 ---------------- */
+
+/**
+ * 이 페이지에 머무는 동안의 작업 이력이다. 스토어(localStorage)에 넣지 않는다 —
+ * 새로고침·다른 기기까지 따라갈 값이 아니라 "지금 이 편집 세션"만의 되돌리기다.
+ *
+ * 담는 것: 문구(`card`)·배치(`card.layout`)·강조색·테마색·마크·노트 종이·심볼 — 오른쪽 폼과
+ * 왼쪽 미리보기에서 바꿀 수 있는 값 전부. 담지 않는 것: 이미지(파일이라 IndexedDB에 있고
+ * 스냅샷에 넣기엔 무겁다), 템플릿 선택(템플릿을 바꾸면 슬롯 구성 자체가 달라져 이력을 새로 시작한다),
+ * 지금 보고 있는 카드 탭(화면 상태일 뿐 "작업"이 아니다).
+ */
+let history = [];
+let historyIndex = -1;
+let historyTimer = null;
+const HISTORY_KEYS = ['card', 'accent', 'cardTheme', 'mark', 'noteSymbol', 'notePaper', 'noteGrain'];
+
+function historySnapshot() {
+  const s = getState();
+  return JSON.parse(JSON.stringify(Object.fromEntries(HISTORY_KEYS.map((k) => [k, s[k]]))));
+}
+
+/** 페이지에 새로 들어오거나 템플릿을 바꿀 때 이력을 지금 상태 하나로 다시 시작한다 */
+function resetHistory() {
+  history = [historySnapshot()];
+  historyIndex = 0;
+}
+
+/**
+ * 편집이 몰릴 때(타이핑·슬라이더 끌기·연속 드래그) 한 번만 기록한다.
+ * 글자 하나·픽셀 하나마다 되돌리기 칸이 쌓이면 몇 번을 눌러도 소용없는 이력이 된다.
+ */
+function markDirty(root) {
+  clearTimeout(historyTimer);
+  historyTimer = setTimeout(() => {
+    const snap = historySnapshot();
+    if (JSON.stringify(snap) === JSON.stringify(history[historyIndex])) return;   // 실제로 안 바뀌었으면 안 쌓는다
+    history = history.slice(0, historyIndex + 1);   // 되돌린 다음 새로 고치면 그 뒤 미래는 버린다
+    history.push(snap);
+    historyIndex = history.length - 1;
+    refreshHistoryButtons(root);
+  }, 600);
+}
+
+function applyHistory(root, index) {
+  historyIndex = index;
+  setState(history[index]);
+  selectedObj = null;   // 배치가 바뀌었을 수 있다 — 안전하게 선택을 비운다
+  refreshForm(root);
+  refreshNotices(root);
+  paint(root);
+  refreshHistoryButtons(root);
+}
+
+function undo(root) { if (historyIndex > 0) applyHistory(root, historyIndex - 1); }
+function redo(root) { if (historyIndex < history.length - 1) applyHistory(root, historyIndex + 1); }
+
+/** 이 카드뉴스를 처음 열었을 때(또는 마지막 템플릿 교체) 상태로 한 번에 되돌린다 */
+function resetToOriginal(root) {
+  if (historyIndex === 0) return;
+  applyHistory(root, 0);
+  toast('작업 시작 시점으로 되돌렸습니다.');
+}
+
+function refreshHistoryButtons(root) {
+  const u = root.querySelector('#hist-undo');
+  if (u) u.disabled = historyIndex <= 0;
+  const r = root.querySelector('#hist-redo');
+  if (r) r.disabled = historyIndex >= history.length - 1;
+  const o = root.querySelector('#hist-reset');
+  if (o) o.disabled = historyIndex <= 0;
+}
+
+function historyHTML() {
+  return `
+    <div class="tpl-history" role="group" aria-label="작업 되돌리기">
+      <button type="button" class="btn btn--ghost btn--sm" id="hist-undo" aria-label="바로 전 작업으로 되돌리기">
+        ${icon('undo', 'icon--sm')} 되돌리기
+      </button>
+      <button type="button" class="btn btn--ghost btn--sm" id="hist-redo" aria-label="되돌린 작업 다시 실행하기">
+        ${icon('redo', 'icon--sm')} 다시 실행
+      </button>
+      <button type="button" class="btn btn--ghost btn--sm" id="hist-reset" aria-label="문구·배치·색상을 작업 시작 시점으로 되돌리기">
+        ${icon('refresh', 'icon--sm')} 처음 상태로
+      </button>
+    </div>`;
+}
+
+function bindHistory(root) {
+  root.querySelector('#hist-undo')?.addEventListener('click', () => undo(root));
+  root.querySelector('#hist-redo')?.addEventListener('click', () => redo(root));
+  root.querySelector('#hist-reset')?.addEventListener('click', () => resetToOriginal(root));
+  refreshHistoryButtons(root);
+}
+
+/* ---------------- 오브젝트 자유 배치(위치·크기) ---------------- */
+
+/** 지금 손잡이로 선택된 오브젝트 id — 화면을 벗어나면 사라져도 되는 값이라 스토어에 넣지 않는다 */
+let selectedObj = null;
+/** 이름표가 잠깐 떴다 사라지는 오브젝트 id. 클릭(선택)할 때마다 새로 켜고 타이머로 끈다 */
+let flashObj = null;
+let flashTimer = null;
+/** 드래그·리사이즈 중일 때만 값이 있다. 끝나면(pointerup) state.card.layout 에 확정 저장하고 비운다 */
+let dragging = null;
+/** 드래그 중 실시간 미리보기용 상자(0~1 정규화) — 확정 전까지는 여기서만 산다 */
+let draftBox = null;
+/** 캔버스 반복 그리기를 rAF 로 한 프레임에 한 번만 하도록 묶는다(드래그는 pointermove 가 매우 잦다) */
+let paintScheduled = false;
 
 /* ---------------- 문구 상태 ---------------- */
 
@@ -88,6 +197,17 @@ const hasEdits = (card) => card.texts.some((_, i) => isEdited(card, i));
  * 편집본이 없을 때만 조용히 새 추천 문구로 맞춘다.
  * 편집한 내용이 있으면 그대로 두고 안내만 띄운다 — 2단계 글귀와 같은 규칙이다.
  */
+/** 카드마다 빈 오버라이드 배치 — "전부 자동 배치"의 초기값 */
+const emptyLayout = () => deck.map(() => ({}));
+const emptyExtraTexts = () => deck.map(() => []);
+const fitExtraTexts = (items) => deck.map((_, i) => Array.isArray(items?.[i]) ? items[i].map((x) => ({ ...x })) : []);
+
+/**
+ * 저장된 배치를 새 덱 길이에 맞춘다. 카드 장수가 바뀌면 텍스트처럼 배열 길이가 어긋난다.
+ * 옛 저장값(이 기능 이전)엔 `layout` 자체가 없을 수 있어 그 경우도 여기서 안전하게 채운다.
+ */
+const fitLayout = (layout) => deck.map((_, i) => ({ ...(layout?.[i] || {}) }));
+
 function ensureTexts(product) {
   const s = getState();
   const key = draftKeyOf(s);
@@ -95,21 +215,26 @@ function ensureTexts(product) {
   const card = s.card;
 
   if (!card || !Array.isArray(card.texts) || card.texts.length !== deck.length) {
-    setState({ card: { key, concept: s.concept, texts: cloneTexts(base), base } });
+    setState({ card: { key, concept: s.concept, texts: cloneTexts(base), base, layout: emptyLayout(), extraTexts: emptyExtraTexts() } });
     return;
   }
 
-  // 템플릿 교체 — 슬롯이 달라졌으므로 반드시 새 구성으로 다시 세운다
+  // 템플릿 교체 — 슬롯이 달라졌으므로 반드시 새 구성으로 다시 세운다.
+  // 오브젝트 구성도 템플릿마다 다르므로 배치도 함께 새로 시작한다.
   if (card.concept !== s.concept) {
-    setState({ card: { key: card.key, concept: s.concept, texts: mergeTexts(card, base), base } });
+    setState({ card: { key: card.key, concept: s.concept, texts: mergeTexts(card, base), base, layout: emptyLayout(), extraTexts: fitExtraTexts(card.extraTexts) } });
     return;
   }
+
+  // 배치는 내용이 낡는 것과 다른 축이다(디자인 결정) — 여기서는 길이만 맞춰 보존한다.
+  const layout = fitLayout(card.layout);
+  const extraTexts = fitExtraTexts(card.extraTexts);
 
   if (card.key === key) {
-    setState({ card: { ...card, base } });   // 되돌리기 기준을 최신으로
+    setState({ card: { ...card, base, layout, extraTexts } });   // 되돌리기 기준을 최신으로
     return;
   }
-  if (!hasEdits(card)) setState({ card: { key, concept: s.concept, texts: cloneTexts(base), base } });
+  if (!hasEdits(card)) setState({ card: { key, concept: s.concept, texts: cloneTexts(base), base, layout, extraTexts } });
 }
 
 /* ---------------- 렌더 ---------------- */
@@ -131,6 +256,7 @@ export function render(root) {
   });
   ensureTexts(p);
   if (active >= deck.length) active = 0;
+  resetHistory();   // 이 화면에 새로 들어오거나(마운트) 템플릿을 바꿀 때 이력을 지금 상태로 다시 시작한다
 
   root.innerHTML = `
     <div class="container">
@@ -171,16 +297,24 @@ export function render(root) {
 
         <div id="tpl-notices">${noticesHTML()}</div>
 
-        <!-- 카드 선택 -->
-        <div class="tpl-tabs" role="tablist" aria-label="편집할 카드 선택">
-          ${deck.map((c, i) => tabHTML(c, i)).join('')}
+        <div class="tpl-toolbar">
+          <!-- 카드 선택 -->
+          <div class="tpl-tabs" role="tablist" aria-label="편집할 카드 선택">
+            ${deck.map((c, i) => tabHTML(c, i)).join('')}
+          </div>
+          ${historyHTML()}
         </div>
 
         <div class="tpl-editor">
           <div class="tpl-stage">
-            <canvas class="tpl-stage__canvas" id="tpl-canvas" width="${W}" height="${H}"
-                    role="img" aria-label="카드 미리보기"></canvas>
+            <div class="tpl-stage__canvas-wrap" id="tpl-canvas-wrap">
+              <canvas class="tpl-stage__canvas" id="tpl-canvas" width="${W}" height="${H}"
+                      role="img" aria-label="카드 미리보기"></canvas>
+              <!-- 오브젝트 자유 배치 손잡이. 렌더러가 실제로 그린 자리(lastBoxes())를 그대로 옮겨 그린다. -->
+              <div class="tpl-stage__overlay" id="tpl-overlay"></div>
+            </div>
             <p class="tpl-stage__note" id="tpl-src">이미지 확인 중…</p>
+            <p class="tpl-stage__note" id="tpl-layout-hint">${layoutHintHTML()}</p>
             <!-- 글이 잘렸을 때만 채워진다. 미리보기 바로 아래라 눈에 바로 걸린다. -->
             <div id="tpl-overflow"></div>
             <div class="tpl-stage__actions">
@@ -214,12 +348,15 @@ export function render(root) {
       </section>
     </div>`;
 
+  currentRoot = root;
   bindStepper(root);
   bindConcepts(root);
   bindTabs(root);
   bindForm(root);
   bindNotices(root);
   bindImagePanelHere(root);
+  bindOverlay(root);
+  bindHistory(root);
 
   root.querySelector('#reset-all')?.addEventListener('click', () => resetAll(root));
   root.querySelector('#save-one')?.addEventListener('click', () => saveOne(root));
@@ -273,6 +410,18 @@ function tabHTML(card, i) {
 /** 마무리 카드(카드형)는 단색 배경 고정이라 이미지를 쓰지 않는다 */
 const usesImage = (conceptId, kind) => !(conceptId === 'card' && roleOf('card', kind) === 'outro');
 
+/**
+ * ⚠️ 오브젝트 자유 배치는 1단계라 매거진형에만 있다 — `objectsFor()` 가 다른 템플릿엔
+ *    빈 배열을 돌려주므로 손잡이 자체가 안 뜬다. 왜 안 보이는지 헷갈리지 않게 안내한다.
+ */
+function layoutHintHTML() {
+  const s = getState();
+  if (s.concept === 'magazine') {
+    return '미리보기 위 점선 상자를 드래그하면 위치·크기를 바꿀 수 있습니다. 상자를 누르면 이름이 잠깐 떴다 사라지고, 아래에서 숫자·글자 크기로도 조정할 수 있어요.';
+  }
+  return '추가한 텍스트 상자는 미리보기에서 드래그해 위치·크기를 바꿀 수 있습니다.';
+}
+
 function imagePanelSlot() {
   const s = getState();
   const concept = getConcept(s.concept);
@@ -285,6 +434,8 @@ function imagePanelSlot() {
     prompt: promptFor(active),
     label: info.label,
     disabled: !usesImage(s.concept, deck[active].kind),
+    lockable: concept.id !== 'note' && Boolean(s.images[active]),
+    locked: Boolean(s.images[active]?.locked),
   });
 }
 
@@ -306,10 +457,17 @@ function formHTML() {
               aria-label="이 카드 문구를 추천 문구로 되돌리기" ${edited ? '' : 'disabled'}>
         ${icon('refresh', 'icon--sm')} 추천 문구로
       </button>
+      <button type="button" class="btn btn--soft btn--sm" id="add-text-box"
+              aria-label="현재 카드에 텍스트 상자 추가">
+        ${icon('plus', 'icon--sm')} 텍스트 상자 추가
+      </button>
     </div>
+
+    <div id="tpl-layout-slot">${layoutPanelHTML()}</div>
 
     <h3 class="tpl-form__legend">문구</h3>
     ${slots.map((f) => fieldHTML(f, t[f.id] ?? '', concept.id)).join('')}
+    ${extraTextsHTML(s.card.extraTexts?.[active] || [])}
 
     ${concept.accentPicker ? accentHTML(s.accent) : ''}
     ${concept.id === 'note' ? notePaperHTML(s.notePaper, s.noteGrain) : ''}
@@ -443,10 +601,13 @@ function cardThemeHTML(current) {
             <span class="accent__dot" style="background:${c.hex}"></span>${c.name}
           </label>
         </div>`).join('')}
-      <!-- 매거진형 강조 색상과 같은 자리·같은 모양이다 (요청자 요구 2026-08-11) -->
-      <input class="input accent__hex" type="text" id="theme-hex" value="${esc(custom)}"
-             spellcheck="false" autocomplete="off" placeholder="#RRGGBB"
-             aria-label="테마 색상 직접 입력 (예: #2673D2)" />
+      <label class="color-custom" title="원하는 테마 색상 선택">
+        <input class="color-custom__input" type="color" id="theme-custom"
+               value="${esc(custom || theme.hex)}" autocomplete="off"
+               aria-label="원하는 테마 색상 선택" />
+        <span class="color-custom__rainbow" aria-hidden="true"></span>
+        <span>직접 선택</span>
+      </label>
     </fieldset>
     <p class="field__hint" id="theme-hint">${themeHintHTML(theme)}</p>`;
 }
@@ -519,9 +680,13 @@ function accentHTML(current) {
             <span class="accent__dot" aria-hidden="true"></span>${a.name}
           </label>
         </div>`).join('')}
-      <input class="input accent__hex" type="text" id="accent-hex" value="${esc(current)}"
-             spellcheck="false" autocomplete="off" placeholder="#RRGGBB"
-             aria-label="강조 색상 직접 입력 (예: #B9F73E)" />
+      <label class="color-custom" title="원하는 강조 색상 선택">
+        <input class="color-custom__input" type="color" id="accent-custom"
+               value="${isHex(current) ? esc(current) : '#B9F73E'}" autocomplete="off"
+               aria-label="원하는 강조 색상 선택" />
+        <span class="color-custom__rainbow" aria-hidden="true"></span>
+        <span>직접 선택</span>
+      </label>
     </fieldset>
     <p class="field__hint">모든 장의 강조 문구에 함께 적용됩니다.</p>`;
 }
@@ -578,6 +743,7 @@ function bindConcepts(root) {
     if (e.target.name !== 'tpl-concept') return;
     setState({ concept: e.target.value });
     active = 0;
+    selectedObj = null;   // 오브젝트 구성 자체가 바뀐다
     render(root);   // 슬롯 구성·저장 키·추천 문구가 모두 바뀌므로 전체를 다시 그린다
     toast(`${getConcept(e.target.value).name} 템플릿으로 바꿨습니다.`);
   });
@@ -604,6 +770,9 @@ function bindTabs(root) {
 
 function selectCard(root, i) {
   active = i;
+  selectedObj = null;   // 카드마다 상자 좌표가 다르다 — 선택은 넘겨받지 않는다
+  flashObj = null;
+  clearTimeout(flashTimer);
   root.querySelectorAll('[data-card-tab]').forEach((t) => {
     const on = Number(t.dataset.cardTab) === i;
     t.setAttribute('aria-selected', String(on));
@@ -632,6 +801,47 @@ function updateCount(root, el) {
 }
 
 function bindForm(root) {
+  root.querySelector('#add-text-box')?.addEventListener('click', () => {
+    const s = getState();
+    const extraTexts = fitExtraTexts(s.card.extraTexts);
+    const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    extraTexts[active].push({ id, text: '텍스트를 입력하세요', x: 0.1, y: 0.42, w: 0.8, h: 0.14, fontSize: 44, fontWeight: 700 });
+    setState({ card: { ...s.card, extraTexts } });
+    selectedObj = `extra-${id}`;
+    refreshForm(root);
+    paint(root);
+    markDirty(root);
+  });
+
+  root.querySelectorAll('[data-extra-text]').forEach((el) => {
+    el.addEventListener('input', () => {
+      const s = getState();
+      const extraTexts = fitExtraTexts(s.card.extraTexts);
+      const item = extraTexts[active].find((x) => x.id === el.dataset.extraText);
+      if (!item) return;
+      item.text = el.value;
+      setState({ card: { ...s.card, extraTexts } });
+      schedulePaint(root);
+      markDirty(root);
+    });
+  });
+
+  root.querySelectorAll('[data-delete-extra]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const s = getState();
+      const id = button.dataset.deleteExtra;
+      const extraTexts = fitExtraTexts(s.card.extraTexts);
+      extraTexts[active] = extraTexts[active].filter((x) => x.id !== id);
+      const layout = fitLayout(s.card.layout);
+      delete layout[active][`extra-${id}`];
+      setState({ card: { ...s.card, extraTexts, layout } });
+      if (selectedObj === `extra-${id}`) selectedObj = null;
+      refreshForm(root);
+      paint(root);
+      markDirty(root);
+    });
+  });
+
   root.querySelectorAll('[data-f]').forEach((el) => {
     el.addEventListener('input', () => {
       const s = getState();
@@ -641,6 +851,7 @@ function bindForm(root) {
 
       // 입력 중에는 캔버스만 갱신한다 — 폼을 다시 그리면 캐럿이 튄다
       schedulePaint(root);
+      markDirty(root);
       updateCount(root, el);
       const warn = root.querySelector('#tpl-warn');
       if (warn) warn.innerHTML = warnHTML(texts[active]);
@@ -652,60 +863,68 @@ function bindForm(root) {
   root.querySelector('.accent__swatches')?.addEventListener('change', (e) => {
     if (e.target.name !== 'accent') return;
     setState({ accent: e.target.value });
-    const hex = root.querySelector('#accent-hex');
-    if (hex) hex.value = e.target.value;
     paint(root);
+    markDirty(root);
+    refreshForm(root);   // 직접 선택 칩의 활성 표시를 견본 기준으로 되돌린다
   });
 
-  root.querySelector('#accent-hex')?.addEventListener('input', (e) => {
-    const v = e.target.value.trim();
-    if (!/^#[0-9a-fA-F]{6}$/.test(v)) return;   // 입력 중에는 조용히 무시
-    setState({ accent: v });
-    root.querySelectorAll('[name="accent"]').forEach((r) => { r.checked = r.value.toLowerCase() === v.toLowerCase(); });
+  /**
+   * 강조 색상 직접 선택 — 무지개 동그라미를 누르면 시스템 색상 팔레트가 열린다(요청자 지시
+   * 2026-08-11). 예전엔 `#RRGGBB` 를 손으로 쳐야 했는데, 팔레트가 훨씬 자유롭게 고를 수 있다.
+   * 드래그하는 동안은 `input` 이 계속 온다 — 그때마다 캔버스만 갱신하고, 팔레트를 닫을 때
+   * (`change`) 이력에 남기고 폼(직접 선택 칩의 활성 표시)을 다시 그린다.
+   */
+  root.querySelector('#accent-custom')?.addEventListener('input', (e) => {
+    setState({ accent: e.target.value });
+    root.querySelectorAll('[name="accent"]').forEach((r) => { r.checked = false; });
     schedulePaint(root);
+  });
+  root.querySelector('#accent-custom')?.addEventListener('change', () => {
+    markDirty(root);
+    refreshForm(root);
   });
 
   root.querySelector('#mark-swatches')?.addEventListener('change', (e) => {
     if (e.target.name !== 'mark') return;
     setState({ mark: e.target.value });
     paint(root);
+    markDirty(root);
   });
 
   // 테마 색은 모든 장에 걸린다. 상태 한 곳만 바꾸면 나머지 장은 다시 그릴 때 따라온다.
   root.querySelector('#theme-swatches')?.addEventListener('change', (e) => {
     if (e.target.name !== 'cardtheme') return;
     setState({ cardTheme: e.target.value });
-    // 견본을 고르면 직접 입력칸을 비운다 — 남겨 두면 어느 쪽이 적용됐는지 알 수 없다
-    const hex = root.querySelector('#theme-hex');
-    if (hex) hex.value = '';
     refreshThemeHint(root);
     paint(root);
+    markDirty(root);
+    refreshForm(root);   // 직접 선택 칩의 활성 표시를 견본 기준으로 되돌린다
   });
 
-  /**
-   * 테마 색 직접 입력. 강조 색상(`#accent-hex`)과 같은 규칙이다 —
-   * 입력 중인 값은 조용히 무시하고, 여섯 자리가 완성되면 그때 반영한다.
-   */
-  root.querySelector('#theme-hex')?.addEventListener('input', (e) => {
-    const v = e.target.value.trim();
-    if (!isHex(v)) return;
-    setState({ cardTheme: v });
-    // 직접 입력한 색은 어느 견본도 아니다 — 켜져 있던 라디오를 끈다
+  /** 테마 색 직접 선택 — 강조 색상(`#accent-custom`)과 같은 규칙이다 */
+  root.querySelector('#theme-custom')?.addEventListener('input', (e) => {
+    setState({ cardTheme: e.target.value });
     root.querySelectorAll('[name="cardtheme"]').forEach((r) => { r.checked = false; });
     refreshThemeHint(root);
     schedulePaint(root);
+  });
+  root.querySelector('#theme-custom')?.addEventListener('change', () => {
+    markDirty(root);
+    refreshForm(root);
   });
 
   root.querySelector('#symbol-swatches')?.addEventListener('change', (e) => {
     if (e.target.name !== 'notesymbol') return;
     setState({ noteSymbol: e.target.value });
     paint(root);
+    markDirty(root);
   });
 
   root.querySelector('#paper-swatches')?.addEventListener('change', (e) => {
     if (e.target.name !== 'paper') return;
     setState({ notePaper: e.target.value });
     paint(root);
+    markDirty(root);
   });
 
   // 슬라이더는 끄는 동안 계속 그리면 무거워서 캔버스만 모아 그린다
@@ -715,6 +934,7 @@ function bindForm(root) {
     const out = root.querySelector('#grain-value');
     if (out) out.textContent = String(v);
     schedulePaint(root);
+    markDirty(root);
   });
 
   root.querySelectorAll('[data-insert]').forEach((btn) => {
@@ -758,9 +978,11 @@ function bindForm(root) {
     refreshForm(root);
     refreshNotices(root);
     paint(root);
+    markDirty(root);
     toast(`${active + 1}번 카드를 추천 문구로 되돌렸습니다.`);
   });
 
+  bindLayoutPanel(root);
 }
 
 /* ---------------- 이미지 패널 ---------------- */
@@ -777,7 +999,19 @@ function bindImagePanelHere(root) {
     onUpload: (file) => putUploaded(root, file),
     onDelete: () => removeImage(root),
     onCopy: () => copyText(promptFor(active), `${active + 1}번 프롬프트를 복사했습니다.`),
+    onToggleLock: () => toggleBackgroundLock(root),
   });
+}
+
+function toggleBackgroundLock(root) {
+  const s = getState();
+  const current = s.images[active] || {};
+  const locked = !current.locked;
+  setState({ images: { ...s.images, [active]: { ...current, locked } } });
+  if (locked && selectedObj === 'image') selectedObj = null;
+  refreshImagePanel(root);
+  paint(root);
+  toast(`배경 이미지 잠금을 ${locked ? '켰습니다.' : '해제했습니다.'}`);
 }
 
 /** 이미지가 바뀌면 미리보기·안내문·패널을 함께 맞춘다 */
@@ -785,7 +1019,8 @@ async function applyImage(root, i, blob, source) {
   const s = getState();
   if (blob) {
     await putImage(imageKey(s.productId, s.concept, i), blob);
-    setState({ images: { ...getState().images, [i]: { source, at: Date.now() } } });
+    const previous = getState().images[i] || {};
+    setState({ images: { ...getState().images, [i]: { ...previous, source, at: Date.now() } } });
     bitmaps[i] = await loadImage(blob).catch(() => null);
   } else {
     await deleteImage(imageKey(s.productId, s.concept, i));
@@ -845,11 +1080,19 @@ const promptFor = (i) => {
 };
 
 
+/**
+ * ⚠️ 드래그 중인 카드(`active`)만 `draftBox` 로 미리보기를 덮어쓴다.
+ *    확정 저장 전까지는 `state.card.layout` 을 건드리지 않는다 — 손을 떼기 전에 취소하거나
+ *    (짧게 눌렀다 뗀 경우) 값이 남지 않아야 하기 때문이다.
+ */
 function opts(s, i) {
+  const saved = s.card.layout?.[i] || {};
+  const layout = (dragging && draftBox && i === active) ? { ...saved, [dragging.obj]: draftBox } : saved;
   return {
     conceptId: s.concept, kind: deck[i].kind, image: bitmaps[i] || null,
     accent: s.accent, cardTheme: s.cardTheme, mark: s.mark,
     noteSymbol: s.noteSymbol, notePaper: s.notePaper, noteGrain: s.noteGrain,
+    layout, extraTexts: s.card.extraTexts?.[i] || [],
   };
 }
 
@@ -860,8 +1103,17 @@ function paint(root) {
   const texts = s.card.texts[active];
   renderCard(canvas, texts, opts(s, active));
   canvas.setAttribute('aria-label', cardAlt(texts, active));
-  // ⚠️ 잘림 기록은 **그린 직후에만** 유효하다 (renderCard 가 매번 비운다)
+  // ⚠️ 잘림 기록·오브젝트 상자는 **그린 직후에만** 유효하다 (renderCard 가 매번 비운다)
   refreshOverflow(root, lastClipped());
+  syncOverlay(root);
+}
+
+/** rAF 로 한 프레임에 한 번만 그린다 — 드래그는 pointermove 가 아주 잦아서 디바운스(schedulePaint)로는
+ *  손을 뗄 때까지 캔버스가 멈춰 보인다. */
+function requestPaint(root) {
+  if (paintScheduled) return;
+  paintScheduled = true;
+  requestAnimationFrame(() => { paintScheduled = false; paint(root); });
 }
 
 /**
@@ -915,16 +1167,303 @@ function refreshSource(root) {
     : `${kindWord} 이미지 없음 — 템플릿 기본 배경으로 그립니다.`;
 }
 
+/* ---------------- 오브젝트 자유 배치 ---------------- */
+
+function editableObjects(s = getState(), i = active) {
+  const builtIn = objectsFor(s.concept, deck[i].kind)
+    .filter((item) => item.id !== 'image' || !s.images[i]?.locked)
+    // 배경은 언제나 가장 먼저 그려 다른 선택 상자보다 아래에 둔다.
+    .sort((a, b) => (a.id === 'image' ? -1 : b.id === 'image' ? 1 : 0));
+  const extras = (s.card.extraTexts?.[i] || []).map((item, n) => ({
+    id: `extra-${item.id}`, type: 'text', label: `추가 텍스트 ${n + 1}`,
+  }));
+  return [...builtIn, ...extras];
+}
+
+/**
+ * 손잡이를 캔버스 위에 겹쳐 그린다. `lastBoxes()`(렌더러가 실제로 그린 자리)를 그대로 옮기므로
+ * 자동 배치든 오버라이드든 손잡이는 늘 진짜 결과와 일치한다.
+ */
+function syncOverlay(root) {
+  const overlay = root.querySelector('#tpl-overlay');
+  if (!overlay) return;
+  const s = getState();
+  const objs = editableObjects(s);
+  const boxes = lastBoxes();
+  const known = new Set(objs.map((o) => o.id));
+  if (selectedObj && !known.has(selectedObj)) selectedObj = null;
+
+  overlay.innerHTML = objs.filter((o) => boxes[o.id]).map((o) => handleHTML(o, boxes[o.id])).join('');
+  refreshLayoutPanel(root);
+}
+
+const GRIPS = ['nw', 'ne', 'sw', 'se'];
+
+function handleHTML(o, box) {
+  const style = `left:${(box.x / W) * 100}%;top:${(box.y / H) * 100}%;`
+    + `width:${(box.w / W) * 100}%;height:${(box.h / H) * 100}%`;
+  const on = o.id === selectedObj;
+  const flashing = o.id === flashObj;
+  return `
+    <div class="tpl-handle${on ? ' is-selected' : ''}" data-obj="${o.id}" style="${style}"
+         tabindex="0" role="button" aria-pressed="${on}"
+         aria-label="${esc(o.label)} 위치·크기 — 드래그하거나 방향키로 옮기고, 아래 숫자 입력으로도 조정할 수 있습니다">
+      <span class="tpl-handle__label${flashing ? ' is-flash' : ''}">${esc(o.label)}</span>
+      ${on ? GRIPS.map((gr) => `<span class="tpl-handle__grip tpl-handle__grip--${gr}" data-grip="${gr}"></span>`).join('') : ''}
+    </div>`;
+}
+
+/**
+ * 오브젝트를 선택 상태로 만들고 손잡이·숫자 패널을 다시 그린다.
+ * 이름표는 평소엔 숨어 있다가 이 시점에만 잠깐 떴다 사라진다 — 미리보기가 이름표로
+ * 뒤덮이지 않도록 클릭한 상자만 알려 준다(요청자 지시 2026-08-11).
+ */
+function selectObj(root, objId) {
+  selectedObj = objId;
+  flashObj = objId;
+  clearTimeout(flashTimer);
+  flashTimer = setTimeout(() => { flashObj = null; }, 1400);
+  syncOverlay(root);
+}
+
+/** 확정 저장 — 드래그가 끝났을 때도, 숫자 입력으로 고쳤을 때도 여기 하나를 거친다 */
+function commitLayout(root, objId, box) {
+  const s = getState();
+  const layout = fitLayout(s.card.layout);
+  const obj = editableObjects(s).find((o) => o.id === objId);
+  const previous = layout[active][objId] || {};
+  let nextBox = { ...previous, ...box };
+
+  // 자동 배치 텍스트를 처음 옮기는 순간에도 현재 보이던 서체를 그대로 이어받는다.
+  // 이 값이 없으면 위치 저장 직후 상자 맞춤 로직이 다시 돌아 글자가 갑자기 작아진다.
+  if (obj?.type === 'text' && !nextBox.fontSize) {
+    const defaultSizes = { brand: 36, eyebrow: 30, title: 82, footer: 30 };
+    const defaultWeights = { brand: 900, eyebrow: 700, title: 900, footer: 500 };
+    nextBox.fontSize = lastSizes()[objId]?.size || defaultSizes[objId] || 30;
+    nextBox.fontWeight = Number(nextBox.fontWeight) || defaultWeights[objId] || 500;
+  }
+
+  layout[active] = { ...layout[active], [objId]: nextBox };
+  setState({ card: { ...s.card, layout } });
+  paint(root);
+  refreshNotices(root);
+  markDirty(root);
+}
+
+function startDrag(root, e, objId, grip) {
+  e.preventDefault();
+  const wrap = root.querySelector('#tpl-canvas-wrap');
+  const cur = lastBoxes()[objId];
+  if (!wrap || !cur) return;
+  selectObj(root, objId);
+  const rect = wrap.getBoundingClientRect();
+  dragging = {
+    obj: objId, grip: grip || null,
+    startClientX: e.clientX, startClientY: e.clientY,
+    startBox: { x: cur.x / W, y: cur.y / H, w: cur.w / W, h: cur.h / H },
+    rectW: rect.width, rectH: rect.height,
+  };
+  draftBox = { ...dragging.startBox };
+  window.addEventListener('pointermove', onDragMove);
+  window.addEventListener('pointerup', onDragEnd, { once: true });
+}
+
+function onDragMove(e) {
+  if (!dragging || !currentRoot) return;
+  const dx = (e.clientX - dragging.startClientX) / dragging.rectW;
+  const dy = (e.clientY - dragging.startClientY) / dragging.rectH;
+  const { startBox, grip } = dragging;
+  const box = { ...startBox };
+  if (!grip) {
+    box.x = startBox.x + dx;
+    box.y = startBox.y + dy;
+  } else {
+    if (grip.includes('w')) { box.x = startBox.x + dx; box.w = startBox.w - dx; }
+    if (grip.includes('e')) { box.w = startBox.w + dx; }
+    if (grip.includes('n')) { box.y = startBox.y + dy; box.h = startBox.h - dy; }
+    if (grip.includes('s')) { box.h = startBox.h + dy; }
+  }
+  // 완전히 뒤집히거나 0에 가까워지지 않게만 막는다 — 그 밖의 자유는 요청자 지시대로 막지 않는다
+  box.w = Math.max(0.03, box.w);
+  box.h = Math.max(0.02, box.h);
+  draftBox = box;
+  requestPaint(currentRoot);
+}
+
+function onDragEnd(e) {
+  window.removeEventListener('pointermove', onDragMove);
+  if (!dragging) return;
+  const { obj, startClientX, startClientY } = dragging;
+  const movedPx = Math.hypot((e.clientX ?? startClientX) - startClientX, (e.clientY ?? startClientY) - startClientY);
+  const root = currentRoot;
+  const finalBox = draftBox ? { ...draftBox } : null;
+
+  // 최종 렌더링보다 먼저 임시 드래그 상태를 비운다. 이 순서가 뒤집히면 단순 클릭에서도
+  // opts()가 임시 상자를 사용자 배치로 해석해 자동 축소한 화면을 마지막 프레임으로 남긴다.
+  dragging = null;
+  draftBox = null;
+
+  // 클릭할 때 생기는 미세한 손떨림은 이동으로 보지 않는다. 선택만으로 배치 오버라이드가
+  // 생기면 상자 맞춤 렌더링 경로로 바뀌어 보이는 결과도 달라질 수 있다.
+  if (movedPx >= 8 && finalBox && root) commitLayout(root, obj, finalBox);
+  else if (root) paint(root);
+}
+
+function extraTextsHTML(items) {
+  if (!items.length) return '';
+  return `
+    <h3 class="tpl-form__legend">추가 텍스트 상자</h3>
+    <div class="tpl-extra-list">
+      ${items.map((item) => `
+        <div class="field tpl-extra">
+          <div class="tpl-field__head">
+            <label class="field__label" for="extra-${esc(item.id)}">텍스트</label>
+            <button type="button" class="btn btn--ghost btn--sm" data-delete-extra="${esc(item.id)}"
+                    aria-label="이 텍스트 상자 삭제">${icon('trash', 'icon--sm')} 삭제</button>
+          </div>
+          <textarea class="textarea tpl-ta" id="extra-${esc(item.id)}" data-extra-text="${esc(item.id)}"
+                    rows="2" spellcheck="false">${esc(item.text || '')}</textarea>
+        </div>`).join('')}
+    </div>`;
+}
+
+function bindOverlay(root) {
+  const overlay = root.querySelector('#tpl-overlay');
+  if (!overlay) return;
+
+  overlay.addEventListener('pointerdown', (e) => {
+    const handle = e.target.closest('.tpl-handle');
+    if (!handle) return;
+    const grip = e.target.closest('.tpl-handle__grip');
+    startDrag(root, e, handle.dataset.obj, grip?.dataset.grip || null);
+  });
+
+  // 마우스 없이도 옮길 수 있어야 한다 — 화살표로 미세 이동, Shift 로 크게, Esc 로 선택 해제
+  overlay.addEventListener('keydown', (e) => {
+    const handle = e.target.closest('.tpl-handle');
+    if (!handle) return;
+    if (e.key === 'Escape') { selectedObj = null; syncOverlay(root); return; }
+    const step = e.shiftKey ? 0.02 : 0.005;
+    const deltas = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
+    if (!(e.key in deltas)) return;
+    e.preventDefault();
+    const objId = handle.dataset.obj;
+    selectObj(root, objId);
+    const cur = lastBoxes()[objId];
+    if (!cur) return;
+    const s = getState();
+    const norm = s.card.layout?.[active]?.[objId] || { x: cur.x / W, y: cur.y / H, w: cur.w / W, h: cur.h / H };
+    const [dx, dy] = deltas[e.key];
+    commitLayout(root, objId, { ...norm, x: norm.x + dx, y: norm.y + dy });
+  });
+}
+
+/** 선택된 오브젝트의 x/y/w/h 를 px 단위 숫자 입력으로 보여준다(1080×1350 기준) */
+function layoutPanelHTML() {
+  if (!selectedObj) return '';
+  const s = getState();
+  const obj = editableObjects(s).find((o) => o.id === selectedObj);
+  const cur = lastBoxes()[selectedObj];
+  if (!obj || !cur) return '';
+  const saved = s.card.layout?.[active]?.[selectedObj] || {};
+  const isText = obj.type === 'text';
+  const defaultWeights = { brand: 900, eyebrow: 700, title: 900, footer: 500 };
+  const defaultSizes = { brand: 36, eyebrow: 30, title: 82, footer: 30 };
+  const isExtra = selectedObj.startsWith('extra-');
+  const shownWeight = Number(saved.fontWeight) || defaultWeights[selectedObj] || (isExtra ? 700 : 500);
+  const measuredSize = lastSizes()[selectedObj]?.size || null;
+  const legacySize = saved.fontScale ? Math.round((defaultSizes[selectedObj] || 30) * saved.fontScale) : null;
+  const shownSize = Math.round(Number(saved.fontSize) || measuredSize || legacySize || defaultSizes[selectedObj] || 30);
+  const r = (v) => Math.round(v);
+
+  return `
+    <div class="tpl-layout">
+      <div class="tpl-form__head">
+        <h3 class="tpl-form__legend" style="border:0;padding:0">${esc(obj.label)} 위치·크기</h3>
+      </div>
+      <div class="tpl-layout__grid">
+        <label class="field"><span class="field__label">X (px)</span>
+          <input class="input" type="number" id="lo-x" data-lo="x" value="${r(cur.x)}" /></label>
+        <label class="field"><span class="field__label">Y (px)</span>
+          <input class="input" type="number" id="lo-y" data-lo="y" value="${r(cur.y)}" /></label>
+        <label class="field"><span class="field__label">폭 (px)</span>
+          <input class="input" type="number" id="lo-w" data-lo="w" value="${r(cur.w)}" min="20" /></label>
+        <label class="field"><span class="field__label">높이 (px)</span>
+          <input class="input" type="number" id="lo-h" data-lo="h" value="${r(cur.h)}" min="20" /></label>
+      </div>
+      ${isText ? `<div class="tpl-layout__grid tpl-layout__grid--type">
+        <label class="field"><span class="field__label">텍스트 크기 (px)</span>
+          <input class="input" type="number" id="lo-font-size" value="${shownSize}" min="12" max="180" step="1" /></label>
+        <label class="field"><span class="field__label">텍스트 굵기</span>
+          <select class="input" id="lo-font-weight">
+            ${[[400, '보통'], [500, '중간'], [700, '굵게'], [900, '아주 굵게']].map(([v, label]) => `<option value="${v}" ${shownWeight === v ? 'selected' : ''}>${label}</option>`).join('')}
+          </select></label>
+      </div>` : ''}
+      <p class="field__hint">1080×1350 기준 좌표(px)입니다. 미리보기 위 상자를 드래그해도 같이 바뀝니다.</p>
+    </div>`;
+}
+
+/** `#tpl-layout-slot` 만 다시 그린다 — 폼 전체를 다시 그리면 다른 입력칸의 캐럿이 튄다 */
+function refreshLayoutPanel(root) {
+  const slot = root.querySelector('#tpl-layout-slot');
+  if (!slot) return;
+  slot.innerHTML = layoutPanelHTML();
+  bindLayoutPanel(root);
+}
+
+function bindLayoutPanel(root) {
+  root.querySelectorAll('[data-lo]').forEach((el) => {
+    el.addEventListener('change', () => applyLayoutInputs(root));
+  });
+  root.querySelector('#lo-font-size')?.addEventListener('change', () => applyLayoutInputs(root, 'fontSize'));
+  root.querySelector('#lo-font-weight')?.addEventListener('change', () => applyLayoutInputs(root, 'fontWeight'));
+}
+
+function applyLayoutInputs(root, changed = 'box') {
+  if (!selectedObj) return;
+  const num = (id, fallback) => {
+    const v = Number(root.querySelector(`#lo-${id}`)?.value);
+    return Number.isFinite(v) ? v : fallback;
+  };
+  const cur = lastBoxes()[selectedObj];
+  if (!cur) return;
+  const x = num('x', cur.x);
+  const y = num('y', cur.y);
+  const w = Math.max(20, num('w', cur.w));
+  const h = Math.max(20, num('h', cur.h));
+  const prev = getState().card.layout?.[active]?.[selectedObj] || {};
+  const next = { ...prev, x: x / W, y: y / H, w: w / W, h: h / H };
+  if (changed === 'fontSize') {
+    const defaults = { brand: 36, eyebrow: 30, title: 82, footer: 30 };
+    const oldSize = Number(prev.fontSize) || lastSizes()[selectedObj]?.size || defaults[selectedObj] || 30;
+    next.fontSize = Math.min(180, Math.max(12, Number(root.querySelector('#lo-font-size')?.value) || oldSize));
+    // 키울 때만 기존 상자가 글자를 자르지 않도록 함께 확장한다.
+    // 줄일 때는 배치 영역까지 작아지지 않도록 사용자가 잡아 둔 상자 크기를 그대로 둔다.
+    const ratio = next.fontSize / oldSize;
+    if (ratio > 1) {
+      next.w = (w * ratio) / W;
+      next.h = (h * ratio) / H;
+    }
+    delete next.fontScale;
+  }
+  if (changed === 'fontWeight') {
+    next.fontWeight = Number(root.querySelector('#lo-font-weight')?.value) || prev.fontWeight;
+  }
+  commitLayout(root, selectedObj, next);
+}
+
 /* ---------------- 되돌리기 · 저장 ---------------- */
 
 function resetAll(root) {
   const s = getState();
   if (hasEdits(s.card) && !confirm('편집한 문구를 모두 추천 문구로 되돌릴까요?')) return;
   const base = baseOf(s.concept, getProduct(s.productId));
-  setState({ card: { key: draftKeyOf(s), concept: s.concept, texts: cloneTexts(base), base } });
+  // ⚠️ 배치(layout)는 문구와 다른 축이다 — 문구를 되돌렸다고 공들여 옮긴 배치까지 지우지 않는다.
+  setState({ card: { key: draftKeyOf(s), concept: s.concept, texts: cloneTexts(base), base, layout: fitLayout(s.card.layout), extraTexts: fitExtraTexts(s.card.extraTexts) } });
   refreshForm(root);
   refreshNotices(root);
   paint(root);
+  markDirty(root);
   toast('모든 카드를 추천 문구로 되돌렸습니다.');
 }
 
