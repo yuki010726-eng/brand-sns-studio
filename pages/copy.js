@@ -8,10 +8,7 @@ import { stepperHTML, bindStepper } from '../components/stepper.js';
 import { getState, setState, navigate, draftKeyOf } from '../store.js';
 import { generate, findBanned, TONE_LABEL, IMAGE_PLAN } from '../lib/copywriter.js';
 import { generateWithAI } from '../lib/copyai.js';
-import {
-  PROVIDERS, getProvider, setProvider, currentProvider,
-  MODELS, getModel, setModel, hasKey, maskedKey, setKey,
-} from '../lib/llm.js';
+import { MODELS, getModel, setModel, hasKey, maskedKey, setKey } from '../lib/llm.js';
 import { toast } from '../components/toast.js';
 
 export const title = '아이디어 문서화';
@@ -60,14 +57,16 @@ export function render(root) {
             <!-- 버튼은 하나다. 키가 있으면 AI 로, 없으면 규칙 기반으로 다시 쓴다.
                  예전엔 「전체 재생성」(규칙 기반)과 「전체 AI로 쓰기」가 나란히 있어 헷갈렸다. -->
             <button type="button" class="btn btn--sm" id="regen-all"
-                    aria-label="${hasKey() ? 'AI로 모든 채널 글귀를 새로 쓰기' : '모든 채널 글귀를 새로 생성하기'}">
+                    aria-label="${hasKey() ? '2단계에서 고른 상품·주제·톤으로 AI가 세 채널 글을 쓰게 하기' : '모든 채널 글귀를 새로 생성하기'}">
               ${icon(hasKey() ? 'sparkles' : 'refresh', 'icon--sm')}
-              ${hasKey() ? '전체 다시 쓰기 (AI)' : '전체 재생성'}
+              ${hasKey() ? 'AI 시작' : '전체 재생성'}
             </button>
           </div>
         </div>
 
-        <div class="aibar card" id="aibar">${aibarHTML()}</div>
+        <!-- 키는 lib/apikeys.local.js 기본값으로 평소 자동 연결된다. 그래서 큰 설정 카드 대신
+             작은 링크 하나만 남긴다 — 다른 키·모델로 바꾸고 싶을 때만 연다. -->
+        <div class="aibar" id="aibar">${aibarHTML()}</div>
         <div id="ai-status"></div>
 
         <div id="stale-slot">${staleNoticeHTML()}</div>
@@ -105,16 +104,11 @@ export function render(root) {
   bindAibar(root);
 
   /**
-   * 키가 있으면 **항상 AI 로 쓴다** (요청자 지시 2026-08-03).
-   * 규칙 기반은 키가 없거나 AI 가 검수를 통과 못 했을 때만 남는 최후 수단이다.
-   *
-   * 같은 조건(상품·주제·톤)으로 다시 들어오면 부르지 않는다. 이미 AI 글이 있는데
-   * 또 부르면 할당량만 쓰고 결과는 그대로다.
+   * 3단계에 들어와도 AI 를 자동으로 부르지 않는다 (요청자 지시 2026-08-11).
+   * 대신 ctxbar 에 2단계에서 고른 상품·주제·톤을 미리보기로 보여주고,
+   * 확인 후 "AI 시작" 버튼을 직접 눌러야 그때 AI 가 호출된다.
+   * 그동안 탭에는 규칙 기반 글(위의 regenerateOne)이 미리 채워져 있어 화면이 비어 보이지 않는다.
    */
-  const st = getState();
-  if (hasKey() && st.aiKey !== draftKeyOf(st) && !hasEdits()) {
-    queueMicrotask(() => aiAll(root, { auto: true }));
-  }
 
   root.querySelector('#regen-all')?.addEventListener('click', () => {
     const useAI = hasKey();
@@ -140,46 +134,23 @@ export function render(root) {
 /* ---------------- AI 설정 ---------------- */
 
 /**
- * 규칙 기반 생성은 키 없이 늘 동작한다. AI 는 '더 좋게 다시 쓰는' 선택지다.
- * 그래서 이 바는 접어 두고, 켜고 싶을 때만 열게 한다.
+ * 키는 lib/apikeys.local.js 기본값으로 평소 자동 연결된다 — 매번 켤 필요가 없다.
+ * 그래서 큰 카드 대신 작은 링크 하나만 두고, 다른 키·모델로 바꾸고 싶을 때만 연다.
  */
 function aibarHTML() {
   const on = hasKey();
-  const p = currentProvider();
   return `
-    <div class="aibar__row">
-      <span class="keybar__state ${on ? 'is-on' : ''}">
-        ${icon(on ? 'check' : 'sparkles', 'icon--sm')}
-        ${on ? `${esc(p.name)} 연결됨 · ${esc(maskedKey())}` : 'AI로 글을 다시 쓰려면 API 키가 필요합니다'}
-      </span>
-      <button type="button" class="btn btn--ghost btn--sm" id="ai-toggle"
-              aria-expanded="false" aria-controls="ai-form" aria-label="AI 글쓰기 설정 열기">
-        ${on ? '설정 변경' : 'AI 켜기'}
-      </button>
-    </div>
+    <button type="button" class="btn btn--text btn--sm" id="ai-toggle"
+            aria-expanded="false" aria-controls="ai-form" aria-label="AI 설정 열기 — 키·모델 바꾸기">
+      ${icon('sparkles', 'icon--sm')} AI 설정${on ? ` · ${esc(maskedKey())}` : ' · 키 필요'}
+    </button>
 
     <div class="aibar__form" id="ai-form" hidden>
-      <div class="notice notice--info" role="note">
-        <span class="notice__icon" aria-hidden="true">${icon('alert', 'icon--sm')}</span>
-        <div>
-          <strong>Gemini 텍스트 모델은 무료 한도가 있습니다</strong>
-          <p>이미지와 달리 결제 설정 없이 키만 있으면 글을 쓸 수 있습니다.
-             키는 이 브라우저에만 저장되고 코드·저장소에는 남지 않습니다.</p>
-        </div>
-      </div>
-
       <div class="field">
-        <label class="field__label" for="ai-provider">어디로 쓸까요</label>
-        <select class="select" id="ai-provider">
-          ${PROVIDERS.map((x) => `<option value="${x.id}" ${x.id === getProvider() ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}
-        </select>
-        <p class="field__hint">${esc(p.note)}</p>
-      </div>
-
-      <div class="field">
-        <label class="field__label" for="ai-key">${esc(p.name)} API 키</label>
+        <label class="field__label" for="ai-key">OpenAI API 키</label>
         <input class="input" type="password" id="ai-key" autocomplete="off" spellcheck="false" />
-        <p class="field__hint">이미지 생성과 같은 키를 씁니다. 이미 넣으셨다면 다시 넣지 않아도 됩니다.</p>
+        <p class="field__hint">platform.openai.com 에서 발급한 키(sk-… 로 시작)입니다. 게시물 1세트에 약 $0.03이 듭니다.
+           이 브라우저에만 저장됩니다.</p>
       </div>
 
       <div class="field">
@@ -188,15 +159,6 @@ function aibarHTML() {
           ${MODELS().map((m) => `<option value="${m.id}" ${m.id === getModel() ? 'selected' : ''}>${esc(m.label)}</option>`).join('')}
         </select>
         <p class="field__hint">${esc(MODELS().find((m) => m.id === getModel())?.note || '')}</p>
-      </div>
-
-      <div class="notice notice--info" role="note">
-        <span class="notice__icon" aria-hidden="true">${icon('sparkles', 'icon--sm')}</span>
-        <div>
-          <strong>키가 있으면 항상 AI가 씁니다</strong>
-          <p>이 화면에 들어오면 세 채널을 자동으로 다시 씁니다.
-             같은 상품·주제·톤으로 다시 들어올 때는 부르지 않습니다.</p>
-        </div>
       </div>
 
       <div class="keybar__actions">
@@ -223,13 +185,6 @@ function bindAibar(root) {
     form.hidden = !open;
     toggle.setAttribute('aria-expanded', String(open));
     if (open) root.querySelector('#ai-key')?.focus();
-  });
-
-  root.querySelector('#ai-provider')?.addEventListener('change', (e) => {
-    setProvider(e.target.value);
-    refreshAibar(root);
-    root.querySelector('#ai-form').hidden = false;
-    root.querySelector('#ai-toggle')?.setAttribute('aria-expanded', 'true');
   });
 
   root.querySelector('#ai-model')?.addEventListener('change', (e) => setModel(e.target.value));
@@ -479,7 +434,7 @@ async function aiOne(root, id) {
  * 세 채널을 **동시에** 부른다.
  * 한 채널에 20~40초 걸려서 순서대로 돌리면 2분 가까이 기다려야 했다.
  */
-async function aiAll(root, { auto = false } = {}) {
+async function aiAll(root) {
   if (aiBusy) return;
   const channels = CHANNELS.filter((c) => getState().channels.includes(c.id));
   setAiBusy(root, true);
@@ -513,8 +468,7 @@ async function aiAll(root, { auto = false } = {}) {
   refreshPanel(root);
   refreshStale(root);
 
-  if (ok) toast(auto ? `AI가 글 ${ok}개를 새로 썼습니다.` : `${ok}개 채널을 AI로 새로 썼습니다.`);
-  else if (auto) toast('AI 생성에 실패해 기본 글을 그대로 뒀습니다.', 5000);
+  if (ok) toast(`${ok}개 채널을 AI로 새로 썼습니다.`);
 }
 
 /** 진행 상황 한 줄 — 30초 넘게 걸려서 아무 표시가 없으면 멈춘 줄 안다 */

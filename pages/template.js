@@ -20,7 +20,6 @@ import { buildDeck, TONE_LABEL, findBanned } from '../lib/copywriter.js';
 import { getImage, putImage, deleteImage, imageKey } from '../lib/imagestore.js';
 import { renderCard, loadImage, cardAlt, downloadCanvas, ensureFonts, W, H } from '../lib/cardrender.js';
 import { buildPrompt, buildPromptSheet } from '../lib/imageprompt.js';
-import { generateImage, hasKey } from '../lib/imagegen.js';
 import { imagePanelHTML, bindImagePanel } from '../components/imagepanel.js';
 import { toast } from '../components/toast.js';
 
@@ -45,7 +44,6 @@ let deck = [];
 let active = 0;
 let bitmaps = [];
 let repaintTimer = null;
-let busy = false;      // 이미지 생성 중 중복 실행 방지
 
 /* ---------------- 문구 상태 ---------------- */
 
@@ -265,7 +263,6 @@ function imagePanelSlot() {
     prompt: promptFor(active),
     label: info.label,
     disabled: !usesImage(s.concept, deck[active].kind),
-    busy,
   });
 }
 
@@ -677,21 +674,10 @@ function refreshImagePanel(root) {
 
 function bindImagePanelHere(root) {
   bindImagePanel(root, {
-    onGenerate: () => generateOne(root, active),
-    onGenerateAll: () => generateAll(root),
     onUpload: (file) => putUploaded(root, file),
     onDelete: () => removeImage(root),
     onCopy: () => copyText(promptFor(active), `${active + 1}번 프롬프트를 복사했습니다.`),
     onCopyAll: () => copyText(buildPromptSheet(deck, getState().concept, allTitles()), '프롬프트를 모두 복사했습니다.'),
-    onKeyChange: (ok, message) => {
-      toast(message);
-      if (ok === null) return;                 // 입력값이 비었을 뿐이면 화면을 건드리지 않는다
-      refreshImagePanel(root);
-      // 설정 도중이므로 열어 둔 상태를 유지한다 — 다시 눌러 들어가게 하면 번거롭다
-      const form = root.querySelector('#imgpanel-key');
-      const toggle = root.querySelector('[data-img-keytoggle]');
-      if (form && toggle) { form.hidden = false; toggle.setAttribute('aria-expanded', 'true'); }
-    },
   });
 }
 
@@ -726,49 +712,6 @@ async function putUploaded(root, file) {
 async function removeImage(root) {
   await applyImage(root, active, null);
   toast('이미지를 지웠습니다.');
-}
-
-function setBusy(root, on) {
-  busy = on;
-  const el = root.querySelector('[data-img-busy]');
-  if (el) el.hidden = !on;
-  root.querySelectorAll('[data-img-gen], [data-img-genall]').forEach((b) => { b.disabled = on || !hasKey(); });
-}
-
-async function generateOne(root, i) {
-  if (busy) { toast('이미 생성 중입니다.'); return; }
-  setBusy(root, true);
-  try {
-    const blob = await generateImage(promptFor(i));
-    await applyImage(root, i, blob, 'ai');
-    toast(`${i + 1}번 이미지를 만들었습니다.`);
-  } catch (e) {
-    toast(e.message, 4200);
-  } finally {
-    setBusy(root, false);
-  }
-}
-
-async function generateAll(root) {
-  if (busy) return;
-  setBusy(root, true);
-  let ok = 0;
-  try {
-    for (let i = 0; i < deck.length; i++) {
-      if (!usesImage(getState().concept, deck[i].kind)) continue;
-      try {
-        const blob = await generateImage(promptFor(i));
-        await applyImage(root, i, blob, 'ai');
-        ok++;
-      } catch (e) {
-        toast(`${i + 1}번 실패 · ${e.message}`, 4200);
-        break;   // 키·크레딧 문제면 나머지도 실패하므로 멈춘다
-      }
-    }
-  } finally {
-    setBusy(root, false);
-  }
-  if (ok) toast(`${ok}장을 만들었습니다.`);
 }
 
 function refreshNotices(root) {

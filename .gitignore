@@ -12,8 +12,10 @@ node_modules/
 dist/
 
 # 비밀값은 저장소에 두지 않는다.
-# OpenAI API 키는 파일이 아니라 브라우저 localStorage 에만 저장된다 (README 참고).
+# API 키는 기본적으로 파일이 아니라 브라우저 localStorage 에만 저장된다 (README 참고).
+# lib/apikeys.local.js 는 그 예외 — 로컬에서만 쓰는 기본 키 파일이라 반드시 커밋에서 뺀다.
 .env
 .env.*
 *.key
 secrets.json
+lib/apikeys.local.js
