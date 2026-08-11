@@ -12,6 +12,7 @@ import { coreWithOutline, outlineKeyOf } from '../lib/outline.js';
 import {
   PROVIDERS, getProvider, setProvider, currentProvider,
   MODELS, getModel, setModel, hasKey, maskedKey, setKey,
+  isBuiltInKey, isProviderPinned, isModelPinned,
 } from '../lib/llm.js';
 import { keyFieldHTML } from '../components/keyfield.js';
 import { toast } from '../components/toast.js';
@@ -153,36 +154,58 @@ export function render(root) {
 function aibarHTML() {
   const on = hasKey();
   const p = currentProvider();
+  /**
+   * ⚠️ `config.local.js` 로 키를 내장하면 입력칸을 **감춘다** (요청자 요구 2026-08-11 "api 내장").
+   *    감추는 이유는 미관이 아니라, 여기 넣은 값이 내장 키를 못 이기기 때문이다
+   *    (`lib/openai.js` 의 `getKey()` — 내장 키가 우선). 칸을 열어 두면 넣었는데 안 먹는
+   *    상황이 생겨 더 헷갈린다. 제공자·모델도 고정돼 있으면 같은 이유로 잠근다.
+   */
+  const builtIn = isBuiltInKey();
+  const provLocked = builtIn || isProviderPinned();
+  const modelLocked = isModelPinned();
   return `
     <div class="aibar__row">
       <span class="keybar__state ${on ? 'is-on' : ''}">
         ${icon(on ? 'check' : 'sparkles', 'icon--sm')}
-        ${on ? `${esc(p.name)} 연결됨 · ${esc(maskedKey())}` : 'AI로 글을 다시 쓰려면 API 키가 필요합니다'}
+        ${on
+          ? `${esc(p.name)} 연결됨 · ${builtIn ? '키 내장됨' : esc(maskedKey())}`
+          : 'AI로 글을 다시 쓰려면 API 키가 필요합니다'}
       </span>
       <button type="button" class="btn btn--ghost btn--sm" id="ai-toggle"
               aria-expanded="false" aria-controls="ai-form" aria-label="AI 글쓰기 설정 열기">
-        ${on ? '설정 변경' : 'AI 켜기'}
+        ${on ? '설정 보기' : 'AI 켜기'}
       </button>
     </div>
 
     <div class="aibar__form" id="ai-form" hidden>
       <div class="field">
         <label class="field__label" for="ai-provider">어디로 쓸까요</label>
-        <select class="select" id="ai-provider">
+        <select class="select" id="ai-provider" ${provLocked ? 'disabled' : ''}>
           ${PROVIDERS.map((x) => `<option value="${x.id}" ${x.id === getProvider() ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}
         </select>
-        <p class="field__hint">${esc(p.note)}</p>
+        <p class="field__hint">${provLocked ? 'config.local.js 에서 고정했습니다.' : esc(p.note)}</p>
       </div>
 
-      <!-- 키는 각자 발급받아 각자 넣는다. 이미지 생성과 같은 키를 쓴다. -->
-      ${keyFieldHTML({ providerId: getProvider(), inputId: 'ai-key', hasKey: on, masked: maskedKey() })}
+      ${builtIn ? `
+        <div class="notice notice--info" role="note">
+          <span class="notice__icon" aria-hidden="true">${icon('check', 'icon--sm')}</span>
+          <div>
+            <strong>API 키가 내장되어 있습니다</strong>
+            <p>이 PC 의 <code>config.local.js</code> 에서 읽었습니다. 따로 넣지 않아도 됩니다.
+               바꾸려면 그 파일을 고치고 새로고침하세요. 이 파일은 저장소에 올라가지 않습니다.</p>
+          </div>
+        </div>`
+        // 키는 각자 발급받아 각자 넣는다. 이미지 생성과 같은 키를 쓴다.
+        : keyFieldHTML({ providerId: getProvider(), inputId: 'ai-key', hasKey: on, masked: maskedKey() })}
 
       <div class="field">
         <label class="field__label" for="ai-model">모델</label>
-        <select class="select" id="ai-model">
+        <select class="select" id="ai-model" ${modelLocked ? 'disabled' : ''}>
           ${MODELS().map((m) => `<option value="${m.id}" ${m.id === getModel() ? 'selected' : ''}>${esc(m.label)}</option>`).join('')}
         </select>
-        <p class="field__hint">${esc(MODELS().find((m) => m.id === getModel())?.note || '')}</p>
+        <p class="field__hint">${modelLocked
+          ? 'config.local.js 에서 고정했습니다.'
+          : esc(MODELS().find((m) => m.id === getModel())?.note || '')}</p>
       </div>
 
       <div class="notice notice--info" role="note">
@@ -194,10 +217,12 @@ function aibarHTML() {
         </div>
       </div>
 
-      <div class="keybar__actions">
-        <button type="button" class="btn btn--sm" id="ai-save" aria-label="AI 설정 저장하기">저장</button>
-        ${on ? '<button type="button" class="btn btn--text btn--sm" id="ai-clear" aria-label="저장된 API 키 삭제하기">키 삭제</button>' : ''}
-      </div>
+      <!-- 내장 키일 때는 저장·삭제할 것이 없다. 파일에서 오는 값이라 화면에서 손댈 수 없다. -->
+      ${builtIn ? '' : `
+        <div class="keybar__actions">
+          <button type="button" class="btn btn--sm" id="ai-save" aria-label="AI 설정 저장하기">저장</button>
+          ${on ? '<button type="button" class="btn btn--text btn--sm" id="ai-clear" aria-label="저장된 API 키 삭제하기">키 삭제</button>' : ''}
+        </div>`}
     </div>`;
 }
 

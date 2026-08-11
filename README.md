@@ -98,6 +98,8 @@ git add -A && git commit -m "작업 내용" && git push
 ```
 index.html            SPA 셸
 app.js                해시 라우터 (guard 지원)
+config.example.js     로컬 설정 템플릿 — 복사해서 config.local.js 로 쓴다 (키 내장용)
+lib/localconfig.js    config.local.js 를 읽는다 (없으면 조용히 넘어간다)
 store.js              전역 상태 + localStorage 영속화 + 3단계 정의
 styles/
   tokens.css          디자인 토큰 (색·radius·폰트·모션)
@@ -294,6 +296,24 @@ http://localhost:5610/tools/bench.html
 ## API 키 취급 (중요)
 
 **API 키는 쓰는 사람이 각자 발급받아 각자 넣는다.** 코드·저장소에는 키가 없다.
+
+### 매번 넣기 싫다면 — 키를 이 PC 에 내장하기
+
+`config.example.js` 를 복사해 `config.local.js` 로 만들고 키를 적으면, 화면에서 넣지 않아도 된다.
+
+```bash
+copy config.example.js config.local.js
+```
+
+파일을 열어 `openaiKey` 에 키를 붙여넣고 새로고침하면 「API 키가 내장되어 있습니다」로 바뀐다.
+제공자는 OpenAI, 모델은 Terra 로 고정된다.
+
+> ⚠️ `config.local.js` 는 `.gitignore` 에 들어 있어 **커밋되지 않는다.**
+> 반대로 `config.example.js` 는 커밋되므로 **거기에는 절대 실제 키를 적지 말 것.**
+> 이 저장소는 Public 이라 키가 한 번이라도 올라가면 봇이 수 분 안에 긁어간다.
+> 실수로 올렸다면 지우고 다시 커밋해도 소용없다 — 히스토리에 남으므로 **즉시 그 키를 폐기**해야 한다.
+
+파일을 안 만들어도 앱은 그대로 동작한다. 아래 방식으로 화면에서 넣으면 된다.
 
 - 넣는 곳: 2단계 「AI 켜기」 또는 3단계 이미지 패널. **같은 키 하나**로 둘 다 된다.
 - 저장 위치: 그 브라우저의 `localStorage`(`bboggl.openai-key`)뿐이다.

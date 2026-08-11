@@ -836,24 +836,18 @@ body.is-login-page .site-footer { display: none; }
 .pick__input:focus-visible + .pick { outline: 3px solid var(--primary); outline-offset: 2px; }
 
 /**
- * 선택지 아래에 딸려 나오는 하위 패널 (어워즈형 브랜드 고르기).
+ * 어워즈형 브랜드 고르기 — 유형 선택 아래에 딸려 나온다.
  *
  * ⚠️ 예전에는 `<fieldset class="field">` 였다. `.field` 에 테두리 해제가 없어서
  *    브라우저 기본 테두리(2px groove)가 그대로 남아 **검은 네모 상자**로 보였다.
- *    요청자 지적(2026-08-11). fieldset 을 걷어내고 왼쪽 강조선만 남긴다.
- *    새 하위 패널을 만들 때도 fieldset 을 쓰지 말 것 — 같은 증상이 다시 난다.
+ *    fieldset 을 쓰지 말 것 — 같은 증상이 다시 난다.
+ *
+ * ⚠️ 한때 파란 왼쪽 강조선 + 파란 배경을 줬다가 **뺐다** (요청자 지적 2026-08-11).
+ *    "그냥 버튼만 남도록" 이 요구다. 배경·테두리를 다시 붙이지 말 것.
+ *    칩 자체가 선택 상태를 색으로 보여주므로 감싸는 상자가 필요 없다.
  */
-.subpanel {
-  margin-top: 10px;
-  padding: 14px 16px;
-  border-left: 3px solid var(--primary);
-  border-radius: 0 var(--radius-md) var(--radius-md) 0;
-  background: var(--primary-weak);
-}
-.subpanel__label { font-size: 13px; font-weight: 700; color: #333D4B; margin-bottom: 10px; }
-.subpanel__hint { margin-top: 10px; font-size: 13px; color: var(--sub-strong); }
-/* 패널 배경 위에서는 흰 알약이 떠 보여야 한다 */
-.subpanel .pick { background: var(--surface); }
+.brandpick { margin-top: 14px; }
+.brandpick__label { font-size: 13px; font-weight: 700; color: #333D4B; margin-bottom: 10px; }
 
 /**
  * 브랜드 로고 칸 — 로고를 내려받아 프롬프트와 함께 AI 에 넣는 자리.

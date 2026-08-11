@@ -95,26 +95,26 @@ export function render(root) {
  * ⚠️ `<fieldset>` 을 쓰지 않는다. 브라우저 기본 테두리(2px groove)가 그대로 살아
  *    검은 네모 상자로 보였다 — 요청자 지적(2026-08-11).
  *    `.field` 에는 테두리 해제가 없고, `.brief__form fieldset` 규칙은 2단계 전용이라
- *    여기까지 오지 않는다. 대신 유형 선택 바로 아래에 붙는 **하위 패널**로 만든다.
- *    라디오 묶음의 접근성은 `role="radiogroup"` + `aria-labelledby` 로 유지한다.
+ *    여기까지 오지 않는다. 라디오 묶음의 접근성은 `role="radiogroup"` + `aria-labelledby` 로 유지한다.
+ *
+ * ⚠️ **litt.ly 주소를 여기에 다시 붙이지 말 것** (요청자 지적 2026-08-11).
+ *    브랜드를 고르는 자리에 주소가 왜 나오는지 읽는 사람이 알 수 없다.
+ *    주소는 아래 링크 칸에서만 다룬다. 칩의 `title`·`aria-label` 에도 넣지 않는다.
  */
 function brandHTML(profile) {
   if (profile?.typeId !== 'awards') return '';
-  const current = AWARD_BRANDS.find((b) => b.id === profile.brandId) || AWARD_BRANDS[0];
   return `
-    <div class="subpanel">
-      <p class="subpanel__label" id="pbrand-label">어느 브랜드인가요?</p>
+    <div class="brandpick">
+      <p class="brandpick__label" id="pbrand-label">어느 브랜드인가요?</p>
       <!-- 한 줄짜리 칩으로 둔다. 예전에는 4개가 큰 카드로 세로로 쌓여 화면을 다 먹었다. -->
       <div class="pickrow" role="radiogroup" aria-labelledby="pbrand-label">
         ${AWARD_BRANDS.map((b) => `
           <input class="sr-only pick__input" type="radio" name="pbrand" id="pbrand-${b.id}"
-                 value="${b.id}" autocomplete="off"
-                 aria-label="${escAttr(b.label)} — 주소 litt.ly/${escAttr(b.slug)}"
+                 value="${b.id}" autocomplete="off" aria-label="${escAttr(b.label)}"
                  ${profile.brandId === b.id ? 'checked' : ''} />
-          <label class="pick" for="pbrand-${b.id}" title="litt.ly/${escAttr(b.slug)}">${esc(b.short)}</label>
+          <label class="pick" for="pbrand-${b.id}">${esc(b.short)}</label>
         `).join('')}
       </div>
-      <p class="subpanel__hint">${esc(current.label)} · litt.ly/${esc(current.slug)}</p>
     </div>`;
 }
 
@@ -149,16 +149,24 @@ function draftHTML(profile) {
            「。」은 인스타가 빈 줄을 먹어버려서 여백 대신 넣는 글자입니다. 레퍼런스도 같은 방식입니다.</p>
       </div>
 
+      <!--
+        ⚠️ 라벨과 전체 주소 표시를 화면에서 뺐다 (요청자 지적 2026-08-11).
+           입력칸 앞에 litt.ly/ 접두사가 이미 붙어 있어서, 라벨도 그 아래 주소 한 줄도
+           같은 말을 세 번 하는 셈이었다.
+
+           라벨은 지우지 않고 sr-only 로만 돌렸다 — 지우면 입력칸에 이름이 없어져
+           스크린리더가 무슨 칸인지 읽지 못한다. 접근성 규칙이 디자인보다 우선이다.
+           만들기 링크는 요청자 지시로 남긴다.
+
+           ⚠️ 이 주석은 템플릿 리터럴 안에 있다. 백틱을 쓰면 문자열이 거기서 끊긴다.
+      -->
       <div class="field">
-        <label class="field__label" for="p-slug">링크 (litt.ly)</label>
+        <label class="sr-only" for="p-slug">litt.ly 링크 주소</label>
         <div class="inline-field">
           <span class="inline-field__prefix">litt.ly/</span>
           <input class="input" id="p-slug" value="${escAttr(profile.slug)}"
-                 autocomplete="off" spellcheck="false" aria-describedby="p-link" />
+                 autocomplete="off" spellcheck="false" />
         </div>
-        <!-- 「소개 맨 마지막 줄에 함께 들어갑니다」 안내는 뺐다 — 칸마다 두 줄씩 붙어
-             화면이 번잡했다(요청자 지적 2026-08-11). 동작은 그대로다. -->
-        <p class="field__hint" id="p-link">${esc(profile.link)}</p>
         <p class="field__hint">
           litt.ly 계정이 없다면 —
           <a href="${LITTLY_SIGNUP}" target="_blank" rel="noopener noreferrer">litt.ly 만들기</a>
@@ -363,8 +371,7 @@ function bindDraft(root) {
     const bio = replaceLinkLine(s().profile.bio, slug);
     setState({ profile: { ...s().profile, slug, link: littlyUrl(slug), bio } });
 
-    const hint = root.querySelector('#p-link');
-    if (hint) hint.textContent = littlyUrl(slug);
+    // 주소를 따로 보여주던 줄은 화면에서 뺐다. `link` 는 「전체 복사」가 계속 쓰므로 상태에는 남긴다.
     const bioEl = root.querySelector('#p-bio');
     if (bioEl && bioEl.value !== bio) bioEl.value = bio;   // 캐럿이 슬러그 칸에 있으므로 안전하다
   });

@@ -3,6 +3,7 @@
  * 각 페이지 모듈은 render(root) 를 내보내고, 선택적으로 guard() 로 접근 조건을 정한다.
  */
 import { renderHeader } from './components/header.js';
+import { loadLocalConfig } from './lib/localconfig.js';
 import { initAuth, onAuth, getUser } from './lib/auth.js';
 import { pull, applyRemote } from './lib/sync.js';
 import { setState } from './store.js';
@@ -118,8 +119,15 @@ window.addEventListener('hashchange', route);
 // 해시가 없으면 기본 경로를 채워 넣고 시작
 if (!location.hash) location.replace('#/');
 
-// 인증 상태 확인이 끝난 뒤 로그인 또는 보호된 화면을 그린다.
-initAuth().finally(() => {
+/**
+ * 인증 상태 확인이 끝난 뒤 로그인 또는 보호된 화면을 그린다.
+ *
+ * ⚠️ `loadLocalConfig()` 를 **첫 렌더 전에** 끝내야 한다. `hasKey()` 가 동기 함수이고
+ *    화면 곳곳에서 조건문으로 쓰이기 때문이다 — 늦게 읽히면 키가 있는데도 「키를 넣어 주세요」가
+ *    한 번 그려졌다가 바뀐다. `isServerMode()` 를 동기로 유지하는 것과 같은 이유다.
+ *    설정 파일이 없어도 실패하지 않는다(빈 값으로 진행).
+ */
+Promise.all([loadLocalConfig(), initAuth()]).finally(() => {
   authReady = true;
   route();
 });

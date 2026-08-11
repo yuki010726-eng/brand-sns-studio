@@ -15,8 +15,13 @@ dist/
 .vercel/
 
 # 비밀값은 저장소에 두지 않는다.
-# 배포본의 API 키는 Vercel 환경 변수에만 있다. 로컬 실행에서는 브라우저 localStorage 에만 있다.
+# 배포본의 API 키는 Vercel 환경 변수에만 있다. 로컬 실행에서는 브라우저 localStorage 또는
+# 아래 config.local.js 에만 있다.
 .env
 .env.*
 *.key
 secrets.json
+
+# 로컬 설정 — API 키가 들어간다. 절대 커밋하지 말 것.
+# 템플릿은 config.example.js 이고 그쪽은 커밋된다(빈 값이어야 한다).
+config.local.js
