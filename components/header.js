@@ -1,6 +1,9 @@
 /** 상단 GNB — 브랜드 로고 + 주요 이동 링크 + 계정 정보 */
 import { icon } from '../assets/icons.js';
 import { onAuth, signOut, getUser, usernameOf } from '../lib/auth.js';
+import { getState, resetFlow } from '../store.js';
+import { getLibrary, postKeyOf, POST_KEYS } from '../lib/librarystore.js';
+import { flushSync } from '../lib/sync.js';
 import { toast } from './toast.js';
 
 const NAV = [
@@ -67,10 +70,37 @@ function authHTML(user) {
     </div>`;
 }
 
+/**
+ * 지금 작업 중인 게시물이 보관함에 저장된 것과 다른지(=저장 안 한 채 로그아웃하는지) 본다.
+ * 신원(`postKeyOf`)이 같은 항목이 없거나, 있어도 내용이 그때와 달라졌으면 저장 안 한 것으로 본다.
+ */
+function hasUnsavedPost(state) {
+  if (!state.productId || !String(state.topic || '').trim()) return false;
+  const saved = getLibrary().find((it) => it.postKey === postKeyOf(state));
+  if (!saved) return true;
+  return POST_KEYS.some((k) => JSON.stringify(state[k]) !== JSON.stringify(saved.state[k]));
+}
+
 function bindAuth(root) {
   root.querySelector('#auth-out')?.addEventListener('click', async () => {
+    const unsaved = hasUnsavedPost(getState());
+
+    /**
+     * ⚠️ 초기화는 signOut() 보다 먼저, 그리고 flushSync() 로 즉시 서버에 올려야 한다.
+     * scheduleSync() 는 로그인 상태(getUser())가 있어야만 동작하는데, signOut() 을 먼저
+     * 부르면 그 순간부터 로그인 상태가 사라져 초기화가 이 기기에만 남고 서버 값은
+     * 그대로다. 그러면 다시 로그인할 때 pull() 이 옛 내용을 도로 받아온다.
+     */
+    if (unsaved) {
+      resetFlow();
+      await flushSync(getState());
+    }
+
     await signOut();
-    toast('로그아웃했습니다. 이 기기에 저장된 내용은 그대로 있습니다.');
+
+    toast(unsaved
+      ? '로그아웃했습니다. 보관함에 저장하지 않은 입력 내용은 초기화됐습니다.'
+      : '로그아웃했습니다. 이 기기에 저장된 내용은 그대로 있습니다.');
   });
 }
 

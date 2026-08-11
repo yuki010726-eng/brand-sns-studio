@@ -38,6 +38,10 @@
 .btn--soft { background: var(--primary-weak); color: var(--primary-dark); }
 .btn--soft:hover { background: #D6E8FD; }
 
+/* 되돌릴 수 없는 동작 — 삭제 확인에만 쓴다 (#D93A3A 는 흰 글자 4.55:1) */
+.btn--danger { background: var(--danger); }
+.btn--danger:hover { background: #B92E2E; }
+
 /* 텍스트 버튼 */
 .btn--text {
   background: transparent;
@@ -116,6 +120,33 @@
   pointer-events: none;
 }
 .search .input { padding-left: 44px; border-radius: var(--radius-pill); }
+
+/* ---------- API 키 입력칸 (components/keyfield.js) ---------- */
+.keyfield { display: flex; flex-direction: column; gap: 8px; }
+.keyfield__label { font-size: 14px; font-weight: 700; color: #191F28; }
+.keyfield__input { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .02em; }
+.keyfield__saved {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 13px; color: var(--success-text); font-weight: 500;
+}
+.keyfield__saved .icon { color: var(--success-text); }
+
+/* 발급 안내 — 키가 없으면 아무것도 안 되므로 눈에 띄어야 한다 */
+.keyfield__hint {
+  background: var(--primary-weak);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--primary-dark);
+  word-break: keep-all;
+}
+.keyfield__link {
+  display: inline-flex; align-items: center; gap: 5px;
+  margin-top: 6px; font-weight: 700; color: var(--primary-dark);
+}
+.keyfield__link:hover { text-decoration: underline; }
+.keyfield__link .icon { width: 15px; height: 15px; flex: none; }
 
 /* ---------- 칩 / 뱃지 ---------- */
 .chip {
@@ -349,6 +380,14 @@
   word-break: keep-all;
 }
 .message-modal__button { width: 100%; margin-top: 24px; }
+/* 확인 모달 — 취소가 왼쪽, 실행이 오른쪽. 실행 버튼이 넓어 손이 먼저 간다. */
+.message-modal__actions {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: var(--gap-sm);
+  margin-top: 24px;
+}
+.message-modal__actions .btn { width: 100%; }
 @keyframes modal-in {
   from { opacity: 0; transform: translateY(8px) scale(.98); }
   to { opacity: 1; transform: none; }

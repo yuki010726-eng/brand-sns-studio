@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>모델 비교 · 브랜드 SNS 스튜디오</title>
+<link rel="stylesheet" href="../styles/tokens.css" />
+<link rel="stylesheet" href="../styles/base.css" />
+<style>
+  body { background: var(--bg); padding: 28px 20px 60px; }
+  .wrap { max-width: 1120px; margin: 0 auto; }
+  h1 { margin-bottom: 6px; }
+  h2 { margin: 28px 0 10px; font-size: 18px; color: #191F28; }
+  .lead { color: var(--sub-strong); line-height: 1.7; word-break: keep-all; margin-bottom: 18px; }
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px; margin-bottom: 16px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 18px; }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field > span { font-size: 13px; font-weight: 700; color: #191F28; }
+  input[type="number"], select, textarea {
+    width: 100%; padding: 10px 12px; border: 1px solid var(--border);
+    border-radius: var(--radius-sm); font: inherit; color: var(--text); background: var(--surface);
+  }
+  textarea { min-height: 76px; resize: vertical; line-height: 1.6; }
+  .opt { display: flex; gap: 9px; align-items: flex-start; padding: 9px 0; font-size: 14px; line-height: 1.5; }
+  .opt--inline { display: inline-flex; margin-right: 16px; align-items: center; }
+  .opt input { margin-top: 3px; flex: none; }
+  .dim { color: var(--sub-strong); font-size: 13px; }
+  .ok { color: var(--success-text); font-weight: 700; }
+  .bad { color: var(--danger); font-weight: 700; }
+  .warn { color: var(--danger); font-size: 13px; margin-bottom: 8px; }
+  .bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 14px; }
+  button {
+    border: none; border-radius: var(--radius-pill); padding: 12px 22px;
+    font: inherit; font-weight: 700; background: var(--cta-bg); color: #fff; cursor: pointer;
+  }
+  button:hover { background: var(--cta-bg-hover); }
+  button:disabled { background: var(--border); color: var(--text); cursor: not-allowed; }
+  button.ghost { background: var(--surface); color: var(--link); border: 1px solid var(--border); }
+  button.ghost:hover { background: var(--primary-weak); }
+  #estimate { font-size: 14px; color: var(--text); line-height: 1.7; }
+  #progress { font-size: 14px; color: var(--sub-strong); min-height: 22px; }
+  .notice {
+    border: 1px solid #F3C9C9; background: #FDF3F3; color: #8E2C2C;
+    border-radius: var(--radius-md); padding: 12px 14px; font-size: 13px; line-height: 1.7; margin-bottom: 16px;
+  }
+  .scroll { overflow-x: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); }
+  .scroll--tall { max-height: 420px; overflow-y: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th { background: var(--bg); font-size: 12px; color: var(--sub-strong); position: sticky; top: 0; }
+  tbody tr:last-child td { border-bottom: none; }
+  tr.best { background: #F1F8F3; }
+  .verdict { border-radius: var(--radius-md); padding: 14px 16px; margin-bottom: 12px; font-size: 15px; line-height: 1.7; word-break: keep-all; }
+  .verdict--ok { border: 1px solid #BFE3CC; background: #F1F8F3; color: #14532D; }
+  .verdict--bad { border: 1px solid #F3C9C9; background: #FDF3F3; color: #8E2C2C; }
+  .verdict .dim { display: block; margin-top: 4px; }
+  .verdict--ok .dim { color: #2F6B45; }
+  .verdict--bad .dim { color: #8E2C2C; }
+  .tag { display: inline-block; background: var(--success-text); color: #fff; border-radius: var(--radius-pill); padding: 2px 9px; font-size: 11px; font-weight: 700; vertical-align: middle; }
+  table.small { font-size: 13px; }
+  table.small td, table.small th { padding: 7px 10px; }
+  a { color: var(--link); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>모델 비교</h1>
+  <p class="lead">
+    같은 주제를 모델별로 여러 번 돌려 <strong>검수 통과율</strong>과 <strong>실제 지불액</strong>을 잽니다.
+    판정은 앱이 쓰는 <code>validateDraft()</code> 그대로이고, 생성도 실제 경로(<code>generateWithAI()</code>)를 그대로 부릅니다.
+    싼 모델은 반려되면 최대 3회까지 다시 부르므로, 통과율이 낮으면 가격 이점도 함께 사라집니다.
+  </p>
+
+  <div class="notice">
+    <strong>실제 요금이 청구됩니다.</strong> 아래 예상 비용을 확인하고 시작하세요.
+    회차를 늘리면 정확해지지만 비용도 그대로 늘어납니다. 처음에는 회차 2~3으로 감을 잡으세요.
+  </div>
+
+  <div class="panel">
+    <div id="key-state" class="dim" style="margin-bottom:14px"></div>
+    <div class="grid">
+      <div class="field"><span>모델</span><div id="models"></div></div>
+      <div class="field">
+        <span>상품</span><select id="product" autocomplete="off"></select>
+        <span style="margin-top:12px">톤</span>
+        <select id="tone" autocomplete="off">
+          <option value="trust">신뢰·정보형</option>
+          <option value="hook">후킹형</option>
+          <option value="plain">간결형</option>
+          <option value="celebrate">소식형</option>
+        </select>
+        <span style="margin-top:12px">카드 장수</span>
+        <input type="number" id="cardCount" value="6" min="1" max="6" autocomplete="off" />
+      </div>
+      <div class="field">
+        <span>주제 <span class="dim">(한 줄에 하나)</span></span>
+        <textarea id="topics" autocomplete="off"></textarea>
+        <span style="margin-top:12px">주제당 반복 회차</span>
+        <input type="number" id="runs" value="2" min="1" max="20" autocomplete="off" />
+        <span style="margin-top:12px">채널</span>
+        <div id="channels"></div>
+      </div>
+    </div>
+
+    <div class="bar" style="margin-top:18px">
+      <div id="estimate"></div>
+    </div>
+    <div class="bar">
+      <button id="run" type="button">벤치마크 시작</button>
+      <button id="stop" type="button" class="ghost" disabled>중단</button>
+      <button id="copy" type="button" class="ghost" disabled>CSV 복사</button>
+      <a href="../" style="margin-left:auto">앱으로 돌아가기</a>
+    </div>
+    <div class="bar"><div id="progress"></div></div>
+  </div>
+
+  <div id="results"></div>
+</div>
+<script type="module" src="./bench.js"></script>
+</body>
+</html>

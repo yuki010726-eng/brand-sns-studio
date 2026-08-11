@@ -7,8 +7,13 @@ import { CHANNELS, BANNED_PHRASES, getProduct } from '../data/products.js';
 import { stepperHTML, bindStepper } from '../components/stepper.js';
 import { getState, setState, navigate, draftKeyOf } from '../store.js';
 import { generate, findBanned, TONE_LABEL, IMAGE_PLAN } from '../lib/copywriter.js';
-import { generateWithAI } from '../lib/copyai.js';
-import { MODELS, getModel, setModel, hasKey, maskedKey, setKey } from '../lib/llm.js';
+import { generateWithAI, promptKeyOf } from '../lib/copyai.js';
+import { coreWithOutline, outlineKeyOf } from '../lib/outline.js';
+import {
+  MODELS, getModel, setModel, hasKey, maskedKey, setKey,
+  isBuiltInKey, isModelPinned,
+} from '../lib/llm.js';
+import { keyFieldHTML } from '../components/keyfield.js';
 import { toast } from '../components/toast.js';
 
 export const title = '아이디어 문서화';
@@ -54,19 +59,30 @@ export function render(root) {
             <a class="btn btn--ghost btn--sm" href="#/" aria-label="상품과 주제를 다시 선택하기">
               ${icon('arrowLeft', 'icon--sm')} 조건 수정
             </a>
-            <!-- 버튼은 하나다. 키가 있으면 AI 로, 없으면 규칙 기반으로 다시 쓴다.
-                 예전엔 「전체 재생성」(규칙 기반)과 「전체 AI로 쓰기」가 나란히 있어 헷갈렸다. -->
+            <!-- 「전체 재생성」은 항상 규칙 기반, 「AI 생성」은 항상 내장 OpenAI 키로 쓴다.
+                 예전엔 하나로 합쳐 키 유무에 따라 라벨이 바뀌었는데(2026-08-10),
+                 요청자가 둘을 다시 나눠 달라고 해서 되돌렸다(2026-08-11). -->
             <button type="button" class="btn btn--sm" id="regen-all"
-                    aria-label="${hasKey() ? '2단계에서 고른 상품·주제·톤으로 AI가 세 채널 글을 쓰게 하기' : '모든 채널 글귀를 새로 생성하기'}">
-              ${icon(hasKey() ? 'sparkles' : 'refresh', 'icon--sm')}
-              ${hasKey() ? 'AI 시작' : '전체 재생성'}
+                    aria-label="모든 채널 글귀를 규칙 기반으로 새로 생성하기">
+              ${icon('refresh', 'icon--sm')} 전체 재생성
+            </button>
+            <button type="button" class="btn btn--sm" id="ai-all"
+                    aria-label="2단계에서 고른 상품·주제·톤으로 AI가 세 채널 글을 쓰게 하기"
+                    ${hasKey() ? '' : 'disabled'}>
+              ${icon('sparkles', 'icon--sm')} AI 생성
             </button>
           </div>
         </div>
 
-        <!-- 키는 lib/apikeys.local.js 기본값으로 평소 자동 연결된다. 그래서 큰 설정 카드 대신
-             작은 링크 하나만 남긴다 — 다른 키·모델로 바꾸고 싶을 때만 연다. -->
-        <div class="aibar" id="aibar">${aibarHTML()}</div>
+        <!--
+          ⚠️ 키가 내장돼 있으면 AI 설정 바를 **통째로 안 그린다** (요청자 지시 2026-08-11).
+             쓰는 사람이 만질 것이 하나도 없기 때문이다 — 모델은 고정돼 있고
+             키는 파일에서 오므로 화면에서 바꿀 수 없다. 열어 두면 건드렸다가 헷갈리기만 한다.
+
+             ⚠️ 「AI가 쓰고 있습니다」 안내는 여기가 아니라 toast() 와 setAiBusy() 가 낸다.
+                이 바를 지워도 그대로 보인다. 지우면서 그쪽까지 건드리지 말 것.
+        -->
+        ${isBuiltInKey() ? '' : `<div class="aibar card" id="aibar">${aibarHTML()}</div>`}
         <div id="ai-status"></div>
 
         <div id="stale-slot">${staleNoticeHTML()}</div>
@@ -111,13 +127,17 @@ export function render(root) {
    */
 
   root.querySelector('#regen-all')?.addEventListener('click', () => {
-    const useAI = hasKey();
-    if (hasEdits() && !confirm(`편집한 내용이 있습니다. 모두 ${useAI ? 'AI 글' : '새 글귀'}로 덮어쓸까요?`)) return;
-    if (useAI) { aiAll(root); return; }
+    if (hasEdits() && !confirm('편집한 내용이 있습니다. 모두 새 글귀로 덮어쓸까요?')) return;
     regenerateAll();
     refreshPanel(root);
     refreshStale(root);
     toast('모든 채널 글귀를 새로 만들었습니다.');
+  });
+
+  root.querySelector('#ai-all')?.addEventListener('click', () => {
+    if (!hasKey()) { toast('OpenAI 키가 없습니다. 설정에서 먼저 입력해 주세요.'); return; }
+    if (hasEdits() && !confirm('편집한 내용이 있습니다. 모두 AI 글로 덮어쓸까요?')) return;
+    aiAll(root);
   });
 
   root.querySelector('#copy-all')?.addEventListener('click', () => {
@@ -134,11 +154,18 @@ export function render(root) {
 /* ---------------- AI 설정 ---------------- */
 
 /**
- * 키는 lib/apikeys.local.js 기본값으로 평소 자동 연결된다 — 매번 켤 필요가 없다.
- * 그래서 큰 카드 대신 작은 링크 하나만 두고, 다른 키·모델로 바꾸고 싶을 때만 연다.
+ * 규칙 기반 생성은 키 없이 늘 동작한다. AI 는 '더 좋게 다시 쓰는' 선택지다.
+ * 그래서 이 바는 접어 두고, 켜고 싶을 때만 열게 한다.
+ *
+ * ⚠️ **키가 내장돼 있으면 이 함수는 아예 불리지 않는다.** 호출하는 쪽(render)이
+ *    `isBuiltInKey()` 로 막는다. 그래서 여기에 내장 키 분기를 두지 말 것 — 닿지 않는다.
+ *
+ * 모델 고정(`config.local.js` 의 textModel)은 **키 내장과 별개**다.
+ * 키 없이 고정만 걸 수도 있어서 그 잠금은 여기 남는다.
  */
 function aibarHTML() {
   const on = hasKey();
+  const modelLocked = isModelPinned();
   return `
     <button type="button" class="btn btn--text btn--sm" id="ai-toggle"
             aria-expanded="false" aria-controls="ai-form" aria-label="AI 설정 열기 — 키·모델 바꾸기">
@@ -146,19 +173,17 @@ function aibarHTML() {
     </button>
 
     <div class="aibar__form" id="ai-form" hidden>
-      <div class="field">
-        <label class="field__label" for="ai-key">OpenAI API 키</label>
-        <input class="input" type="password" id="ai-key" autocomplete="off" spellcheck="false" />
-        <p class="field__hint">platform.openai.com 에서 발급한 키(sk-… 로 시작)입니다. 게시물 1세트에 약 $0.03이 듭니다.
-           이 브라우저에만 저장됩니다.</p>
-      </div>
+      <!-- 키는 각자 발급받아 각자 넣는다. 이미지 프롬프트 화면과 같은 키를 쓴다. -->
+      ${keyFieldHTML({ providerId: 'openai', inputId: 'ai-key', hasKey: on, masked: maskedKey() })}
 
       <div class="field">
         <label class="field__label" for="ai-model">모델</label>
-        <select class="select" id="ai-model">
+        <select class="select" id="ai-model" ${modelLocked ? 'disabled' : ''}>
           ${MODELS().map((m) => `<option value="${m.id}" ${m.id === getModel() ? 'selected' : ''}>${esc(m.label)}</option>`).join('')}
         </select>
-        <p class="field__hint">${esc(MODELS().find((m) => m.id === getModel())?.note || '')}</p>
+        <p class="field__hint">${modelLocked
+          ? 'config.local.js 에서 고정했습니다.'
+          : esc(MODELS().find((m) => m.id === getModel())?.note || '')}</p>
       </div>
 
       <div class="keybar__actions">
@@ -394,12 +419,55 @@ function bindPanel(root) {
 /* ---------------- AI 생성 ---------------- */
 
 let aiBusy = false;
+/** 지금 도는 AI 세션 — 일시정지 · 취소 버튼이 이걸 조작한다. 없으면(=null) 아무것도 안 도는 것 */
+let aiSession = null;
+
+/**
+ * AI 요청 하나(또는 한 묶음)의 진행을 조작하는 손잡이.
+ *
+ * ⚠️ **취소는 fetch 를 즉시 끊지만, 일시정지는 이미 나간 요청을 멈추지 못한다.**
+ * 네트워크 요청은 중간에 세웠다 이어받을 수 없다 — 스트리밍이 아니라 응답을 통째로 기다리는
+ * 방식이라 그렇다(요청자 확인 2026-08-11). 그래서 일시정지는 "**다음** 재시도·다음 호출을
+ * 막는" 대기열 정지로 구현한다. `generateWithAI` 가 시도 직전마다 `waitIfPaused()` 를 부른다.
+ *
+ * 일시정지 중에 취소하면 갇혀 있던 대기도 함께 풀어 준다 — 안 풀면 영원히 멈춘 채로 남는다.
+ */
+function makeAiSession() {
+  const controller = new AbortController();
+  let paused = false;
+  let release = null;
+  let waitPromise = null;
+
+  controller.signal.addEventListener('abort', () => {
+    paused = false;
+    release?.();
+  });
+
+  return {
+    signal: controller.signal,
+    cancel: () => controller.abort(),
+    get paused() { return paused; },
+    pause() {
+      if (paused || controller.signal.aborted) return;
+      paused = true;
+      waitPromise = new Promise((resolve) => { release = resolve; });
+    },
+    resume() {
+      if (!paused) return;
+      paused = false;
+      release?.();
+    },
+    waitIfPaused: () => waitPromise || Promise.resolve(),
+  };
+}
 
 function setAiBusy(root, on, label) {
   aiBusy = on;
   root.querySelectorAll('[data-ai]').forEach((b) => { b.disabled = on || !hasKey(); });
   const regen = root.querySelector('#regen-all');
   if (regen) regen.disabled = on;
+  const aiAllBtn = root.querySelector('#ai-all');
+  if (aiAllBtn) aiAllBtn.disabled = on || !hasKey();
   const btn = root.querySelector('[data-ai]');
   if (btn && label) btn.innerHTML = on ? `<span class="spinner" aria-hidden="true"></span> ${label}` : btn.innerHTML;
 }
@@ -407,26 +475,37 @@ function setAiBusy(root, on, label) {
 async function aiOne(root, id) {
   if (aiBusy) { toast('이미 쓰는 중입니다.'); return; }
   const c = CHANNELS.find((x) => x.id === id);
+  const session = makeAiSession();
+  aiSession = session;
   setAiBusy(root, true, '쓰는 중…');
   toast(`${c.name} 글을 AI가 쓰고 있습니다…`, 3000);
   try {
-    const text = await generateWithAI(id, ctx(0));
+    await ensureOutline(root, { session });
+    const runningMessage = `${c.name} 글을 AI가 쓰고 있습니다…`;
+    showAiStatus(root, runningMessage, session);
+    const text = await generateWithAI(id, aiCtx(0), { signal: session.signal, waitIfPaused: session.waitIfPaused });
     const s = getState();
     setState({
       drafts: { ...s.drafts, [id]: text },
       generated: { ...s.generated, [id]: text },
       sources: { ...s.sources, [id]: 'ai' },
       draftKey: draftKeyOf(s),
+      // 방금 이 채널을 AI 로 썼다고 남긴다. 안 남기면 다음에 이 화면에 들어올 때
+      // 자동 실행이 같은 채널을 또 불러 방금 만든 글을 덮어쓴다 — 돈을 두 번 쓰는 셈이다.
+      aiKey: { ...s.aiKey, [id]: promptKeyOf(id, s) },
     });
     refreshPanel(root);
     refreshStale(root);
     toast(`${c.name} 글을 새로 썼습니다.`);
   } catch (e) {
     // 검수를 통과 못 했거나 호출이 실패하면 기존 글을 그대로 둔다 — 나쁜 글로 덮어쓰지 않는다
-    toast(`${c.name} 실패 · ${e.message}`, 5000);
+    if (e.name === 'AbortError') toast(`${c.name} 생성을 취소했습니다.`);
+    else toast(`${c.name} 실패 · ${e.message}`, 5000);
     refreshPanel(root);
   } finally {
     setAiBusy(root, false);
+    showAiStatus(root, '');
+    aiSession = null;
   }
 }
 
@@ -436,51 +515,103 @@ async function aiOne(root, id) {
  */
 async function aiAll(root) {
   if (aiBusy) return;
-  const channels = CHANNELS.filter((c) => getState().channels.includes(c.id));
+  const picked = getState().channels;
+  const channels = CHANNELS.filter((c) => picked.includes(c.id));
+  if (!channels.length) return;
+  const session = makeAiSession();
+  aiSession = session;
   setAiBusy(root, true);
-  showAiStatus(root, `AI가 ${channels.length}개 채널 글을 쓰고 있습니다… 30초쯤 걸립니다.`);
 
-  const results = await Promise.allSettled(channels.map((c) => generateWithAI(c.id, ctx(0))));
+  try {
+    // 뼈대를 먼저 짠다. 세 채널이 같은 뼈대 위에서 써야 내용이 통일된다.
+    const outlineError = await ensureOutline(root, { session });
+    if (outlineError) toast(`주제 뼈대를 못 만들어 기본 구성으로 씁니다 — ${outlineError}`, 5000);
 
-  let ok = 0;
-  results.forEach((r, i) => {
-    const c = channels[i];
-    if (r.status !== 'fulfilled') {
-      // 실패하면 기존 글을 그대로 둔다 — 나쁜 글로 덮어쓰지 않는다
-      toast(`${c.name} 실패 · ${r.reason?.message || r.reason}`, 5000);
-      return;
-    }
-    const s = getState();
-    setState({
-      drafts: { ...s.drafts, [c.id]: r.value },
-      generated: { ...s.generated, [c.id]: r.value },
-      sources: { ...s.sources, [c.id]: 'ai' },
-      draftKey: draftKeyOf(s),
+    const runningMessage = `AI가 ${channels.length}개 채널 글을 쓰고 있습니다… 30초쯤 걸립니다.`;
+    showAiStatus(root, runningMessage, session);
+    const results = await Promise.allSettled(channels.map((c) =>
+      generateWithAI(c.id, aiCtx(0), { signal: session.signal, waitIfPaused: session.waitIfPaused })));
+
+    let ok = 0;
+    let cancelled = 0;
+    results.forEach((r, i) => {
+      const c = channels[i];
+      if (r.status !== 'fulfilled') {
+        // 취소는 실패가 아니다 — 실패 토스트를 따로 띄우지 않는다
+        if (r.reason?.name === 'AbortError') { cancelled++; return; }
+        // 실패하면 기존 글을 그대로 둔다 — 나쁜 글로 덮어쓰지 않는다
+        toast(`${c.name} 실패 · ${r.reason?.message || r.reason}`, 5000);
+        return;
+      }
+      const s = getState();
+      setState({
+        drafts: { ...s.drafts, [c.id]: r.value },
+        generated: { ...s.generated, [c.id]: r.value },
+        sources: { ...s.sources, [c.id]: 'ai' },
+        draftKey: draftKeyOf(s),
+      });
+      ok++;
     });
-    ok++;
-  });
 
-  // 성공하든 실패하든 기록해 둔다. 안 그러면 실패할 때마다 자동 실행이 무한 반복된다.
-  setState({ aiKey: draftKeyOf(getState()) });
+    /**
+     * 성공하든 실패하든 **부른 채널만** 기록한다.
+     * 안 그러면 실패할 때마다 자동 실행이 무한 반복된다.
+     * 부르지 않은 채널까지 최신으로 찍어 두면 그 채널은 낡은 글을 든 채 영영 다시 안 쓴다.
+     */
+    const now = getState();
+    const marked = { ...now.aiKey };
+    channels.forEach((c) => { marked[c.id] = promptKeyOf(c.id, now); });
+    setState({ aiKey: marked });
 
-  setAiBusy(root, false);
-  showAiStatus(root, '');
-  refreshPanel(root);
-  refreshStale(root);
+    refreshPanel(root);
+    refreshStale(root);
 
-  if (ok) toast(`${ok}개 채널을 AI로 새로 썼습니다.`);
+    if (ok) toast(`${ok}개 채널을 AI로 새로 썼습니다.`);
+    if (cancelled) toast(`${cancelled}개 채널 생성을 취소했습니다.`);
+  } catch (e) {
+    // 아웃라인 단계에서 취소하면 채널 호출까지 가지 않고 여기로 곧장 떨어진다
+    if (e.name === 'AbortError') toast('AI 생성을 취소했습니다.');
+    else toast(`AI 생성 실패 · ${e.message}`, 5000);
+  } finally {
+    setAiBusy(root, false);
+    showAiStatus(root, '');
+    aiSession = null;
+  }
 }
 
-/** 진행 상황 한 줄 — 30초 넘게 걸려서 아무 표시가 없으면 멈춘 줄 안다 */
-function showAiStatus(root, message) {
+/**
+ * 진행 상황 한 줄 — 30초 넘게 걸려서 아무 표시가 없으면 멈춘 줄 안다.
+ * `session` 을 넘기면 일시정지·취소 버튼을 같이 그린다.
+ */
+function showAiStatus(root, message, session) {
   const slot = root.querySelector('#ai-status');
   if (!slot) return;
-  slot.innerHTML = message
-    ? `<div class="notice notice--info" role="status">
-         <span class="spinner" aria-hidden="true"></span>
-         <div><strong>${esc(message)}</strong></div>
-       </div>`
-    : '';
+  if (!message) { slot.innerHTML = ''; return; }
+
+  const paused = !!session?.paused;
+  slot.innerHTML = `
+    <div class="notice notice--info" role="status">
+      <span class="spinner" aria-hidden="true"></span>
+      <div>
+        <strong>${esc(paused ? '일시정지했습니다' : message)}</strong>
+        ${paused ? '<p>이미 나간 요청은 그대로 진행되고, 다음 재시도만 멈춥니다.</p>' : ''}
+      </div>
+      ${session ? `
+        <button type="button" class="btn btn--sm" id="ai-pause"
+                aria-label="${paused ? 'AI 생성 이어하기' : 'AI 생성 일시정지 — 이미 나간 요청은 그대로 두고 다음 재시도만 막습니다'}">
+          ${paused ? '이어하기' : '일시정지'}
+        </button>
+        <button type="button" class="btn btn--ghost btn--sm" id="ai-cancel"
+                aria-label="AI 생성 취소하기 — 진행 중인 요청을 즉시 중단합니다">
+          취소
+        </button>` : ''}
+    </div>`;
+
+  root.querySelector('#ai-pause')?.addEventListener('click', () => {
+    if (session.paused) session.resume(); else session.pause();
+    showAiStatus(root, message, session);
+  });
+  root.querySelector('#ai-cancel')?.addEventListener('click', () => session.cancel());
 }
 
 /** 카운터와 경고 문구만 갱신 — 입력 중 캐럿이 튀지 않도록 textarea 는 건드리지 않는다 */
@@ -507,6 +638,40 @@ function autoGrow(ta) {
 function ctx(variant) {
   const s = getState();
   return { product: getProduct(s.productId), topic: s.topic.trim(), tone: s.tone, variant, cardCount: s.cardCount };
+}
+
+/**
+ * AI 로 쓸 때 쓰는 ctx — **주제 뼈대를 함께 넘긴다.**
+ * 뼈대가 없으면 `coreBlock()` 이 규칙 기반으로 떨어진다(키가 없거나 뼈대 생성 실패).
+ */
+function aiCtx(variant) {
+  const s = getState();
+  const core = s.outline?.key === outlineKeyOf(s) ? s.outline.core : null;
+  return { ...ctx(variant), core };
+}
+
+/**
+ * 글의 뼈대를 먼저 만든다. 세 채널과 카드뉴스 덱이 **함께** 이것을 본다.
+ *
+ * ⚠️ 채널마다 알아서 주제를 쪼개게 두면 셋이 다른 이야기를 한다(요청자 요구: 세 채널 통일).
+ *    그래서 한 번 만들어 셋에 나눠 준다. 호출이 하나 늘지만 출력이 짧아 비용은 얼마 안 는다.
+ *
+ * 조건(상품·주제·톤)이 그대로면 다시 만들지 않는다 — 있는 뼈대를 또 사면 돈만 쓴다.
+ *
+ * `session` 을 넘기면 이 단계에서도 일시정지·취소 버튼을 보여주고, 취소 시 AbortError 를
+ * 그대로 던진다(`coreWithOutline` 이 이미 그렇게 한다) — 호출한 쪽이 잡아서 처리한다.
+ * @returns {Promise<string|null>} 실패 사유 (성공하면 null — 규칙 기반으로 이어서 쓴다)
+ */
+async function ensureOutline(root, { force = false, session } = {}) {
+  const s = getState();
+  const key = outlineKeyOf(s);
+  if (!force && s.outline?.key === key) return null;
+
+  showAiStatus(root, '주제를 어떻게 풀지 뼈대를 짜는 중입니다…', session);
+  const { core, error } = await coreWithOutline(ctx(0), { signal: session?.signal, waitIfPaused: session?.waitIfPaused });
+  // 실패해도 코어는 돌아온다(규칙 기반). 그래도 다음에 다시 시도하도록 실패는 저장하지 않는다.
+  if (!error) setState({ outline: { key, core } });
+  return error;
 }
 
 /**

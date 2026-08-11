@@ -12,16 +12,22 @@
  */
 import { icon } from '../assets/icons.js';
 import { getProduct, BANNED_PHRASES } from '../data/products.js';
-import { CONCEPTS, ACCENTS, MARKS, CARD_THEMES, NOTE_SYMBOLS, NOTE_PAPERS, DEFAULT_NOTE_GRAIN, getConcept } from '../lib/concepts.js';
+import {
+  CONCEPTS, ACCENTS, MARKS, CARD_THEMES, NOTE_SYMBOLS, NOTE_PAPERS, DEFAULT_NOTE_GRAIN,
+  getConcept, getCardTheme, getMark, isHex, contrastWithWhite,
+} from '../lib/concepts.js';
 import { slotsFor, defaultsFor, roleOf } from '../lib/templates.js';
 import { stepperHTML, bindStepper } from '../components/stepper.js';
 import { getState, setState, navigate, draftKeyOf } from '../store.js';
 import { buildDeck, TONE_LABEL, findBanned } from '../lib/copywriter.js';
+import { outlineKeyOf } from '../lib/outline.js';
 import { getImage, putImage, deleteImage, imageKey } from '../lib/imagestore.js';
-import { renderCard, loadImage, cardAlt, downloadCanvas, ensureFonts, W, H } from '../lib/cardrender.js';
-import { buildPrompt, buildPromptSheet } from '../lib/imageprompt.js';
+import { renderCard, loadImage, cardAlt, downloadCanvas, ensureFonts, lastClipped, W, H } from '../lib/cardrender.js';
+import { buildPrompt } from '../lib/imageprompt.js';
 import { imagePanelHTML, bindImagePanel } from '../components/imagepanel.js';
 import { toast } from '../components/toast.js';
+import { confirmModal } from '../components/modal.js';
+import { saveToLibrary, getLibrary, postKeyOf } from '../lib/librarystore.js';
 
 export const title = '카드뉴스 템플릿';
 
@@ -113,7 +119,16 @@ export function render(root) {
   const p = getProduct(s.productId);
   const concept = getConcept(s.concept);
 
-  deck = buildDeck({ product: p, topic: s.topic.trim(), tone: s.tone, variant: s.image?.variant ?? 0, cardCount: s.cardCount });
+  /**
+   * ⚠️ AI 가 짠 뼈대가 있으면 **그것으로 카드를 만든다.**
+   *    예전에는 늘 규칙 기반이라 글귀를 새로 뽑아도 카드 문구가 그대로였다 — 요청자 지적.
+   *    뼈대는 2단계에서 만들어 `state.outline` 에 담긴다.
+   */
+  deck = buildDeck({
+    product: p, topic: s.topic.trim(), tone: s.tone,
+    variant: s.image?.variant ?? 0, cardCount: s.cardCount,
+    core: s.outline?.key === outlineKeyOf(s) ? s.outline.core : null,
+  });
   ensureTexts(p);
   if (active >= deck.length) active = 0;
 
@@ -166,6 +181,8 @@ export function render(root) {
             <canvas class="tpl-stage__canvas" id="tpl-canvas" width="${W}" height="${H}"
                     role="img" aria-label="카드 미리보기"></canvas>
             <p class="tpl-stage__note" id="tpl-src">이미지 확인 중…</p>
+            <!-- 글이 잘렸을 때만 채워진다. 미리보기 바로 아래라 눈에 바로 걸린다. -->
+            <div id="tpl-overflow"></div>
             <div class="tpl-stage__actions">
               <button type="button" class="btn btn--ghost btn--sm" id="save-one"
                       aria-label="이 카드 PNG로 저장하기">
@@ -189,6 +206,10 @@ export function render(root) {
                   aria-label="아이디어 문서화 단계로 돌아가기">
             ${icon('arrowLeft', 'icon--sm')} 글귀 단계로
           </button>
+          <button type="button" class="btn" id="save-library"
+                  aria-label="지금 게시물을 보관함에 저장하기">
+            ${icon('archive', 'icon--sm')} 보관함에 저장
+          </button>
         </div>
       </section>
     </div>`;
@@ -203,6 +224,7 @@ export function render(root) {
   root.querySelector('#reset-all')?.addEventListener('click', () => resetAll(root));
   root.querySelector('#save-one')?.addEventListener('click', () => saveOne(root));
   root.querySelector('#save-all')?.addEventListener('click', () => saveAll(root));
+  root.querySelector('#save-library')?.addEventListener('click', () => saveToArchive(root));
   root.querySelector('#go-copy')?.addEventListener('click', () => navigate('/copy'));
 
   (async () => {
@@ -325,9 +347,21 @@ function fieldHTML(f, value, conceptId) {
        </div>`
     : '';
 
+  /**
+   * 글자 수 카운터. 상한(`f.max`)은 **막는 값이 아니라 알리는 값**이다 —
+   * 요청자 지시: 처음 생성은 제한하되 이후 수정은 자유롭게. 넘으면 빨갛게만 표시한다.
+   */
+  const counter = f.max
+    ? `<span class="tpl-count${value.length > f.max ? ' tpl-count--over' : ''}" data-count="${f.id}"
+             aria-live="polite">${value.length} / ${f.max}자</span>`
+    : '';
+
   return `
     <div class="field tpl-field">
-      <label class="field__label" for="f-${f.id}">${f.label}</label>
+      <div class="tpl-field__head">
+        <label class="field__label" for="f-${f.id}">${f.label}</label>
+        ${counter}
+      </div>
       ${control}
       ${tools}
       <p class="field__hint" id="h-${f.id}">${f.hint}</p>
@@ -393,6 +427,9 @@ function noteSymbolHTML(current) {
  *    요청자 요구가 "한번 바꾸면 나머지 페이지도 다 바뀌도록" 이다.
  */
 function cardThemeHTML(current) {
+  // 직접 입력 색이면 어느 견본에도 안 걸린다 — 그때 입력칸에 그 값을 채워 보여준다
+  const theme = getCardTheme(current);
+  const custom = isHex(theme.id) ? theme.hex : '';
   return `
     <h3 class="tpl-form__legend">테마 색상</h3>
     <fieldset class="accent__swatches" id="theme-swatches">
@@ -400,18 +437,51 @@ function cardThemeHTML(current) {
       ${CARD_THEMES.map((c) => `
         <div class="accent__item">
           <input class="sr-only accent__input" type="radio" name="cardtheme" id="ct-${c.id}"
-                 value="${c.id}" autocomplete="off" ${c.id === (current || 'blue') ? 'checked' : ''}
+                 value="${c.id}" autocomplete="off" ${c.id === theme.id ? 'checked' : ''}
                  aria-label="테마 ${c.name}" />
           <label class="accent__chip" for="ct-${c.id}">
             <span class="accent__dot" style="background:${c.hex}"></span>${c.name}
           </label>
         </div>`).join('')}
+      <!-- 매거진형 강조 색상과 같은 자리·같은 모양이다 (요청자 요구 2026-08-11) -->
+      <input class="input accent__hex" type="text" id="theme-hex" value="${esc(custom)}"
+             spellcheck="false" autocomplete="off" placeholder="#RRGGBB"
+             aria-label="테마 색상 직접 입력 (예: #2673D2)" />
     </fieldset>
-    <p class="field__hint">모든 장에 함께 적용됩니다. 흰 글씨 대비를 지키는 색만 넣어 뒀습니다.</p>`;
+    <p class="field__hint" id="theme-hint">${themeHintHTML(theme)}</p>`;
 }
 
-/** 카드형 우상단 마크 — 레퍼런스의 별표 말고도 고를 수 있게 */
+/**
+ * 테마 색 안내.
+ *
+ * ⚠️ 카드형은 **모든 글씨가 흰색**이다. 직접 입력한 색이 밝으면 글이 안 읽힌다.
+ *    막지는 않는다(요청자 지시 — 직접 입력은 막지 말 것). 대신 몇 대 몇인지 바로 알려 준다.
+ *    프리셋은 전부 4.5:1 을 넘기므로 경고가 뜰 일이 없다.
+ */
+/** 대비 안내만 다시 그린다 — 폼 전체를 다시 그리면 입력 중인 캐럿이 튄다 */
+function refreshThemeHint(root) {
+  const hint = root.querySelector('#theme-hint');
+  if (hint) hint.innerHTML = themeHintHTML(getCardTheme(getState().cardTheme));
+}
+
+function themeHintHTML(theme) {
+  const base = '모든 장에 함께 적용됩니다.';
+  if (!isHex(theme.id)) return `${base} 흰 글씨 대비를 지키는 색만 넣어 뒀습니다.`;
+  const ratio = contrastWithWhite(theme.hex);
+  return ratio >= 4.5
+    ? `${base} 흰 글씨 대비 ${ratio.toFixed(2)}:1 — 기준(4.5:1)을 넘깁니다.`
+    : `⚠️ ${base} 흰 글씨 대비가 ${ratio.toFixed(2)}:1 로 기준(4.5:1)에 못 미칩니다. 글이 잘 안 보일 수 있어요.`;
+}
+
+/**
+ * 카드형 우상단 마크 — 레퍼런스의 별표 말고도 고를 수 있게.
+ *
+ * ⚠️ 저장된 값을 그대로 비교하지 않고 `getMark()` 를 거친다. 없앤 이모지 마크가
+ *    localStorage 에 남아 있으면 어느 견본도 안 켜지는데 렌더러는 별표를 그려서
+ *    **화면과 그림이 어긋난다.** getMark 가 기본값으로 되돌려 주므로 그 값으로 맞춘다.
+ */
 function markHTML(current) {
+  const active = getMark(current).id;
   return `
     <h3 class="tpl-form__legend">우상단 마크</h3>
     <fieldset class="accent__swatches" id="mark-swatches">
@@ -419,7 +489,7 @@ function markHTML(current) {
       ${MARKS.map((m) => `
         <div class="accent__item">
           <input class="sr-only accent__input" type="radio" name="mark" id="mk-${m.id}"
-                 value="${m.id}" autocomplete="off" ${m.id === current ? 'checked' : ''}
+                 value="${m.id}" autocomplete="off" ${m.id === active ? 'checked' : ''}
                  aria-label="마크 ${m.name}" />
           <label class="accent__chip" for="mk-${m.id}">${m.name}</label>
         </div>`).join('')}
@@ -427,30 +497,32 @@ function markHTML(current) {
     <p class="field__hint">모든 장의 오른쪽 위에 함께 적용됩니다.</p>`;
 }
 
-/** 매거진형 강조 색상 — 형광 초록 말고도 고를 수 있게 한다 */
+/**
+ * 매거진형 강조 색상 — 형광 초록 말고도 고를 수 있게 한다.
+ *
+ * ⚠️ 직접 입력칸은 **견본과 같은 줄**에 둔다 (요청자 지시 2026-08-11).
+ *    예전에는 아래 줄에 「직접 입력」 라벨과 함께 따로 있었다. 라벨은 뺐고,
+ *    무슨 칸인지는 `aria-label` 과 `#RRGGBB` 플레이스홀더가 대신한다.
+ *    라벨을 다시 붙이지 말 것 — 줄이 나뉘어 다시 두 단이 된다.
+ */
 function accentHTML(current) {
   return `
     <h3 class="tpl-form__legend">강조 색상</h3>
-    <div class="accent">
-      <fieldset class="accent__swatches">
-        <legend class="sr-only">강조 색상을 선택하세요</legend>
-        ${ACCENTS.map((a) => `
-          <div class="accent__item">
-            <input class="sr-only accent__input" type="radio" name="accent" id="ac-${a.id}"
-                   value="${a.hex}" autocomplete="off" ${a.hex.toLowerCase() === String(current).toLowerCase() ? 'checked' : ''}
-                   aria-label="강조 색상 ${a.name}" />
-            <label class="accent__chip" for="ac-${a.id}" style="--sw:${a.hex}">
-              <span class="accent__dot" aria-hidden="true"></span>${a.name}
-            </label>
-          </div>`).join('')}
-      </fieldset>
-      <div class="accent__custom">
-        <label class="field__hint" for="accent-hex">직접 입력</label>
-        <input class="input accent__hex" type="text" id="accent-hex" value="${esc(current)}"
-               spellcheck="false" autocomplete="off" placeholder="#B9F73E"
-               aria-label="강조 색상 직접 입력 (예: #B9F73E)" />
-      </div>
-    </div>
+    <fieldset class="accent__swatches">
+      <legend class="sr-only">강조 색상을 선택하세요</legend>
+      ${ACCENTS.map((a) => `
+        <div class="accent__item">
+          <input class="sr-only accent__input" type="radio" name="accent" id="ac-${a.id}"
+                 value="${a.hex}" autocomplete="off" ${a.hex.toLowerCase() === String(current).toLowerCase() ? 'checked' : ''}
+                 aria-label="강조 색상 ${a.name}" />
+          <label class="accent__chip" for="ac-${a.id}" style="--sw:${a.hex}">
+            <span class="accent__dot" aria-hidden="true"></span>${a.name}
+          </label>
+        </div>`).join('')}
+      <input class="input accent__hex" type="text" id="accent-hex" value="${esc(current)}"
+             spellcheck="false" autocomplete="off" placeholder="#RRGGBB"
+             aria-label="강조 색상 직접 입력 (예: #B9F73E)" />
+    </fieldset>
     <p class="field__hint">모든 장의 강조 문구에 함께 적용됩니다.</p>`;
 }
 
@@ -550,6 +622,15 @@ function refreshForm(root) {
   bindForm(root);
 }
 
+/** 카운터만 갱신한다 — 폼을 다시 그리면 입력 중 캐럿이 튄다 */
+function updateCount(root, el) {
+  const slot = slotsFor(getState().concept, deck[active].kind).find((x) => x.id === el.dataset.f);
+  const out = root.querySelector(`[data-count="${el.dataset.f}"]`);
+  if (!slot?.max || !out) return;
+  out.textContent = `${el.value.length} / ${slot.max}자`;
+  out.classList.toggle('tpl-count--over', el.value.length > slot.max);
+}
+
 function bindForm(root) {
   root.querySelectorAll('[data-f]').forEach((el) => {
     el.addEventListener('input', () => {
@@ -560,6 +641,7 @@ function bindForm(root) {
 
       // 입력 중에는 캔버스만 갱신한다 — 폼을 다시 그리면 캐럿이 튄다
       schedulePaint(root);
+      updateCount(root, el);
       const warn = root.querySelector('#tpl-warn');
       if (warn) warn.innerHTML = warnHTML(texts[active]);
       const reset = root.querySelector('#reset-one');
@@ -593,7 +675,25 @@ function bindForm(root) {
   root.querySelector('#theme-swatches')?.addEventListener('change', (e) => {
     if (e.target.name !== 'cardtheme') return;
     setState({ cardTheme: e.target.value });
+    // 견본을 고르면 직접 입력칸을 비운다 — 남겨 두면 어느 쪽이 적용됐는지 알 수 없다
+    const hex = root.querySelector('#theme-hex');
+    if (hex) hex.value = '';
+    refreshThemeHint(root);
     paint(root);
+  });
+
+  /**
+   * 테마 색 직접 입력. 강조 색상(`#accent-hex`)과 같은 규칙이다 —
+   * 입력 중인 값은 조용히 무시하고, 여섯 자리가 완성되면 그때 반영한다.
+   */
+  root.querySelector('#theme-hex')?.addEventListener('input', (e) => {
+    const v = e.target.value.trim();
+    if (!isHex(v)) return;
+    setState({ cardTheme: v });
+    // 직접 입력한 색은 어느 견본도 아니다 — 켜져 있던 라디오를 끈다
+    root.querySelectorAll('[name="cardtheme"]').forEach((r) => { r.checked = false; });
+    refreshThemeHint(root);
+    schedulePaint(root);
   });
 
   root.querySelector('#symbol-swatches')?.addEventListener('change', (e) => {
@@ -677,7 +777,6 @@ function bindImagePanelHere(root) {
     onUpload: (file) => putUploaded(root, file),
     onDelete: () => removeImage(root),
     onCopy: () => copyText(promptFor(active), `${active + 1}번 프롬프트를 복사했습니다.`),
-    onCopyAll: () => copyText(buildPromptSheet(deck, getState().concept, allTitles()), '프롬프트를 모두 복사했습니다.'),
   });
 }
 
@@ -745,10 +844,6 @@ const promptFor = (i) => {
   return buildPrompt(deck[i], s.concept, { title: s.card?.texts?.[i]?.title || deck[i].title });
 };
 
-const allTitles = () => {
-  const s = getState();
-  return deck.map((c, i) => s.card?.texts?.[i]?.title || c.title);
-};
 
 function opts(s, i) {
   return {
@@ -765,6 +860,37 @@ function paint(root) {
   const texts = s.card.texts[active];
   renderCard(canvas, texts, opts(s, active));
   canvas.setAttribute('aria-label', cardAlt(texts, active));
+  // ⚠️ 잘림 기록은 **그린 직후에만** 유효하다 (renderCard 가 매번 비운다)
+  refreshOverflow(root, lastClipped());
+}
+
+/**
+ * 글이 카드 밖으로 밀려 잘렸는지 알린다.
+ *
+ * 예전에는 렌더러가 조용히 `…` 로 잘라서 **글이 사라진 걸 아무도 몰랐다.**
+ * 막지는 않는다(직접 길게 쓰는 건 자유다) — 대신 어느 칸이 잘렸는지 정확히 짚어 준다.
+ */
+function refreshOverflow(root, clippedSlots) {
+  const slots = slotsFor(getState().concept, deck[active].kind);
+  const labelOf = (id) => slots.find((x) => x.id === id)?.label || id;
+
+  root.querySelectorAll('[data-f]').forEach((el) => {
+    el.classList.toggle('is-clipped', clippedSlots.includes(el.dataset.f));
+  });
+
+  const box = root.querySelector('#tpl-overflow');
+  if (!box) return;
+  if (!clippedSlots.length) { box.innerHTML = ''; return; }
+
+  const names = [...new Set(clippedSlots)].map(labelOf);
+  box.innerHTML = `
+    <div class="notice notice--warn" role="alert">
+      <span class="notice__icon" aria-hidden="true">${icon('alert', 'icon--sm')}</span>
+      <div>
+        <strong>글이 카드에 다 들어가지 않아 잘렸습니다</strong>
+        <p>${esc(names.join(' · '))} 를 줄여 주세요. 지금은 뒷부분이 카드에 나오지 않습니다.</p>
+      </div>
+    </div>`;
 }
 
 /** 글자 한 자마다 큰 캔버스를 다시 그리지 않도록 살짝 모아서 그린다 */
@@ -829,6 +955,58 @@ async function saveAll(root) {
     toast(`${deck.length}장을 모두 저장했습니다.`);
   } finally {
     if (btn) btn.disabled = false;
+  }
+}
+
+/* ---------------- 보관함 ---------------- */
+
+/** 목록에 쓸 작은 미리보기. 4:5 비율을 유지한다 — 1080x1350 을 그대로 두면 용량이 감당이 안 된다. */
+const THUMB_W = 216;
+const THUMB_H = 270;
+
+/**
+ * 첫 카드를 줄여서 썸네일 Blob 으로 만든다.
+ * 실패해도 보관 자체는 막지 않는다 — 목록에 글자만 나올 뿐이다.
+ */
+async function makeThumb(s) {
+  try {
+    const full = document.createElement('canvas');
+    renderCard(full, s.card.texts[0], opts(s, 0));
+    const small = document.createElement('canvas');
+    small.width = THUMB_W;
+    small.height = THUMB_H;
+    small.getContext('2d').drawImage(full, 0, 0, THUMB_W, THUMB_H);
+    return await new Promise((resolve) => small.toBlob(resolve, 'image/jpeg', 0.72));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 보관함에 넣는다. 같은 상품·주제가 이미 있으면 **덮어쓰기 전에 물어본다** —
+ * 말없이 덮으면 다른 기기에서 쓴 내용을 날릴 수 있다.
+ */
+async function saveToArchive(root) {
+  const btn = root.querySelector('#save-library');
+  const s = getState();
+
+  const existing = getLibrary().find((it) => it.postKey === postKeyOf(s));
+  if (existing) {
+    const ok = await confirmModal(
+      `「${existing.title}」이(가) 이미 보관함에 있습니다. 지금 내용으로 덮어쓸까요?`,
+      { okLabel: '덮어쓰기', title: '이미 보관된 게시물' },
+    );
+    if (!ok) return;
+  }
+
+  if (btn) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); }
+  try {
+    const thumb = await makeThumb(s);
+    const result = await saveToLibrary(getState(), thumb);
+    if (!result.ok) { toast(result.error, 6000); return; }
+    toast(result.replaced ? '보관함의 게시물을 새로 덮어썼습니다.' : '보관함에 저장했습니다.');
+  } finally {
+    if (btn) { btn.disabled = false; btn.removeAttribute('aria-busy'); }
   }
 }
 

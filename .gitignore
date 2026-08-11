@@ -11,11 +11,21 @@ desktop.ini
 node_modules/
 dist/
 
+# 배포 (Vercel)
+.vercel/
+
 # 비밀값은 저장소에 두지 않는다.
 # API 키는 기본적으로 파일이 아니라 브라우저 localStorage 에만 저장된다 (README 참고).
-# lib/apikeys.local.js 는 그 예외 — 로컬에서만 쓰는 기본 키 파일이라 반드시 커밋에서 뺀다.
+# 배포본의 API 키는 Vercel 환경 변수에만 있다.
 .env
 .env.*
 *.key
 secrets.json
+
+# 로컬 설정 — API 키가 들어간다. 절대 커밋하지 말 것.
+# 템플릿은 config.example.js 이고 그쪽은 커밋된다(빈 값이어야 한다).
+config.local.js
+
+# 예전 방식의 로컬 키 파일 — 지금 코드는 안 읽지만, 실제 키가 든 채로 남아있는
+# 기기가 있을 수 있어 계속 무시한다.
 lib/apikeys.local.js

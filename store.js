@@ -38,7 +38,19 @@ const INITIAL = {
   variants: {},        // 채널별 재생성 횟수 — 누를 때마다 다른 후킹·근거 조합이 나온다
   sources: {},         // 채널별 생성 방식 { [채널]: 'rule' | 'ai' } — 화면에 표시만 한다
   // autoAI 토글은 없앴다(2026-08-03). 키가 있으면 항상 AI 가 쓴다 — 요청자 지시.
-  aiKey: '',           // AI가 마지막으로 쓴 시점의 상품·주제·톤 조합 (자동 재실행 방지)
+  /**
+   * AI가 마지막으로 쓴 시점의 프롬프트 지문 — **채널별로** 따로 둔다 (자동 재실행 방지).
+   * 한 덩어리로 두면 카드 장수만 바꿔도 인스타·쓰레드까지 다시 생성된다.
+   * 지문을 만드는 규칙은 `promptKeyOf()` (lib/copyai.js) 에 있다.
+   * @type {{blog?:string, instagram?:string, threads?:string}}
+   */
+  aiKey: {},
+  /**
+   * AI 가 주제로 짠 글의 뼈대 (`lib/outline.js`). 세 채널과 카드뉴스 덱이 **함께** 본다.
+   * 이게 있어야 글귀를 새로 뽑을 때 카드 문구도 같이 바뀐다.
+   * @type {{key:string, data:object}|null}
+   */
+  outline: null,
   draftKey: '',
   concept: 'magazine', // 카드뉴스 템플릿 id (lib/concepts.js)
   accent: '#B9F73E',   // 매거진형 강조 색상 (lib/concepts.js 의 DEFAULT_ACCENT)
@@ -83,6 +95,17 @@ function load() {
       s.concept = INITIAL.concept;
       s.card = null;
     }
+
+    /**
+     * aiKey 가 문자열이던 시절(채널 구분 없이 draftKeyOf 하나)의 값을 채널별로 편다.
+     * 그냥 비우면 이미 AI 로 쓴 게시물을 열자마자 세 채널을 다시 생성한다 —
+     * 낭비를 줄이려는 변경이 도리어 호출을 만드는 셈이라, 형태만 바꿔서 옮긴다.
+     * 옛 키 = `상품|주제|톤|장수` 이고 블로그의 새 키와 정확히 같다. 나머지 둘은 장수를 뗀 것이다.
+     */
+    if (typeof s.aiKey === 'string') {
+      const short = s.aiKey.split('|').slice(0, 3).join('|');
+      s.aiKey = s.aiKey ? { blog: s.aiKey, instagram: short, threads: short } : {};
+    }
     return s;
   } catch {
     return { ...INITIAL };
@@ -92,6 +115,17 @@ function load() {
 let state = load();
 const listeners = new Set();
 
+/**
+ * 마지막 저장에서 난 오류. 보통은 용량 초과(QuotaExceededError)다.
+ *
+ * 화면 동작은 유지해야 하므로 여기서 던지지는 않는다. 다만 **삼키기만 하면**
+ * 보관함처럼 "저장했다"고 말해 놓고 실제로는 안 남은 상황이 생긴다.
+ * 그래서 흔적을 남겨 두고, 저장을 알리는 쪽에서 확인할 수 있게 한다.
+ * @type {Error|null}
+ */
+let persistError = null;
+export const lastPersistError = () => persistError;
+
 /** @returns {AppState} 읽기 전용으로 취급할 것 */
 export const getState = () => state;
 
@@ -100,8 +134,10 @@ export function setState(patch) {
   state = { ...state, ...patch };
   try {
     localStorage.setItem(KEY, JSON.stringify(state));
-  } catch {
-    /* 용량 초과 등은 무시 — 화면 동작은 유지 */
+    persistError = null;
+  } catch (e) {
+    /* 용량 초과 등은 화면 동작을 막지 않는다 — 대신 흔적을 남긴다 */
+    persistError = e;
   }
   listeners.forEach((fn) => fn(state));
 
@@ -121,7 +157,7 @@ export function subscribe(fn) {
 export function resetFlow() {
   setState({
     productId: null, topic: '', drafts: {}, generated: {}, variants: {}, sources: {},
-    draftKey: '', aiKey: '', image: null, images: {}, card: null,
+    draftKey: '', aiKey: {}, outline: null, image: null, images: {}, card: null,
   });
 }
 
