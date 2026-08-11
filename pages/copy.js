@@ -70,7 +70,15 @@ export function render(root) {
           </div>
         </div>
 
-        <div class="aibar card" id="aibar">${aibarHTML()}</div>
+        <!--
+          ⚠️ 키가 내장돼 있으면 AI 설정 바를 **통째로 안 그린다** (요청자 지시 2026-08-11).
+             쓰는 사람이 만질 것이 하나도 없기 때문이다 — 제공자·모델은 고정돼 있고
+             키는 파일에서 오므로 화면에서 바꿀 수 없다. 열어 두면 건드렸다가 헷갈리기만 한다.
+
+             ⚠️ 「AI가 쓰고 있습니다」 안내는 여기가 아니라 toast() 와 setAiBusy() 가 낸다.
+                이 바를 지워도 그대로 보인다. 지우면서 그쪽까지 건드리지 말 것.
+        -->
+        ${isBuiltInKey() ? '' : `<div class="aibar card" id="aibar">${aibarHTML()}</div>`}
         <div id="ai-status"></div>
 
         <div id="stale-slot">${staleNoticeHTML()}</div>
@@ -150,30 +158,27 @@ export function render(root) {
 /**
  * 규칙 기반 생성은 키 없이 늘 동작한다. AI 는 '더 좋게 다시 쓰는' 선택지다.
  * 그래서 이 바는 접어 두고, 켜고 싶을 때만 열게 한다.
+ *
+ * ⚠️ **키가 내장돼 있으면 이 함수는 아예 불리지 않는다.** 호출하는 쪽(render)이
+ *    `isBuiltInKey()` 로 막는다. 그래서 여기에 내장 키 분기를 두지 말 것 — 닿지 않는다.
+ *
+ * 제공자·모델 고정(`config.local.js` 의 textProvider/textModel)은 **키 내장과 별개**다.
+ * 키 없이 고정만 걸 수도 있어서 그 잠금은 여기 남는다.
  */
 function aibarHTML() {
   const on = hasKey();
   const p = currentProvider();
-  /**
-   * ⚠️ `config.local.js` 로 키를 내장하면 입력칸을 **감춘다** (요청자 요구 2026-08-11 "api 내장").
-   *    감추는 이유는 미관이 아니라, 여기 넣은 값이 내장 키를 못 이기기 때문이다
-   *    (`lib/openai.js` 의 `getKey()` — 내장 키가 우선). 칸을 열어 두면 넣었는데 안 먹는
-   *    상황이 생겨 더 헷갈린다. 제공자·모델도 고정돼 있으면 같은 이유로 잠근다.
-   */
-  const builtIn = isBuiltInKey();
-  const provLocked = builtIn || isProviderPinned();
+  const provLocked = isProviderPinned();
   const modelLocked = isModelPinned();
   return `
     <div class="aibar__row">
       <span class="keybar__state ${on ? 'is-on' : ''}">
         ${icon(on ? 'check' : 'sparkles', 'icon--sm')}
-        ${on
-          ? `${esc(p.name)} 연결됨 · ${builtIn ? '키 내장됨' : esc(maskedKey())}`
-          : 'AI로 글을 다시 쓰려면 API 키가 필요합니다'}
+        ${on ? `${esc(p.name)} 연결됨 · ${esc(maskedKey())}` : 'AI로 글을 다시 쓰려면 API 키가 필요합니다'}
       </span>
       <button type="button" class="btn btn--ghost btn--sm" id="ai-toggle"
               aria-expanded="false" aria-controls="ai-form" aria-label="AI 글쓰기 설정 열기">
-        ${on ? '설정 보기' : 'AI 켜기'}
+        ${on ? '설정 변경' : 'AI 켜기'}
       </button>
     </div>
 
@@ -186,17 +191,8 @@ function aibarHTML() {
         <p class="field__hint">${provLocked ? 'config.local.js 에서 고정했습니다.' : esc(p.note)}</p>
       </div>
 
-      ${builtIn ? `
-        <div class="notice notice--info" role="note">
-          <span class="notice__icon" aria-hidden="true">${icon('check', 'icon--sm')}</span>
-          <div>
-            <strong>API 키가 내장되어 있습니다</strong>
-            <p>이 PC 의 <code>config.local.js</code> 에서 읽었습니다. 따로 넣지 않아도 됩니다.
-               바꾸려면 그 파일을 고치고 새로고침하세요. 이 파일은 저장소에 올라가지 않습니다.</p>
-          </div>
-        </div>`
-        // 키는 각자 발급받아 각자 넣는다. 이미지 생성과 같은 키를 쓴다.
-        : keyFieldHTML({ providerId: getProvider(), inputId: 'ai-key', hasKey: on, masked: maskedKey() })}
+      <!-- 키는 각자 발급받아 각자 넣는다. 이미지 생성과 같은 키를 쓴다. -->
+      ${keyFieldHTML({ providerId: getProvider(), inputId: 'ai-key', hasKey: on, masked: maskedKey() })}
 
       <div class="field">
         <label class="field__label" for="ai-model">모델</label>
@@ -217,12 +213,10 @@ function aibarHTML() {
         </div>
       </div>
 
-      <!-- 내장 키일 때는 저장·삭제할 것이 없다. 파일에서 오는 값이라 화면에서 손댈 수 없다. -->
-      ${builtIn ? '' : `
-        <div class="keybar__actions">
-          <button type="button" class="btn btn--sm" id="ai-save" aria-label="AI 설정 저장하기">저장</button>
-          ${on ? '<button type="button" class="btn btn--text btn--sm" id="ai-clear" aria-label="저장된 API 키 삭제하기">키 삭제</button>' : ''}
-        </div>`}
+      <div class="keybar__actions">
+        <button type="button" class="btn btn--sm" id="ai-save" aria-label="AI 설정 저장하기">저장</button>
+        ${on ? '<button type="button" class="btn btn--text btn--sm" id="ai-clear" aria-label="저장된 API 키 삭제하기">키 삭제</button>' : ''}
+      </div>
     </div>`;
 }
 

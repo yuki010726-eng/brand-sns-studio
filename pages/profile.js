@@ -14,7 +14,7 @@ import { getState, setState, navigate } from '../store.js';
 import { toast } from '../components/toast.js';
 import {
   PROFILE_TYPES, AWARD_BRANDS, LIMITS, LITTLY_SIGNUP,
-  buildProfile, littlySlug, littlyUrl, replaceLinkLine, awardLogoSrc,
+  buildProfile, littlySlug, littlyUrl, replaceLinkLine,
 } from '../lib/profile.js';
 
 export const title = '프로필 세팅';
@@ -202,58 +202,24 @@ function draftHTML(profile) {
 /* ---------------- 프로필 이미지 프롬프트 ---------------- */
 
 /**
- * 어워즈형은 **로고를 첨부해서 만드는 길**이 따로 있다 (요청자 요구 2026-08-11).
+ * 프로필 이미지 프롬프트.
  *
- * 로고를 첨부하면 프롬프트가 심볼을 지시하지 않고 주변 연출만 말한다.
- * 예전처럼 `a laurel wreath award emblem …` 으로 시작하면 모델이 로고를 무시하고
- * 글로 적힌 심볼을 그린다 — 월계수만 나오던 원인이다. `lib/profile.js` 주석 참고.
+ * ⚠️ **로고 첨부 UI 는 뺐다** (요청자 지시 2026-08-11). 로고 미리보기·내려받기 버튼·
+ *    「로고 첨부해서 만들기」 토글이 모두 있었는데, 정작 로고 파일이 하나도 없어서
+ *    「로고 준비 중」과 비활성 버튼만 자리를 차지했다. 파일이 준비되면 다시 붙인다.
  *
- * 로고 파일은 아직 저장소에 없다. 없으면 `<img>` 가 실패하고 안내문으로 바뀐다.
+ * ⚠️ **생성 쪽 로고 모드(`AWARD_LOGO_LOOK`)는 지우지 않았다.** `buildProfile({withLogo:true})`
+ *    로 그대로 불러 쓸 수 있다 — 화면만 뗀 것이다. 다시 붙일 때 프롬프트를 새로 짤 필요가 없다.
+ *    `api/` 를 배포 안 하면서도 남겨 둔 것과 같은 판단이다.
  */
 function imageHTML(profile) {
-  const isAwards = profile.typeId === 'awards';
-  const brand = isAwards
-    ? (AWARD_BRANDS.find((b) => b.id === profile.brandId) || AWARD_BRANDS[0])
-    : null;
-
   return `
     <div class="field">
       <label class="field__label" for="p-img">프로필 이미지 프롬프트 (영문)</label>
-
-      ${isAwards ? `
-        <div class="logobar">
-          <div class="logobar__thumb">
-            <!-- 파일이 없으면 이 img 는 실패한다. 그때 안내문을 대신 보여준다. -->
-            <img src="${escAttr(awardLogoSrc(brand.id))}" alt="${escAttr(brand.label)} 로고"
-                 id="p-logo-img" width="72" height="72" />
-            <span class="logobar__empty" id="p-logo-empty" hidden>로고 준비 중</span>
-          </div>
-          <div class="logobar__body">
-            <strong>${esc(brand.short)} 로고</strong>
-            <p>로고를 함께 넣으면 그 마크가 들어간 프로필이 나옵니다.
-               넣지 않으면 프롬프트가 심볼을 직접 지어냅니다.</p>
-            <div class="logobar__actions">
-              <a class="btn btn--soft btn--sm" id="p-logo-dl"
-                 href="${escAttr(awardLogoSrc(brand.id))}" download
-                 aria-label="${escAttr(brand.short)} 로고 내려받기">
-                ${icon('download', 'icon--sm')} 로고 내려받기
-              </a>
-              <input class="sr-only pick__input" type="checkbox" id="p-logo-on"
-                     autocomplete="off" ${profile.withLogo ? 'checked' : ''}
-                     aria-label="로고를 첨부해서 만드는 프롬프트로 바꾸기" />
-              <label class="pick" for="p-logo-on">로고 첨부해서 만들기</label>
-            </div>
-          </div>
-        </div>` : ''}
-
-      <textarea class="textarea" id="p-img" rows="${profile.withLogo ? 6 : 3}" readonly>${esc(profile.imagePrompt)}</textarea>
-
+      <textarea class="textarea" id="p-img" rows="3" readonly>${esc(profile.imagePrompt)}</textarea>
       <p class="field__hint">
-        ${profile.withLogo
-          ? `<b>로고와 이 프롬프트를 같이 넣으세요.</b> 로고가 곧 심볼이라 프롬프트는 주변 연출만 말합니다.
-             배치는 모델에게 맡겨 두었으니, 마음에 안 들면 「다시 뽑기」로 연출을 바꿔 보세요.`
-          : `프롬프트를 복사해 이미지 도구에 붙여 쓰시면 됩니다.
-             정사각형 아바타 기준이고, 글자는 넣지 않습니다.`}
+        프롬프트를 복사해 이미지 도구에 붙여 쓰시면 됩니다.
+        정사각형 아바타 기준이고, 글자는 넣지 않습니다.
       </p>
     </div>`;
 }
@@ -291,12 +257,8 @@ function bindBrand(root) {
   root.querySelectorAll('input[name="pbrand"]').forEach((el) => {
     el.addEventListener('change', () => {
       const s = getState();
-      // 브랜드만 갈아 끼운다 — 문장 조합(seed)은 그대로 둬야 브랜드 비교가 된다.
-      // 로고 첨부 여부도 유지한다 — 브랜드를 바꿔 보는 동안 토글이 꺼지면 매번 다시 켜야 한다.
-      remake(root, {
-        typeId: 'awards', brandId: el.value,
-        seed: s.profileSeed ?? 0, withLogo: s.profile?.withLogo,
-      });
+      // 브랜드만 갈아 끼운다 — 문장 조합(seed)은 그대로 둬야 브랜드 비교가 된다
+      remake(root, { typeId: 'awards', brandId: el.value, seed: s.profileSeed ?? 0 });
     });
   });
 }
@@ -315,46 +277,8 @@ function bindDraft(root) {
 
   root.querySelector('#p-regen')?.addEventListener('click', () => {
     const p = s().profile;
-    remake(root, {
-      typeId: p.typeId, brandId: p.brandId,
-      seed: (s().profileSeed ?? 0) + 1, withLogo: p.withLogo,
-    });
+    remake(root, { typeId: p.typeId, brandId: p.brandId, seed: (s().profileSeed ?? 0) + 1 });
   });
-
-  /**
-   * 로고 첨부 토글 — seed 는 그대로 두고 **프롬프트만** 갈아 끼운다.
-   * seed 를 올리면 켰다 껐다 할 때마다 연출이 달라져서 두 모드를 비교할 수 없다.
-   */
-  root.querySelector('#p-logo-on')?.addEventListener('change', (e) => {
-    const p = s().profile;
-    remake(root, {
-      typeId: p.typeId, brandId: p.brandId,
-      seed: s().profileSeed ?? 0, withLogo: e.target.checked,
-    });
-  });
-
-  /**
-   * 로고 파일이 아직 없으면 깨진 이미지 대신 안내를 보여준다.
-   * 파일이 들어오면 이 분기는 자연히 안 탄다 — 화면 코드를 다시 고칠 필요가 없다.
-   */
-  const logoImg = root.querySelector('#p-logo-img');
-  if (logoImg) {
-    const markMissing = () => {
-      logoImg.hidden = true;
-      const empty = root.querySelector('#p-logo-empty');
-      if (empty) empty.hidden = false;
-      // 없는 파일을 내려받게 두면 404 페이지가 저장된다
-      const dl = root.querySelector('#p-logo-dl');
-      if (dl) {
-        dl.classList.add('is-disabled');
-        dl.setAttribute('aria-disabled', 'true');
-        dl.removeAttribute('href');
-      }
-    };
-    logoImg.addEventListener('error', markMissing);
-    // 캐시에서 즉시 실패했으면 error 가 이미 지나갔을 수 있다
-    if (logoImg.complete && logoImg.naturalWidth === 0) markMissing();
-  }
 
   // 편집한 값은 그대로 저장한다. 화면을 다시 그리면 캐럿이 튀므로 여기서는 상태만 갱신한다.
   root.querySelector('#p-name')?.addEventListener('input', (e) => {
@@ -378,15 +302,11 @@ function bindDraft(root) {
 
   root.querySelector('#p-copy')?.addEventListener('click', () => {
     const p = s().profile;
-    // 로고 모드는 프롬프트만 붙여넣으면 반쪽이다 — 로고를 함께 넣어야 한다는 걸 같이 적는다
-    const imgLabel = p.withLogo
-      ? '[프로필 이미지 프롬프트 · 로고 파일을 함께 첨부하세요]'
-      : '[프로필 이미지 프롬프트]';
     copyText([
       `[이름]\n${p.name}`,
       `[소개]\n${p.bio}`,
       `[링크]\n${p.link}`,
-      `${imgLabel}\n${p.imagePrompt}`,
+      `[프로필 이미지 프롬프트]\n${p.imagePrompt}`,
     ].join('\n\n'), '프로필을 복사했습니다.');
   });
 
