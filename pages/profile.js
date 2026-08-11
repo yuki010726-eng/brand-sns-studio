@@ -14,7 +14,7 @@ import { getState, setState, navigate } from '../store.js';
 import { toast } from '../components/toast.js';
 import {
   PROFILE_TYPES, AWARD_BRANDS, LIMITS, LITTLY_SIGNUP,
-  buildProfile, littlySlug, littlyUrl, replaceLinkLine,
+  buildProfile, littlySlug, littlyUrl, replaceLinkLine, awardLogoSrc,
 } from '../lib/profile.js';
 
 export const title = '프로필 세팅';
@@ -91,15 +91,21 @@ export function render(root) {
 /**
  * 어워즈형은 어느 브랜드 계정인지에 따라 이름·사실·litt.ly 주소가 전부 달라진다.
  * 승인된 상품 4종에서 가져오므로 여기서 행사명을 지어내지 않는다.
+ *
+ * ⚠️ `<fieldset>` 을 쓰지 않는다. 브라우저 기본 테두리(2px groove)가 그대로 살아
+ *    검은 네모 상자로 보였다 — 요청자 지적(2026-08-11).
+ *    `.field` 에는 테두리 해제가 없고, `.brief__form fieldset` 규칙은 2단계 전용이라
+ *    여기까지 오지 않는다. 대신 유형 선택 바로 아래에 붙는 **하위 패널**로 만든다.
+ *    라디오 묶음의 접근성은 `role="radiogroup"` + `aria-labelledby` 로 유지한다.
  */
 function brandHTML(profile) {
   if (profile?.typeId !== 'awards') return '';
   const current = AWARD_BRANDS.find((b) => b.id === profile.brandId) || AWARD_BRANDS[0];
   return `
-    <fieldset class="field" style="margin-top:var(--gap)">
-      <legend class="field__label">어느 브랜드인가요?</legend>
+    <div class="subpanel">
+      <p class="subpanel__label" id="pbrand-label">어느 브랜드인가요?</p>
       <!-- 한 줄짜리 칩으로 둔다. 예전에는 4개가 큰 카드로 세로로 쌓여 화면을 다 먹었다. -->
-      <div class="pickrow">
+      <div class="pickrow" role="radiogroup" aria-labelledby="pbrand-label">
         ${AWARD_BRANDS.map((b) => `
           <input class="sr-only pick__input" type="radio" name="pbrand" id="pbrand-${b.id}"
                  value="${b.id}" autocomplete="off"
@@ -108,8 +114,8 @@ function brandHTML(profile) {
           <label class="pick" for="pbrand-${b.id}" title="litt.ly/${escAttr(b.slug)}">${esc(b.short)}</label>
         `).join('')}
       </div>
-      <p class="field__hint">${esc(current.label)} · litt.ly/${esc(current.slug)}</p>
-    </fieldset>`;
+      <p class="subpanel__hint">${esc(current.label)} · litt.ly/${esc(current.slug)}</p>
+    </div>`;
 }
 
 /* ---------------- 초안 ---------------- */
@@ -150,21 +156,16 @@ function draftHTML(profile) {
           <input class="input" id="p-slug" value="${escAttr(profile.slug)}"
                  autocomplete="off" spellcheck="false" aria-describedby="p-link" />
         </div>
-        <p class="field__hint" id="p-link">${esc(profile.link)} · 소개 맨 마지막 줄에 함께 들어갑니다.</p>
+        <!-- 「소개 맨 마지막 줄에 함께 들어갑니다」 안내는 뺐다 — 칸마다 두 줄씩 붙어
+             화면이 번잡했다(요청자 지적 2026-08-11). 동작은 그대로다. -->
+        <p class="field__hint" id="p-link">${esc(profile.link)}</p>
         <p class="field__hint">
           litt.ly 계정이 없다면 —
           <a href="${LITTLY_SIGNUP}" target="_blank" rel="noopener noreferrer">litt.ly 만들기</a>
         </p>
       </div>
 
-      <div class="field">
-        <label class="field__label" for="p-img">프로필 이미지 프롬프트 (영문)</label>
-        <textarea class="textarea" id="p-img" rows="3" readonly>${esc(profile.imagePrompt)}</textarea>
-        <p class="field__hint">
-          이미지 생성 API는 다음에 붙입니다. 지금은 프롬프트를 복사해 쓰시면 됩니다.
-          정사각형 아바타 기준이고, 글자는 넣지 않습니다.
-        </p>
-      </div>
+      ${imageHTML(profile)}
 
       <div class="keybar__actions">
         <button type="button" class="btn btn--soft btn--sm" id="p-regen"
@@ -190,6 +191,65 @@ function draftHTML(profile) {
     </div>`;
 }
 
+/* ---------------- 프로필 이미지 프롬프트 ---------------- */
+
+/**
+ * 어워즈형은 **로고를 첨부해서 만드는 길**이 따로 있다 (요청자 요구 2026-08-11).
+ *
+ * 로고를 첨부하면 프롬프트가 심볼을 지시하지 않고 주변 연출만 말한다.
+ * 예전처럼 `a laurel wreath award emblem …` 으로 시작하면 모델이 로고를 무시하고
+ * 글로 적힌 심볼을 그린다 — 월계수만 나오던 원인이다. `lib/profile.js` 주석 참고.
+ *
+ * 로고 파일은 아직 저장소에 없다. 없으면 `<img>` 가 실패하고 안내문으로 바뀐다.
+ */
+function imageHTML(profile) {
+  const isAwards = profile.typeId === 'awards';
+  const brand = isAwards
+    ? (AWARD_BRANDS.find((b) => b.id === profile.brandId) || AWARD_BRANDS[0])
+    : null;
+
+  return `
+    <div class="field">
+      <label class="field__label" for="p-img">프로필 이미지 프롬프트 (영문)</label>
+
+      ${isAwards ? `
+        <div class="logobar">
+          <div class="logobar__thumb">
+            <!-- 파일이 없으면 이 img 는 실패한다. 그때 안내문을 대신 보여준다. -->
+            <img src="${escAttr(awardLogoSrc(brand.id))}" alt="${escAttr(brand.label)} 로고"
+                 id="p-logo-img" width="72" height="72" />
+            <span class="logobar__empty" id="p-logo-empty" hidden>로고 준비 중</span>
+          </div>
+          <div class="logobar__body">
+            <strong>${esc(brand.short)} 로고</strong>
+            <p>로고를 함께 넣으면 그 마크가 들어간 프로필이 나옵니다.
+               넣지 않으면 프롬프트가 심볼을 직접 지어냅니다.</p>
+            <div class="logobar__actions">
+              <a class="btn btn--soft btn--sm" id="p-logo-dl"
+                 href="${escAttr(awardLogoSrc(brand.id))}" download
+                 aria-label="${escAttr(brand.short)} 로고 내려받기">
+                ${icon('download', 'icon--sm')} 로고 내려받기
+              </a>
+              <input class="sr-only pick__input" type="checkbox" id="p-logo-on"
+                     autocomplete="off" ${profile.withLogo ? 'checked' : ''}
+                     aria-label="로고를 첨부해서 만드는 프롬프트로 바꾸기" />
+              <label class="pick" for="p-logo-on">로고 첨부해서 만들기</label>
+            </div>
+          </div>
+        </div>` : ''}
+
+      <textarea class="textarea" id="p-img" rows="${profile.withLogo ? 6 : 3}" readonly>${esc(profile.imagePrompt)}</textarea>
+
+      <p class="field__hint">
+        ${profile.withLogo
+          ? `<b>로고와 이 프롬프트를 같이 넣으세요.</b> 로고가 곧 심볼이라 프롬프트는 주변 연출만 말합니다.
+             배치는 모델에게 맡겨 두었으니, 마음에 안 들면 「다시 뽑기」로 연출을 바꿔 보세요.`
+          : `프롬프트를 복사해 이미지 도구에 붙여 쓰시면 됩니다.
+             정사각형 아바타 기준이고, 글자는 넣지 않습니다.`}
+      </p>
+    </div>`;
+}
+
 function refreshDraft(root) {
   const slot = root.querySelector('#draft-slot');
   if (!slot) return;
@@ -199,6 +259,14 @@ function refreshDraft(root) {
 
 /* ---------------- 이벤트 ---------------- */
 
+/**
+ * 유형 라디오는 **한 번만** 묶는다. 이 라디오는 다시 그려지지 않는다.
+ *
+ * ⚠️ 예전에는 브랜드 라디오와 한 함수에 있었고 `remake()` 가 그 함수를 통째로 다시 불렀다.
+ *    브랜드 라디오만 새로 그려졌는데 유형 라디오까지 다시 묶여서 **리스너가 쌓였다** —
+ *    「다시 뽑기」를 세 번 누른 뒤 유형을 바꾸면 토스트가 네 번 떴다.
+ *    다시 그리는 것과 다시 묶는 것을 짝지어 둘 것.
+ */
 function bindType(root) {
   root.querySelectorAll('input[name="ptype"]').forEach((el) => {
     el.addEventListener('change', () => {
@@ -207,12 +275,20 @@ function bindType(root) {
       toast('프로필 초안을 만들었습니다.');
     });
   });
+  bindBrand(root);
+}
 
+/** 브랜드 라디오 — `#brand-slot` 을 다시 그릴 때마다 함께 다시 묶는다 */
+function bindBrand(root) {
   root.querySelectorAll('input[name="pbrand"]').forEach((el) => {
     el.addEventListener('change', () => {
       const s = getState();
-      // 브랜드만 갈아 끼운다 — 문장 조합(seed)은 그대로 둬야 브랜드 비교가 된다
-      remake(root, { typeId: 'awards', brandId: el.value, seed: s.profileSeed ?? 0 });
+      // 브랜드만 갈아 끼운다 — 문장 조합(seed)은 그대로 둬야 브랜드 비교가 된다.
+      // 로고 첨부 여부도 유지한다 — 브랜드를 바꿔 보는 동안 토글이 꺼지면 매번 다시 켜야 한다.
+      remake(root, {
+        typeId: 'awards', brandId: el.value,
+        seed: s.profileSeed ?? 0, withLogo: s.profile?.withLogo,
+      });
     });
   });
 }
@@ -223,7 +299,7 @@ function remake(root, opts) {
   const brandSlot = root.querySelector('#brand-slot');
   if (brandSlot) brandSlot.innerHTML = brandHTML(getState().profile);
   refreshDraft(root);
-  bindType(root);   // 브랜드 라디오가 새로 그려졌으므로 다시 묶는다
+  bindBrand(root);   // 브랜드 라디오만 새로 그려졌다 — 유형 라디오는 건드리지 않는다
 }
 
 function bindDraft(root) {
@@ -231,8 +307,46 @@ function bindDraft(root) {
 
   root.querySelector('#p-regen')?.addEventListener('click', () => {
     const p = s().profile;
-    remake(root, { typeId: p.typeId, brandId: p.brandId, seed: (s().profileSeed ?? 0) + 1 });
+    remake(root, {
+      typeId: p.typeId, brandId: p.brandId,
+      seed: (s().profileSeed ?? 0) + 1, withLogo: p.withLogo,
+    });
   });
+
+  /**
+   * 로고 첨부 토글 — seed 는 그대로 두고 **프롬프트만** 갈아 끼운다.
+   * seed 를 올리면 켰다 껐다 할 때마다 연출이 달라져서 두 모드를 비교할 수 없다.
+   */
+  root.querySelector('#p-logo-on')?.addEventListener('change', (e) => {
+    const p = s().profile;
+    remake(root, {
+      typeId: p.typeId, brandId: p.brandId,
+      seed: s().profileSeed ?? 0, withLogo: e.target.checked,
+    });
+  });
+
+  /**
+   * 로고 파일이 아직 없으면 깨진 이미지 대신 안내를 보여준다.
+   * 파일이 들어오면 이 분기는 자연히 안 탄다 — 화면 코드를 다시 고칠 필요가 없다.
+   */
+  const logoImg = root.querySelector('#p-logo-img');
+  if (logoImg) {
+    const markMissing = () => {
+      logoImg.hidden = true;
+      const empty = root.querySelector('#p-logo-empty');
+      if (empty) empty.hidden = false;
+      // 없는 파일을 내려받게 두면 404 페이지가 저장된다
+      const dl = root.querySelector('#p-logo-dl');
+      if (dl) {
+        dl.classList.add('is-disabled');
+        dl.setAttribute('aria-disabled', 'true');
+        dl.removeAttribute('href');
+      }
+    };
+    logoImg.addEventListener('error', markMissing);
+    // 캐시에서 즉시 실패했으면 error 가 이미 지나갔을 수 있다
+    if (logoImg.complete && logoImg.naturalWidth === 0) markMissing();
+  }
 
   // 편집한 값은 그대로 저장한다. 화면을 다시 그리면 캐럿이 튀므로 여기서는 상태만 갱신한다.
   root.querySelector('#p-name')?.addEventListener('input', (e) => {
@@ -250,18 +364,22 @@ function bindDraft(root) {
     setState({ profile: { ...s().profile, slug, link: littlyUrl(slug), bio } });
 
     const hint = root.querySelector('#p-link');
-    if (hint) hint.textContent = `${littlyUrl(slug)} · 소개 맨 마지막 줄에 함께 들어갑니다.`;
+    if (hint) hint.textContent = littlyUrl(slug);
     const bioEl = root.querySelector('#p-bio');
     if (bioEl && bioEl.value !== bio) bioEl.value = bio;   // 캐럿이 슬러그 칸에 있으므로 안전하다
   });
 
   root.querySelector('#p-copy')?.addEventListener('click', () => {
     const p = s().profile;
+    // 로고 모드는 프롬프트만 붙여넣으면 반쪽이다 — 로고를 함께 넣어야 한다는 걸 같이 적는다
+    const imgLabel = p.withLogo
+      ? '[프로필 이미지 프롬프트 · 로고 파일을 함께 첨부하세요]'
+      : '[프로필 이미지 프롬프트]';
     copyText([
       `[이름]\n${p.name}`,
       `[소개]\n${p.bio}`,
       `[링크]\n${p.link}`,
-      `[프로필 이미지 프롬프트]\n${p.imagePrompt}`,
+      `${imgLabel}\n${p.imagePrompt}`,
     ].join('\n\n'), '프로필을 복사했습니다.');
   });
 
