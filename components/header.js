@@ -22,9 +22,11 @@ export function renderHeader(root, currentPath) {
   root.innerHTML = `
     <header class="site-header">
       <div class="container site-header__inner">
+        <!-- ⚠️ 글자를 span 으로 감싼 이유 — 좁은 화면에서 이것만 감춰 헤더를 줄인다.
+             a 의 aria-label 이 이름을 그대로 갖고 있어 감춰도 읽어 준다. -->
         <a class="brand" href="#/" aria-label="브랜드 SNS 스튜디오 홈으로 이동">
           <span class="brand__mark">${icon('sparkles')}</span>
-          브랜드 SNS 스튜디오
+          <span class="brand__text">브랜드 SNS 스튜디오</span>
         </a>
         <nav class="nav" aria-label="주요 메뉴">
           ${NAV.map((item) => `

@@ -29,14 +29,14 @@
 /* 보조 버튼 — 흰 배경 + 테두리 */
 .btn--ghost {
   background: var(--surface);
-  color: var(--link);
+  color: var(--ink-soft);
   border: 1px solid var(--border);
 }
-.btn--ghost:hover { background: var(--primary-weak); border-color: var(--primary); }
+.btn--ghost:hover { background: var(--fill); border-color: var(--border-hover); }
 
 /* 연한 버튼 — 배경만 살짝 */
-.btn--soft { background: var(--primary-weak); color: var(--primary-dark); }
-.btn--soft:hover { background: #D6E8FD; }
+.btn--soft { background: var(--fill); color: var(--ink-soft); }
+.btn--soft:hover { background: var(--fill-hover); }
 
 /* 되돌릴 수 없는 동작 — 삭제 확인에만 쓴다 (#D93A3A 는 흰 글자 4.55:1) */
 .btn--danger { background: var(--danger); }
@@ -45,10 +45,10 @@
 /* 텍스트 버튼 */
 .btn--text {
   background: transparent;
-  color: var(--link);
+  color: var(--ink-soft);
   padding: 8px 12px;
 }
-.btn--text:hover { background: var(--primary-weak); }
+.btn--text:hover { background: var(--fill); }
 
 .btn--sm { padding: 8px 16px; font-size: 14px; }
 .btn--lg { padding: 15px 30px; font-size: 16px; }
@@ -72,7 +72,7 @@
 }
 .card--flat { box-shadow: none; }
 .card--hover { transition: box-shadow var(--dur) var(--ease), transform var(--dur) var(--ease); }
-.card--hover:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+.card--hover:hover { border-color: var(--border-hover); }
 
 /* ---------- 입력 ---------- */
 .field { display: flex; flex-direction: column; gap: 8px; }
@@ -133,17 +133,17 @@
 
 /* 발급 안내 — 키가 없으면 아무것도 안 되므로 눈에 띄어야 한다 */
 .keyfield__hint {
-  background: var(--primary-weak);
+  background: var(--fill);
   border-radius: var(--radius-sm);
   padding: 12px 14px;
   font-size: 13px;
   line-height: 1.6;
-  color: var(--primary-dark);
+  color: var(--text);
   word-break: keep-all;
 }
 .keyfield__link {
   display: inline-flex; align-items: center; gap: 5px;
-  margin-top: 6px; font-weight: 700; color: var(--primary-dark);
+  margin-top: 6px; font-weight: 700; color: var(--ink);
 }
 .keyfield__link:hover { text-decoration: underline; }
 .keyfield__link .icon { width: 15px; height: 15px; flex: none; }
@@ -163,11 +163,11 @@
   cursor: pointer;
   transition: all var(--dur) var(--ease);
 }
-.chip:hover { border-color: var(--primary); color: var(--link); }
+.chip:hover { border-color: var(--border-hover); color: var(--ink); }
 .chip[aria-pressed="true"] {
-  background: var(--primary-weak);
-  border-color: var(--primary);
-  color: var(--primary-dark);
+  background: var(--select-bg);
+  border-color: var(--select-bg);
+  color: #fff;
   font-weight: 700;
 }
 
@@ -179,10 +179,12 @@
   padding: 4px 11px;
   font-size: 12px;
   font-weight: 700;
-  background: var(--primary-weak);
-  color: var(--primary-dark);
+  background: var(--fill);
+  color: var(--sub-strong);
 }
-.badge--neutral { background: var(--bg); color: var(--sub-strong); }
+.badge--neutral { background: var(--fill); color: var(--sub-strong); }
+/* 정말 눈에 띄어야 할 하나에만 — 남발하면 배지를 중립으로 바꾼 의미가 없다 */
+.badge--accent { background: var(--primary-weak); color: var(--primary-dark); }
 
 /* ---------- 헤더 ---------- */
 .site-header {
@@ -208,7 +210,7 @@
   color: #191F28;
 }
 .brand:hover { text-decoration: none; }
-.brand__mark { color: var(--primary); }
+.brand__mark { color: var(--ink); }
 
 .nav { display: flex; align-items: center; gap: 4px; margin-left: auto; }
 .nav__link {
@@ -220,8 +222,8 @@
 }
 .nav__link:hover { background: var(--bg); color: var(--text); text-decoration: none; }
 .nav__link[aria-current="page"] {
-  background: var(--primary-weak);
-  color: var(--primary-dark);
+  background: var(--fill);
+  color: var(--ink);
   font-weight: 700;
 }
 
@@ -259,8 +261,8 @@
    잠금 여부는 커서·비활성 상태·aria-label 문구로 알린다 */
 .stepper__item:disabled { cursor: not-allowed; color: var(--sub-strong); }
 .stepper__item[aria-current="step"] {
-  background: var(--primary-weak);
-  color: var(--primary-dark);
+  background: var(--select-bg);
+  color: #fff;
   font-weight: 700;
 }
 .stepper__num {
@@ -274,9 +276,9 @@
   font-size: 12px;
   font-weight: 700;
 }
-.stepper__item[aria-current="step"] .stepper__num { background: var(--cta-bg); color: #fff; }
-/* 완료 표시도 흰 글자라 배경은 대비가 확보된 --cta-bg 를 쓴다 (5.41:1) */
-.stepper__item--done .stepper__num { background: var(--cta-bg); color: #fff; }
+/* 현재 단계는 알약이 이미 진하므로 숫자는 반대로 뒤집는다 */
+.stepper__item[aria-current="step"] .stepper__num { background: #fff; color: var(--ink); }
+.stepper__item--done .stepper__num { background: var(--ink); color: #fff; }
 .stepper__sep { color: var(--border); flex-shrink: 0; }
 
 /* ---------- 탭 (WAI-ARIA 탭 패턴) ---------- */
@@ -303,11 +305,11 @@
   cursor: pointer;
   transition: all var(--dur) var(--ease);
 }
-.tabs__tab:hover { border-color: var(--primary); color: var(--link); }
+.tabs__tab:hover { border-color: var(--border-hover); color: var(--ink); }
 .tabs__tab[aria-selected="true"] {
-  background: var(--primary-weak);
-  border-color: var(--primary);
-  color: var(--primary-dark);
+  background: var(--select-bg);
+  border-color: var(--select-bg);
+  color: #fff;
   font-weight: 700;
 }
 
@@ -421,7 +423,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--cta-bg);
+  /* 아바타까지 파랗게 두면 헤더에서 주 버튼과 시선이 갈린다 */
+  background: var(--ink);
   color: #fff;
   font-size: 13px;
   font-weight: 700;
@@ -435,6 +438,18 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/**
+ * ⚠️ 375px 에서 헤더가 화면을 20px 밀어내 **모든 페이지에 가로 스크롤**이 생겼다 (2026-08-12).
+ *    브랜드(92) + 메뉴(116) + 계정(120) + 간격(48) = 376px 인데 쓸 수 있는 폭은 335px 였다.
+ *    이름만 감춰서는 모자란다 — 간격과 안쪽 여백까지 같이 줄여야 들어간다.
+ *    ⚠️ 헤더에 항목을 더 넣을 거라면 375px 에서 `scrollWidth === clientWidth` 를 **다시 재라.**
+ */
 @media (max-width: 560px) {
+  .site-header__inner { gap: var(--gap-sm); }
+  .site-header__inner > * { min-width: 0; }
+  /* 로고 글자만 감춘다. 마크는 남으므로 홈 버튼이 사라지지는 않는다. */
+  .brand__text { display: none; }
+  .nav__link { padding: 8px 10px; }
   .authbox__name { display: none; }
+  .authbox .btn--text { padding: 8px 10px; }
 }

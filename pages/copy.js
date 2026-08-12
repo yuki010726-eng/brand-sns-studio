@@ -76,11 +76,16 @@ export function render(root) {
             : '「AI 생성」은 한 주제당 2번까지 AI 1 · AI 2 로 만들어 오가며 볼 수 있습니다.'}</p>
         </div>
 
-        <!-- 어떤 조건으로 만든 글인지 항상 보이게 -->
+        <!--
+          어떤 조건으로 만든 글인지 항상 보이게.
+          ⚠️ 「주제를 이렇게 읽었습니다」를 **별도 안내 박스로 띄우지 말 것.** 한 번 그렇게 했다가
+             화면에 박스가 네 개(조건 바 · AI 벌 · 해석 · 진행 상황)로 쌓여 번잡하다는 지적을 받았다.
+             해석은 주제 바로 아래 한 줄로 붙는 게 읽기도 쉽다 — 무엇을 어떻게 읽었는지가 붙어 있다.
+        -->
         <div class="ctxbar card">
           <dl class="ctxbar__list">
             <div><dt>상품</dt><dd>${esc(p.name)}</dd></div>
-            <div><dt>주제</dt><dd>${esc(s.topic)}</dd></div>
+            <div><dt>주제</dt><dd>${esc(s.topic)}<span id="angle-slot">${angleHTML()}</span></dd></div>
             <div><dt>톤</dt><dd>${esc(toneLabel(s.tone))}</dd></div>
           </dl>
           <div class="ctxbar__actions">
@@ -102,7 +107,6 @@ export function render(root) {
           더 늘리면 다시 예전처럼 "그래서 뭘 눌러야 하나" 가 된다.
         -->
         <div id="ai-runs-slot">${aiRunsHTML()}</div>
-        <div id="angle-slot">${angleHTML()}</div>
 
         <!--
           ⚠️ 키가 내장돼 있으면 AI 설정 바를 **통째로 안 그린다** (요청자 지시 2026-08-11).
@@ -296,16 +300,18 @@ function panelHTML() {
       ${readMode ? `
       <div class="preview" id="preview-${c.id}" tabindex="0" role="article"
            aria-label="${c.name} 글귀 미리보기">${previewHTML(text)}</div>
-      <p class="field__hint" id="limit-${c.id}">${c.limitLabel} · 고치려면 「고치기」를 누르세요.</p>
       ` : `
       <label class="sr-only" for="draft-${c.id}">${c.name} 글귀 편집</label>
       <textarea class="textarea draft" id="draft-${c.id}" data-draft="${c.id}"
                 spellcheck="false" autocomplete="off"
                 placeholder="위 「AI 생성」을 눌러 글귀를 만들어 주세요."
                 aria-describedby="limit-${c.id}">${esc(text)}</textarea>
-      <p class="field__hint" id="limit-${c.id}">${c.limitLabel} · 내용은 자동 저장됩니다.</p>
       `}
-      <p class="field__hint">🖼 ${esc(IMAGE_PLAN[c.id] || '')} 카드는 3단계에서 한 벌만 만들어 세 채널에 나눠 씁니다.</p>
+      <!-- ⚠️ 안내는 **한 줄**로만. 예전엔 글자 수·저장·이미지 배포 안내가 세 줄로 쌓여
+           정작 봐야 할 글보다 안내가 더 눈에 들어왔다(요청자 지적 2026-08-12). -->
+      <p class="field__hint" id="limit-${c.id}">
+        ${c.limitLabel} · ${readMode ? '고치려면 「고치기」' : '자동 저장됨'} · ${esc(IMAGE_PLAN[c.id] || '')}
+      </p>
 
       <div id="warn-slot">${warnHTML(banned, over, c)}</div>
     </div>`;
@@ -413,15 +419,8 @@ function angleHTML() {
   const s = getState();
   const core = s.outline?.key === outlineKeyOf(s) ? s.outline.core : null;
   if (!core?.angle) return '';
-  return `
-    <div class="notice notice--info angle" role="status">
-      <span class="notice__icon" aria-hidden="true">${icon('sparkles', 'icon--sm')}</span>
-      <div>
-        <strong>주제를 이렇게 읽었습니다</strong>
-        <p class="angle__line">${esc(core.angle)}</p>
-        ${core.intent ? `<p class="field__hint">알고 싶은 것 · ${esc(core.intent)}</p>` : ''}
-      </div>
-    </div>`;
+  // 주제 바로 아래 한 줄. 박스를 만들지 않는다 (위 ctxbar 주석 참고)
+  return `<span class="angle" title="${esc(core.intent || '')}">→ ${esc(core.angle)}</span>`;
 }
 
 function refreshAngle(root) {
