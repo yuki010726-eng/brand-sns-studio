@@ -30,6 +30,8 @@ const INITIAL = {
   profileSeed: 0,      // 「다시 뽑기」 횟수 — 누를 때마다 다른 조합이 나온다
   productId: null,
   topic: '',
+  // "다른 이름으로 저장" 때 보관함에서만 쓰는 이름. 글 생성 주제와 분리한다.
+  libraryTitle: '',
   tone: 'trust',
   channels: ['blog', 'instagram', 'threads'],
   cardCount: 6,        // 카드뉴스 장수 1~6 — API 비용을 줄이려고 요청자가 고르게 했다
@@ -165,7 +167,7 @@ export function subscribe(fn) {
 
 export function resetFlow() {
   setState({
-    productId: null, topic: '', drafts: {}, generated: {}, variants: {}, sources: {},
+    productId: null, topic: '', libraryTitle: '', drafts: {}, generated: {}, variants: {}, sources: {},
     draftKey: '', aiKey: {}, outline: null, aiRuns: { key: '', list: [] }, activeAiRun: null,
     image: null, images: {}, card: null,
   });

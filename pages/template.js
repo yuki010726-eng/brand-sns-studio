@@ -165,7 +165,7 @@ let paintScheduled = false;
 /**
  * 문구 상태는 두 가지 이유로 낡는다. 둘을 구분해서 다뤄야 한다.
  *
- * 1. 상품·주제·톤이 바뀜 → 내용만 낡는다. 편집본을 지키고 안내만 띄운다. (card.key)
+ * 1. 상품·주제·톤이 바뀜 → 새 AI 주제의 문구로 즉시 교체한다. (card.key)
  * 2. 템플릿이 바뀜 → **슬롯 구성 자체가 달라진다.** 그대로 두면 새 템플릿에 없는 칸이
  *    빈 채로 남아 카드가 비어 보인다. 직접 고친 값만 살리고 나머지는 새 기본값으로 채운다. (card.concept)
  */
@@ -194,8 +194,8 @@ const isEdited = (card, i) => slotIds(i).some((id) => (card.texts[i]?.[id] ?? ''
 const hasEdits = (card) => card.texts.some((_, i) => isEdited(card, i));
 
 /**
- * 편집본이 없을 때만 조용히 새 추천 문구로 맞춘다.
- * 편집한 내용이 있으면 그대로 두고 안내만 띄운다 — 2단계 글귀와 같은 규칙이다.
+ * 조건이 바뀌면 이전 주제의 편집본도 새 AI 추천 문구로 교체한다.
+ * 주제와 맞지 않는 카드가 남는 것보다 현재 생성 결과를 정확히 보여주는 것이 우선이다.
  */
 /** 카드마다 빈 오버라이드 배치 — "전부 자동 배치"의 초기값 */
 const emptyLayout = () => deck.map(() => ({}));
@@ -234,7 +234,7 @@ function ensureTexts(product) {
     setState({ card: { ...card, base, layout, extraTexts } });   // 되돌리기 기준을 최신으로
     return;
   }
-  if (!hasEdits(card)) setState({ card: { key, concept: s.concept, texts: cloneTexts(base), base, layout, extraTexts } });
+  setState({ card: { key, concept: s.concept, texts: cloneTexts(base), base, layout, extraTexts } });
 }
 
 /* ---------------- 렌더 ---------------- */
@@ -249,10 +249,16 @@ export function render(root) {
    *    예전에는 늘 규칙 기반이라 글귀를 새로 뽑아도 카드 문구가 그대로였다 — 요청자 지적.
    *    뼈대는 2단계에서 만들어 `state.outline` 에 담긴다.
    */
+  const core = s.outline?.key === outlineKeyOf(s) ? s.outline.core : null;
+  if (!core) {
+    toast('현재 주제로 AI 글을 먼저 생성해 주세요.');
+    navigate('/copy');
+    return;
+  }
   deck = buildDeck({
     product: p, topic: s.topic.trim(), tone: s.tone,
     variant: s.image?.variant ?? 0, cardCount: s.cardCount,
-    core: s.outline?.key === outlineKeyOf(s) ? s.outline.core : null,
+    core,
   });
   ensureTexts(p);
   if (active >= deck.length) active = 0;
@@ -415,11 +421,7 @@ const usesImage = (conceptId, kind) => !(conceptId === 'card' && roleOf('card', 
  *    빈 배열을 돌려주므로 손잡이 자체가 안 뜬다. 왜 안 보이는지 헷갈리지 않게 안내한다.
  */
 function layoutHintHTML() {
-  const s = getState();
-  if (s.concept === 'magazine') {
-    return '미리보기 위 점선 상자를 드래그하면 위치·크기를 바꿀 수 있습니다. 상자를 누르면 이름이 잠깐 떴다 사라지고, 아래에서 숫자·글자 크기로도 조정할 수 있어요.';
-  }
-  return '추가한 텍스트 상자는 미리보기에서 드래그해 위치·크기를 바꿀 수 있습니다.';
+  return '미리보기 위 점선 상자를 드래그하면 위치·크기를 바꿀 수 있습니다. 상자를 누르면 이름이 잠깐 떴다 사라지고, 아래에서 숫자·글자 크기로도 조정할 수 있어요.';
 }
 
 function imagePanelSlot() {
@@ -709,19 +711,6 @@ function warnHTML(t) {
 function noticesHTML() {
   const s = getState();
   const out = [];
-
-  if (s.card.key !== draftKeyOf(s)) {
-    out.push(`
-      <div class="notice notice--info" role="status">
-        <span class="notice__icon" aria-hidden="true">${icon('alert', 'icon--sm')}</span>
-        <div>
-          <strong>조건이 바뀌었습니다</strong>
-          <p>지금 문구는 이전 상품·주제·톤으로 만든 것입니다. 편집한 내용을 지키려면 그대로 두세요.</p>
-        </div>
-        <button type="button" class="btn btn--sm" id="stale-reset"
-                aria-label="바뀐 조건의 추천 문구로 모두 되돌리기">새 추천 문구로</button>
-      </div>`);
-  }
 
   if (!Object.keys(s.images).length) {
     out.push(`
@@ -1056,7 +1045,6 @@ function refreshNotices(root) {
 }
 
 function bindNotices(root) {
-  root.querySelector('#stale-reset')?.addEventListener('click', () => resetAll(root));
 }
 
 /* ---------------- 그리기 ---------------- */

@@ -8,6 +8,8 @@ import { productCardHTML } from '../components/product-card.js';
 import { stepperHTML, bindStepper } from '../components/stepper.js';
 import { getState, setState, navigate } from '../store.js';
 import { toast } from '../components/toast.js';
+import { choiceModal, confirmModal } from '../components/modal.js';
+import { clearLibraryEdit, getLibrary, getLibraryEditId, postKeyOf } from '../lib/librarystore.js';
 
 export const title = '상품·주제 선택';
 
@@ -202,7 +204,7 @@ function bindProductGrid(root) {
   root.querySelector('#product-grid')?.addEventListener('change', (e) => {
     const input = e.target;
     if (input.name !== 'product') return;
-    setState({ productId: input.value });
+    setState({ productId: input.value, libraryTitle: '' });
     refreshBrief(root);
     // 상품을 바꾸면 곧바로 주제 입력으로 초점을 옮겨 흐름이 끊기지 않게 한다
     root.querySelector('#topic-input')?.focus({ preventScroll: true });
@@ -220,7 +222,7 @@ function bindBrief(root) {
   const topicEl = root.querySelector('#topic-input');
 
   topicEl?.addEventListener('input', () => {
-    setState({ topic: topicEl.value });
+    setState({ topic: topicEl.value, libraryTitle: '' });
     syncCta(root);
   });
 
@@ -240,7 +242,7 @@ function bindBrief(root) {
   root.querySelectorAll('[data-preset]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const value = btn.dataset.preset;
-      setState({ topic: value });
+      setState({ topic: value, libraryTitle: '' });
       if (topicEl) {
         topicEl.value = value;
         topicEl.focus();
@@ -263,22 +265,87 @@ function bindBrief(root) {
   });
 
   root.querySelector('#clear-topic')?.addEventListener('click', () => {
-    setState({ topic: '' });
+    setState({ topic: '', libraryTitle: '' });
     if (topicEl) { topicEl.value = ''; topicEl.focus(); }
     syncCta(root);
     toast('주제를 비웠습니다.');
   });
 
-  root.querySelector('#go-copy')?.addEventListener('click', () => {
+  root.querySelector('#go-copy')?.addEventListener('click', async () => {
     if (!isReady()) {
       toast('상품과 주제를 먼저 입력해 주세요.');
       topicEl?.focus();
       return;
     }
+    const s = getState();
+    const editingId = getLibraryEditId();
+    const editingItem = editingId ? getLibrary().find((item) => item.id === editingId) : null;
+    if (editingItem && editingItem.postKey !== postKeyOf(s)) {
+      const makeNew = await confirmModal(
+        '새 게시물을 만들까요?',
+        { title: '다른 주제를 선택했습니다', okLabel: '만들기', cancelLabel: '취소' },
+      );
+      if (!makeNew) return;
+
+      // 불러온 게시물의 결과물이 새 주제에 섞이지 않도록 입력 조건만 남기고 제작물을 비운다.
+      clearLibraryEdit();
+      setState({
+        drafts: {}, generated: {}, variants: {}, sources: {},
+        draftKey: '', aiKey: {}, outline: null,
+        aiRuns: { key: '', list: [] }, activeAiRun: null,
+        image: null, images: {}, card: null,
+      });
+    }
+
+    const nextState = getState();
+    const existing = getLibrary().find((item) => item.postKey === postKeyOf(nextState));
+    const isEditingExisting = existing?.id === getLibraryEditId();
+    if (existing && !isEditingExisting) {
+      const choice = await choiceModal(
+        '이 주제의 게시물이 보관함에 있습니다.',
+        {
+          title: '보관함에 저장된 주제',
+          choices: [
+            { value: 'overwrite', label: '덮어쓰기', primary: true },
+            { value: 'cancel', label: '취소' },
+            { value: 'copy', label: '다른 이름으로 저장' },
+          ],
+        },
+      );
+      if (!choice || choice === 'cancel') return;
+      if (choice === 'copy') {
+        setState({ libraryTitle: nextCopyTitle(nextState.topic, nextState.productId) });
+      }
+    }
+
+    // 홈에서 시작하는 작업은 같은 상품·주제를 다시 골랐더라도 새 작업이다.
+    // localStorage에 남은 이전 AI 결과를 그대로 보여 주면 사용자는 생성 버튼을
+    // 누르기 전인데도 이미 글이 만들어진 것으로 보인다. 보관함에서 명시적으로
+    // 불러와 편집 중인 게시물만 기존 결과를 유지한다.
+    if (!isEditingExisting) {
+      clearLibraryEdit();
+      setState({
+        drafts: {}, generated: {}, variants: {}, sources: {},
+        draftKey: '', aiKey: {}, outline: null,
+        aiRuns: { key: '', list: [] }, activeAiRun: null,
+        image: null, images: {}, card: null,
+      });
+    }
     navigate('/copy');
   });
 
   syncCta(root);
+}
+
+/** 같은 상품 안에서 겹치지 않는 `주제(1)`, `주제(2)` 이름을 만든다. */
+function nextCopyTitle(topic, productId) {
+  const base = String(topic || '').trim();
+  const used = new Set(getLibrary()
+    .filter((item) => item.productId === productId)
+    .map((item) => String(item.title || '').trim()));
+  let n = 1;
+  while (used.has(`${base}(${n})`)) n += 1;
+  return `${base}(${n})`;
 }
 
 /**

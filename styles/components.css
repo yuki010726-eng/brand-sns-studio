@@ -388,6 +388,7 @@
   margin-top: 24px;
 }
 .message-modal__actions .btn { width: 100%; }
+.message-modal__actions--choices { grid-template-columns: 1fr; }
 @keyframes modal-in {
   from { opacity: 0; transform: translateY(8px) scale(.98); }
   to { opacity: 1; transform: none; }

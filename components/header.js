@@ -2,7 +2,7 @@
 import { icon } from '../assets/icons.js';
 import { onAuth, signOut, getUser, usernameOf } from '../lib/auth.js';
 import { getState, resetFlow } from '../store.js';
-import { getLibrary, postKeyOf, POST_KEYS } from '../lib/librarystore.js';
+import { getLibrary, postKeyOf, POST_KEYS, getLibraryEditId, clearLibraryEdit } from '../lib/librarystore.js';
 import { flushSync } from '../lib/sync.js';
 import { toast } from './toast.js';
 
@@ -28,7 +28,7 @@ export function renderHeader(root, currentPath) {
         </a>
         <nav class="nav" aria-label="주요 메뉴">
           ${NAV.map((item) => `
-            <a class="nav__link" href="#${item.path}"
+            <a class="nav__link" href="#${item.path}" data-nav-path="${item.path}"
                ${isActive(item.path, currentPath) ? 'aria-current="page"' : ''}>
               ${item.label}
             </a>`).join('')}
@@ -38,6 +38,8 @@ export function renderHeader(root, currentPath) {
     </header>`;
 
   bindAuth(root);
+  root.querySelector('[data-nav-path="/"]')?.addEventListener('click', clearLibraryEdit);
+  root.querySelector('.brand')?.addEventListener('click', clearLibraryEdit);
 
   // 라우트를 옮길 때마다 헤더가 다시 그려지므로 구독도 새로 건다
   unsubscribe?.();
@@ -104,9 +106,10 @@ function bindAuth(root) {
   });
 }
 
-/** 보관함 외 나머지 경로는 모두 '새 게시물' 흐름으로 본다 */
+/** 보관함에서 불러온 편집 흐름은 세부 단계에서도 '보관함' 탭으로 표시한다. */
 function isActive(navPath, current) {
-  return navPath === '/library' ? current === '/library' : current !== '/library';
+  const inLibrary = current === '/library' || Boolean(getLibraryEditId());
+  return navPath === '/library' ? inLibrary : !inLibrary;
 }
 
 const esc = (str = '') =>

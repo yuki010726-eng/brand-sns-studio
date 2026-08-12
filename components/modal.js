@@ -85,3 +85,56 @@ export function confirmModal(message, options = {}) {
     yes.focus();
   });
 }
+
+/**
+ * 결과가 셋 이상인 선택 모달.
+ * @param {string} message
+ * @param {{ title?: string, choices: Array<{value:string, label:string, primary?:boolean}> }} options
+ * @returns {Promise<string|null>} 선택한 value, 취소(배경·Esc)는 null
+ */
+export function choiceModal(message, options) {
+  const { title = '선택', choices = [] } = options;
+  document.querySelector('.message-modal')?.remove();
+
+  return new Promise((resolve) => {
+    const el = document.createElement('div');
+    el.className = 'message-modal';
+    el.innerHTML = `
+      <div class="message-modal__backdrop"></div>
+      <section class="message-modal__dialog" role="alertdialog" aria-modal="true" aria-labelledby="choice-modal-title" aria-describedby="choice-modal-desc">
+        <h2 id="choice-modal-title"></h2>
+        <p id="choice-modal-desc"></p>
+        <div class="message-modal__actions message-modal__actions--choices">
+          ${choices.map((choice) => `<button class="btn${choice.primary ? '' : ' btn--ghost'}" type="button" data-choice="${choice.value}"></button>`).join('')}
+        </div>
+      </section>`;
+    el.querySelector('#choice-modal-title').textContent = title;
+    el.querySelector('#choice-modal-desc').textContent = message;
+
+    const buttons = [...el.querySelectorAll('[data-choice]')];
+    choices.forEach((choice, index) => {
+      buttons[index].textContent = choice.label;
+      buttons[index].setAttribute('aria-label', choice.label);
+    });
+
+    const opener = document.activeElement;
+    const close = (answer) => {
+      el.remove();
+      if (opener?.isConnected) opener.focus();
+      resolve(answer);
+    };
+    buttons.forEach((button) => button.addEventListener('click', () => close(button.dataset.choice)));
+    el.querySelector('.message-modal__backdrop').addEventListener('click', () => close(null));
+    el.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') { close(null); return; }
+      if (event.key !== 'Tab' || !buttons.length) return;
+      const first = buttons[0];
+      const last = buttons[buttons.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    });
+
+    document.body.appendChild(el);
+    (buttons.find((button) => choices[buttons.indexOf(button)]?.primary) || buttons[0])?.focus();
+  });
+}

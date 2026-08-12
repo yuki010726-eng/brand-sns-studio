@@ -6,7 +6,7 @@ import { icon } from '../assets/icons.js';
 import { CHANNELS, BANNED_PHRASES, getProduct } from '../data/products.js';
 import { stepperHTML, bindStepper } from '../components/stepper.js';
 import { getState, setState, navigate, draftKeyOf } from '../store.js';
-import { generate, findBanned, TONE_LABEL, IMAGE_PLAN } from '../lib/copywriter.js';
+import { findBanned, TONE_LABEL, IMAGE_PLAN } from '../lib/copywriter.js';
 import { generateWithAI, promptKeyOf } from '../lib/copyai.js';
 import { coreWithOutline, outlineKeyOf } from '../lib/outline.js';
 import {
@@ -527,7 +527,10 @@ async function aiAll(root) {
   try {
     // 뼈대를 먼저 짠다. 세 채널이 같은 뼈대 위에서 써야 내용이 통일된다.
     const outlineError = await ensureOutline(root, { session });
-    if (outlineError) toast(`주제 뼈대를 못 만들어 기본 구성으로 씁니다 — ${outlineError}`, 5000);
+    if (outlineError) {
+      toast(`AI 주제 구성을 만들지 못했습니다 — ${outlineError}`, 5000);
+      return;
+    }
 
     const runningMessage = `AI가 ${channels.length}개 채널 글을 쓰고 있습니다… 30초쯤 걸립니다.`;
     showAiStatus(root, runningMessage, session);
@@ -655,7 +658,7 @@ function ctx(variant) {
 
 /**
  * AI 로 쓸 때 쓰는 ctx — **주제 뼈대를 함께 넘긴다.**
- * 뼈대가 없으면 `coreBlock()` 이 규칙 기반으로 떨어진다(키가 없거나 뼈대 생성 실패).
+ * AI로 만든 뼈대가 있을 때만 채널 글을 생성한다.
  */
 function aiCtx(variant) {
   const s = getState();
@@ -673,7 +676,7 @@ function aiCtx(variant) {
  *
  * `session` 을 넘기면 이 단계에서도 일시정지·취소 버튼을 보여주고, 취소 시 AbortError 를
  * 그대로 던진다(`coreWithOutline` 이 이미 그렇게 한다) — 호출한 쪽이 잡아서 처리한다.
- * @returns {Promise<string|null>} 실패 사유 (성공하면 null — 규칙 기반으로 이어서 쓴다)
+ * @returns {Promise<string|null>} 실패 사유 (성공하면 null)
  */
 async function ensureOutline(root, { force = false, session } = {}) {
   const s = getState();
@@ -682,31 +685,8 @@ async function ensureOutline(root, { force = false, session } = {}) {
 
   showAiStatus(root, '주제를 어떻게 풀지 뼈대를 짜는 중입니다…', session);
   const { core, error } = await coreWithOutline(ctx(0), { signal: session?.signal, waitIfPaused: session?.waitIfPaused });
-  // 실패해도 코어는 돌아온다(규칙 기반). 그래도 다음에 다시 시도하도록 실패는 저장하지 않는다.
   if (!error) setState({ outline: { key, core } });
   return error;
-}
-
-/**
- * 재생성할 때마다 variant 가 올라가 다른 후킹·근거 조합이 나온다 (세 채널 동시에).
- * `activeAiRun` 을 null 로 돌린다 — 규칙 기반 글로 화면이 바뀌었으니 AI 1·AI 2 선택은 풀린다.
- * (AI 1·AI 2 자체는 지우지 않는다. 버튼으로 다시 돌아가 볼 수 있다.)
- */
-function regenerateAll({ advance = true } = {}) {
-  const s = getState();
-  // 채널마다 따로 두지 않고 하나의 값을 공유한다 — 이게 내용 통일의 조건이다
-  const variant = Math.max(...s.channels.map((id) => s.variants[id] ?? -1), -1) + (advance ? 1 : 0);
-  const shared = Math.max(variant, 0);
-
-  const drafts = {};
-  const variants = { ...s.variants };
-  const sources = { ...s.sources };
-  s.channels.forEach((id) => {
-    variants[id] = shared;
-    drafts[id] = generate(id, ctx(shared));
-    sources[id] = 'rule';
-  });
-  setState({ drafts, generated: { ...drafts }, variants, sources, draftKey: draftKeyOf(s), activeAiRun: null });
 }
 
 function hasEdits() {
