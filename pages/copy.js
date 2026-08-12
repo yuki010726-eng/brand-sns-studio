@@ -6,7 +6,7 @@ import { icon } from '../assets/icons.js';
 import { CHANNELS, BANNED_PHRASES, getProduct } from '../data/products.js';
 import { stepperHTML, bindStepper } from '../components/stepper.js';
 import { getState, setState, navigate, draftKeyOf } from '../store.js';
-import { findBanned, TONE_LABEL, IMAGE_PLAN } from '../lib/copywriter.js';
+import { findBanned, TONE_LABEL, IMAGE_PLAN, HEAD_MARK } from '../lib/copywriter.js';
 import { generateWithAI, promptKeyOf } from '../lib/copyai.js';
 import { coreWithOutline, outlineKeyOf } from '../lib/outline.js';
 import {
@@ -26,6 +26,17 @@ export function guard() {
 
 /** 현재 열린 탭 — 페이지를 벗어나면 초기화되는 화면 상태라 스토어에 넣지 않는다 */
 let activeTab = null;
+
+/**
+ * 읽기 모드 — 편집칸 대신 **게시될 모양 그대로** 보여 준다.
+ *
+ * 요청자 지적: "단락이 다 나뉘어 있어서 무슨 말인지 모르겠다. 물어보는 과정을 줄이려고 만든 건데
+ * 일만 늘었다." 편집 상자에 날글자로 깔리면 글의 구조가 안 보인다. 기본값을 읽기 모드로 두고,
+ * 고칠 때만 편집으로 넘어가게 한다.
+ *
+ * ⚠️ 화면 상태라 스토어에 넣지 않는다. 넣으면 기기 간 동기화까지 따라간다(보관함 필터와 같은 이유).
+ */
+let readMode = true;
 
 export function render(root) {
   let s = getState();
@@ -91,6 +102,7 @@ export function render(root) {
           더 늘리면 다시 예전처럼 "그래서 뭘 눌러야 하나" 가 된다.
         -->
         <div id="ai-runs-slot">${aiRunsHTML()}</div>
+        <div id="angle-slot">${angleHTML()}</div>
 
         <!--
           ⚠️ 키가 내장돼 있으면 AI 설정 바를 **통째로 안 그린다** (요청자 지시 2026-08-11).
@@ -269,6 +281,11 @@ function panelHTML() {
                   for="draft-${c.id}" aria-live="polite">
             ${text.length.toLocaleString()} / ${c.limit.toLocaleString()}자
           </output>
+          <button type="button" class="btn btn--ghost btn--sm" id="view-toggle"
+                  aria-pressed="${readMode}"
+                  aria-label="${readMode ? '글을 직접 고치기' : '게시될 모양으로 보기'}">
+            ${icon(readMode ? 'edit' : 'eye', 'icon--sm')} ${readMode ? '고치기' : '읽기 모드'}
+          </button>
           <button type="button" class="btn btn--sm" data-copy="${c.id}"
                   aria-label="${c.name} 글귀 복사하기">
             ${icon('copy', 'icon--sm')} 복사
@@ -276,16 +293,140 @@ function panelHTML() {
         </div>
       </div>
 
+      ${readMode ? `
+      <div class="preview" id="preview-${c.id}" tabindex="0" role="article"
+           aria-label="${c.name} 글귀 미리보기">${previewHTML(text)}</div>
+      <p class="field__hint" id="limit-${c.id}">${c.limitLabel} · 고치려면 「고치기」를 누르세요.</p>
+      ` : `
       <label class="sr-only" for="draft-${c.id}">${c.name} 글귀 편집</label>
       <textarea class="textarea draft" id="draft-${c.id}" data-draft="${c.id}"
                 spellcheck="false" autocomplete="off"
                 placeholder="위 「AI 생성」을 눌러 글귀를 만들어 주세요."
                 aria-describedby="limit-${c.id}">${esc(text)}</textarea>
       <p class="field__hint" id="limit-${c.id}">${c.limitLabel} · 내용은 자동 저장됩니다.</p>
+      `}
       <p class="field__hint">🖼 ${esc(IMAGE_PLAN[c.id] || '')} 카드는 3단계에서 한 벌만 만들어 세 채널에 나눠 씁니다.</p>
 
       <div id="warn-slot">${warnHTML(banned, over, c)}</div>
     </div>`;
+}
+
+/* ---------------- 읽기 모드 렌더 ---------------- */
+
+/**
+ * 글귀를 **게시될 모양**으로 그린다.
+ *
+ * 글 자체는 순수 텍스트다(마크다운을 쓰지 않는다 — `lib/copywriter.js` 의 `HEAD_MARK` 참고).
+ * 여기서는 그 텍스트를 화면에서만 읽기 좋게 입힌다. **원문은 절대 바꾸지 않는다** —
+ * 복사되는 것은 언제나 `drafts` 에 든 원문이다.
+ *
+ * ⚠️ 여기에 서식 문법을 새로 만들지 말 것. 화면에서만 보이는 규칙을 늘리면
+ *    붙여넣은 결과와 미리보기가 어긋난다. 이미 글에 들어 있는 표시만 해석한다.
+ */
+const SLOT_LINE = /^\s*📷\s*\[(이미지[^\]]*)\]\s*(.*)$/;
+
+function previewHTML(text) {
+  const raw = String(text || '').trim();
+  if (!raw) return '<p class="preview__empty">위 「AI 생성」을 눌러 글귀를 만들어 주세요.</p>';
+
+  const lines = raw.split('\n');
+  const out = [];
+  let para = [];      // 이어지는 본문 줄
+  let quote = [];     // '> ' 인용 줄
+  let facts = [];     // '🔔 ' 개요표 줄
+
+  const flushPara = () => {
+    if (!para.length) return;
+    out.push(`<p>${para.map(esc).join('<br>')}</p>`);
+    para = [];
+  };
+  const flushQuote = () => {
+    if (!quote.length) return;
+    out.push(`<blockquote class="preview__quote">${quote.map(esc).join('<br>')}</blockquote>`);
+    quote = [];
+  };
+  const flushFacts = () => {
+    if (!facts.length) return;
+    out.push(`<div class="preview__facts">${facts.map((f) => `<span>${esc(f)}</span>`).join('')}</div>`);
+    facts = [];
+  };
+  const flushAll = () => { flushPara(); flushQuote(); flushFacts(); };
+
+  lines.forEach((line, i) => {
+    const s = line.trim();
+    if (!s) { flushAll(); return; }
+
+    // 구분선
+    if (/^─{2,}$/.test(s)) { flushAll(); out.push('<hr class="preview__rule">'); return; }
+
+    // 소제목
+    if (s.startsWith(`${HEAD_MARK} `)) {
+      flushAll();
+      out.push(`<h3 class="preview__head">${esc(s.slice(HEAD_MARK.length).trim())}</h3>`);
+      return;
+    }
+
+    // 카드뉴스 이미지 자리 + 바로 아래 캡션(⤷)을 한 덩어리로 묶는다
+    const slot = s.match(SLOT_LINE);
+    if (slot) {
+      flushAll();
+      const next = (lines[i + 1] || '').trim();
+      const caption = next.startsWith('⤷') ? next.replace(/^⤷\s*/, '') : '';
+      out.push(`<div class="preview__slot"><span class="badge">${esc(slot[1])}</span>${
+        caption ? `<span class="preview__caption">${esc(caption)}</span>` : ''}</div>`);
+      return;
+    }
+    if (s.startsWith('⤷')) return;   // 위에서 이미 묶었다
+
+    // 개요표
+    if (s.startsWith('🔔')) { flushPara(); flushQuote(); facts.push(s.replace(/^🔔\s*/, '')); return; }
+
+    // 요약 인용
+    if (s.startsWith('> ')) { flushPara(); flushFacts(); quote.push(s.slice(2)); return; }
+
+    // 해시태그 줄 (샵으로만 이뤄진 줄)
+    if (/^#[^\s#]/.test(s) && !/[.!?]$/.test(s)) {
+      flushAll();
+      out.push(`<p class="preview__tags">${s.split(/\s+/).filter(Boolean).map((t) => `<span>${esc(t)}</span>`).join('')}</p>`);
+      return;
+    }
+
+    // 인스타 캡션의 '.' 세 줄 — 해시태그를 밀어내는 여백이라 화면에서는 접는다
+    if (s === '.') { flushAll(); return; }
+
+    flushQuote();
+    flushFacts();
+    para.push(s);
+  });
+
+  flushAll();
+  return out.join('');
+}
+
+/**
+ * AI 가 주제를 어떻게 읽었는지 보여 준다.
+ *
+ * ⚠️ **해석을 감추면 안 된다.** 주제를 글자 그대로 따르지 않게 바꿨으므로(요청자 요구),
+ *    왜 이런 글이 나왔는지 알 수 있어야 한다. 해석이 빗나갔으면 주제를 고쳐 다시 돌리면 된다.
+ */
+function angleHTML() {
+  const s = getState();
+  const core = s.outline?.key === outlineKeyOf(s) ? s.outline.core : null;
+  if (!core?.angle) return '';
+  return `
+    <div class="notice notice--info angle" role="status">
+      <span class="notice__icon" aria-hidden="true">${icon('sparkles', 'icon--sm')}</span>
+      <div>
+        <strong>주제를 이렇게 읽었습니다</strong>
+        <p class="angle__line">${esc(core.angle)}</p>
+        ${core.intent ? `<p class="field__hint">알고 싶은 것 · ${esc(core.intent)}</p>` : ''}
+      </div>
+    </div>`;
+}
+
+function refreshAngle(root) {
+  const slot = root.querySelector('#angle-slot');
+  if (slot) slot.innerHTML = angleHTML();
 }
 
 /** 금지 표현·길이 초과 경고 */
@@ -415,33 +556,45 @@ function refreshPanel(root) {
 let onResize = null;
 
 function bindPanel(root) {
+  /**
+   * ⚠️ 편집칸이 없어도(읽기 모드) **아래 버튼들은 반드시 묶어야 한다.**
+   *    예전 구조는 여기서 바로 return 했다 — 그대로 뒀으면 읽기 모드에서 복사가 죽는다.
+   */
   const ta = root.querySelector('[data-draft]');
-  if (!ta) return;
 
-  autoGrow(ta);
-
-  // 렌더할 때마다 쌓이지 않도록 이전 리스너를 먼저 걷어낸다
-  if (onResize) window.removeEventListener('resize', onResize);
-  onResize = () => {
-    const el = document.querySelector('[data-draft]');
-    if (el) autoGrow(el);
-  };
-  window.addEventListener('resize', onResize);
-
-  ta.addEventListener('input', () => {
-    const s = getState();
-    const id = ta.dataset.draft;
-    const patch = { drafts: { ...s.drafts, [id]: ta.value } };
-    // 지금 보고 있는 게 AI 1·AI 2 중 하나면, 그 벌에도 편집을 같이 남긴다.
-    // 안 남기면 다른 벌로 갔다 돌아왔을 때 방금 고친 내용이 사라진다.
-    const runs = aiRunsFor(s);
-    if (s.activeAiRun !== null && runs[s.activeAiRun]) {
-      const list = runs.map((r, i) => (i === s.activeAiRun ? { ...r, drafts: { ...r.drafts, [id]: ta.value } } : r));
-      patch.aiRuns = { ...s.aiRuns, list };
-    }
-    setState(patch);
+  if (ta) {
     autoGrow(ta);
-    updateCounter(root, ta);
+
+    // 렌더할 때마다 쌓이지 않도록 이전 리스너를 먼저 걷어낸다
+    if (onResize) window.removeEventListener('resize', onResize);
+    onResize = () => {
+      const el = document.querySelector('[data-draft]');
+      if (el) autoGrow(el);
+    };
+    window.addEventListener('resize', onResize);
+
+    ta.addEventListener('input', () => {
+      const s = getState();
+      const id = ta.dataset.draft;
+      const patch = { drafts: { ...s.drafts, [id]: ta.value } };
+      // 지금 보고 있는 게 AI 1·AI 2 중 하나면, 그 벌에도 편집을 같이 남긴다.
+      // 안 남기면 다른 벌로 갔다 돌아왔을 때 방금 고친 내용이 사라진다.
+      const runs = aiRunsFor(s);
+      if (s.activeAiRun !== null && runs[s.activeAiRun]) {
+        const list = runs.map((r, i) => (i === s.activeAiRun ? { ...r, drafts: { ...r.drafts, [id]: ta.value } } : r));
+        patch.aiRuns = { ...s.aiRuns, list };
+      }
+      setState(patch);
+      autoGrow(ta);
+      updateCounter(root, ta);
+    });
+  }
+
+  root.querySelector('#view-toggle')?.addEventListener('click', () => {
+    readMode = !readMode;
+    refreshPanel(root);
+    // 고치기로 넘어왔으면 바로 쓸 수 있게 커서를 넣어 준다
+    if (!readMode) root.querySelector('[data-draft]')?.focus();
   });
 
   root.querySelector('[data-copy]')?.addEventListener('click', (e) => {
@@ -524,9 +677,18 @@ async function aiAll(root) {
   aiSession = session;
   setAiBusy(root, true);
 
+  /**
+   * 이번이 몇 번째 벌인지 — AI 1 이면 0, AI 2 면 1.
+   *
+   * ⚠️ **이 값이 뼈대까지 내려가야 AI 2 가 AI 1 과 달라진다.** 예전에는 라운드 개념이 없어서
+   *    `ensureOutline()` 이 캐시된 뼈대를 그대로 돌려줬고, 핵심 3가지·후킹·마무리가 통째로
+   *    같은 채로 다시 써서 "두 번 돌려도 비슷한 글"이 나왔다(요청자 지적 2026-08-12).
+   */
+  const round = aiRunsFor(s0).length;
+
   try {
     // 뼈대를 먼저 짠다. 세 채널이 같은 뼈대 위에서 써야 내용이 통일된다.
-    const outlineError = await ensureOutline(root, { session });
+    const outlineError = await ensureOutline(root, { round, session });
     if (outlineError) {
       toast(`AI 주제 구성을 만들지 못했습니다 — ${outlineError}`, 5000);
       return;
@@ -535,7 +697,7 @@ async function aiAll(root) {
     const runningMessage = `AI가 ${channels.length}개 채널 글을 쓰고 있습니다… 30초쯤 걸립니다.`;
     showAiStatus(root, runningMessage, session);
     const results = await Promise.allSettled(channels.map((c) =>
-      generateWithAI(c.id, aiCtx(0), { signal: session.signal, waitIfPaused: session.waitIfPaused })));
+      generateWithAI(c.id, aiCtx(0, round), { signal: session.signal, waitIfPaused: session.waitIfPaused })));
 
     // 새 벌은 지금 화면 값에서 시작해, 성공한 채널만 AI 글로 바꾼다.
     const base = getState();
@@ -581,6 +743,7 @@ async function aiAll(root) {
 
     refreshPanel(root);
     refreshAiRuns(root);
+    refreshAngle(root);
 
     if (ok) toast(`AI ${runNo} — ${ok}개 채널 글을 새로 썼습니다.`);
     if (cancelled) toast(`${cancelled}개 채널 생성을 취소했습니다.`);
@@ -660,10 +823,11 @@ function ctx(variant) {
  * AI 로 쓸 때 쓰는 ctx — **주제 뼈대를 함께 넘긴다.**
  * AI로 만든 뼈대가 있을 때만 채널 글을 생성한다.
  */
-function aiCtx(variant) {
+function aiCtx(variant, round = 0) {
   const s = getState();
   const core = s.outline?.key === outlineKeyOf(s) ? s.outline.core : null;
-  return { ...ctx(variant), core };
+  // round 는 채널 프롬프트의 '진입 방식'을 바꾼다 (lib/copyai.js 의 ROUND_OPENING)
+  return { ...ctx(variant), core, round };
 }
 
 /**
@@ -678,14 +842,25 @@ function aiCtx(variant) {
  * 그대로 던진다(`coreWithOutline` 이 이미 그렇게 한다) — 호출한 쪽이 잡아서 처리한다.
  * @returns {Promise<string|null>} 실패 사유 (성공하면 null)
  */
-async function ensureOutline(root, { force = false, session } = {}) {
+async function ensureOutline(root, { force = false, round = 0, session } = {}) {
   const s = getState();
   const key = outlineKeyOf(s);
-  if (!force && s.outline?.key === key) return null;
+  /**
+   * ⚠️ **지문만 보면 안 되고 라운드도 함께 봐야 한다.** AI 2 는 AI 1 과 상품·주제·톤이 같아
+   *    지문이 똑같다. 지문만 비교하면 캐시된 뼈대를 그대로 돌려주고, 그러면 AI 2 가
+   *    AI 1 과 같은 내용을 말한다 — 요청자가 지적한 바로 그 증상이다.
+   */
+  if (!force && s.outline?.key === key && (s.outline.round || 0) === round) return null;
+
+  // 직전 라운드의 소제목을 넘겨 **같은 구성을 다시 짜지 못하게** 한다.
+  const avoid = (s.outline?.core?.points || []).map((x) => x.q).filter(Boolean);
 
   showAiStatus(root, '주제를 어떻게 풀지 뼈대를 짜는 중입니다…', session);
-  const { core, error } = await coreWithOutline(ctx(0), { signal: session?.signal, waitIfPaused: session?.waitIfPaused });
-  if (!error) setState({ outline: { key, core } });
+  const { core, error } = await coreWithOutline(
+    { ...ctx(0), round, avoid },
+    { signal: session?.signal, waitIfPaused: session?.waitIfPaused },
+  );
+  if (!error) setState({ outline: { key, round, core } });
   return error;
 }
 

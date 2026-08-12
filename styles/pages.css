@@ -306,6 +306,98 @@ body.is-login-page .site-footer { display: none; }
   background: #FCFDFE;
 }
 
+/* ---------- 읽기 모드 (3단계) ----------
+   편집칸 대신 '게시될 모양'을 보여 준다. 원문은 건드리지 않고 화면에서만 입힌다.
+
+   ⚠️ **여백이 이 블록의 핵심이다.** 요청자 지적(2026-08-12): 회색 인용 박스와 바로 아래 글,
+      파란 소제목과 바로 아래 글이 붙어 있어 오히려 불편했다. 요소마다 아래 여백을 따로 잡는다.
+      기본 간격(--flow)만으로는 부족하다 — 박스·소제목은 시각적 무게가 커서 더 떨어져야 한다.
+   ⚠️ 본문 색은 --text 다. --sub 는 흰 배경 3.08:1 이라 본문에 쓰지 않는다(접근성 규칙). */
+.preview {
+  --flow: 16px;              /* 일반 문단 사이 */
+  --flow-lg: 30px;           /* 박스·소제목 뒤 — 눈이 쉬는 자리 */
+  min-height: 260px;
+  padding: 26px 24px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: #FCFDFE;
+  font-size: 15px;
+  line-height: 1.85;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+/* ⚠️ 여백은 **바깥 여백 초기화 → 흐름 규칙** 순서로만 준다.
+   `.preview p { margin: 0 }` 처럼 요소 이름으로 초기화하면 특정도(0,1,1)가 흐름 규칙(0,1,0)을
+   이겨서 **문단 사이가 0px 이 된다.** 실제로 그렇게 났다 — 재서 확인할 것. */
+.preview > * { margin: 0; }
+.preview > * + * { margin-top: var(--flow); }
+.preview__empty { color: var(--sub-strong); }
+
+/* 파란 세로선 소제목 — 위로는 크게 떼고, 아래 본문과도 확실히 띄운다 */
+.preview__head {
+  font-size: 17px;
+  font-weight: 900;
+  line-height: 1.45;
+  padding-left: 12px;
+  border-left: 4px solid var(--primary);
+}
+/* ⚠️ `h3` 를 붙여 특정도를 한 단계 올린다(0,2,1). 안 그러면 아래 `.preview__slot + *` 규칙에
+   밀려 소제목 위 여백이 24px 로 줄어든다 — 소제목은 **위가 아래보다 넓어야** 단락이 갈려 보인다. */
+.preview > * + h3.preview__head { margin-top: 40px; }
+.preview > .preview__head + * { margin-top: var(--flow-lg); }
+
+.preview__rule { border: 0; border-top: 1px solid var(--border); }
+.preview > * + .preview__rule,
+.preview > .preview__rule + * { margin-top: 24px; }
+
+/* 회색 요약 박스 — 아래 본문이 박스에 붙어 보이던 자리 */
+.preview__quote {
+  padding: 16px 18px;
+  border-radius: 12px;
+  background: var(--bg);
+  font-weight: 500;
+}
+.preview > .preview__quote + * { margin-top: var(--flow-lg); }
+
+/* 카드뉴스가 들어갈 자리 — 글이 아니라 '자리'라는 게 보여야 한다 */
+.preview__slot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 13px 15px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  background: #fff;
+}
+.preview > * + .preview__slot,
+.preview > .preview__slot + * { margin-top: 24px; }
+.preview__caption { font-size: 13.5px; color: var(--sub-strong); }
+
+.preview__facts { display: flex; flex-direction: column; gap: 6px; }
+.preview__facts span {
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--bg);
+  font-size: 14px;
+}
+.preview > * + .preview__facts { margin-top: var(--flow-lg); }
+
+.preview__tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.preview__tags span {
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--primary-weak);
+  color: var(--primary-dark);
+  font-size: 13px;
+  font-weight: 700;
+}
+.preview > * + .preview__tags { margin-top: var(--flow-lg); }
+
+/* AI 가 주제를 어떻게 읽었는지 */
+.angle { align-items: flex-start; }
+.angle__line { font-weight: 700; margin-top: 3px; }
+
 /* 다음 단계 이동 */
 .flow-actions {
   display: flex;

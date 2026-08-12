@@ -38,6 +38,9 @@ const PATHS = {
   x: '<path d="M6 6l12 12M18 6L6 18"/>',
   alert: '<circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5"/><circle cx="12" cy="16.3" r=".9" fill="currentColor" stroke="none"/>',
   chevronRight: '<polyline points="9 5 16 12 9 19"/>',
+  // 3단계 읽기 모드 ↔ 편집 전환
+  eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>',
+  edit: '<path d="M12 20h8"/><path d="M16.5 4.5a2.1 2.1 0 013 3L8 19l-4 1 1-4 11.5-11.5z"/>',
   /** 새 탭으로 나가는 링크 표시 — 키 발급 페이지처럼 바깥으로 보내는 자리에 쓴다 */
   external: '<path d="M14 4h6v6"/><path d="M20 4l-8 8"/><path d="M18 13.5v5A1.5 1.5 0 0116.5 20h-11A1.5 1.5 0 014 18.5v-11A1.5 1.5 0 015.5 6h5"/>',
 };
