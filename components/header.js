@@ -7,6 +7,7 @@ import { flushSync } from '../lib/sync.js';
 import { toast } from './toast.js';
 
 const NAV = [
+  { path: '/profile', label: '프로필',   iconName: 'user' },
   { path: '/',        label: '새 게시물', iconName: 'sparkles' },
   { path: '/library', label: '보관함',   iconName: 'archive' },
 ];
@@ -111,7 +112,9 @@ function bindAuth(root) {
 /** 보관함에서 불러온 편집 흐름은 세부 단계에서도 '보관함' 탭으로 표시한다. */
 function isActive(navPath, current) {
   const inLibrary = current === '/library' || Boolean(getLibraryEditId());
-  return navPath === '/library' ? inLibrary : !inLibrary;
+  if (navPath === '/profile') return current === '/profile';
+  if (navPath === '/library') return inLibrary;
+  return !inLibrary && current !== '/profile';
 }
 
 const esc = (str = '') =>

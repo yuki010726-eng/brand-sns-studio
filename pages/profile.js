@@ -1,5 +1,5 @@
 /**
- * 1단계 — 인스타그램 프로필 세팅
+ * 프로필 탭 — 인스타그램 계정 프로필 세팅
  *
  * 흐름은 요청자가 정한 순서 그대로다.
  *   ① 브랜드 어워즈형 / 마케터형 선택
@@ -9,7 +9,6 @@
  * 이미지 생성 API 연결은 다음 작업이다(요청자 지시). 지금은 **영문 프롬프트까지** 만들어 둔다.
  */
 import { icon } from '../assets/icons.js';
-import { stepperHTML, bindStepper } from '../components/stepper.js';
 import { getState, setState, navigate } from '../store.js';
 import { toast } from '../components/toast.js';
 import {
@@ -26,15 +25,13 @@ export function render(root) {
   root.innerHTML = `
     <div class="container">
       <section class="hero">
-        <p class="hero__eyebrow">${icon('sparkles', 'icon--sm')} 프로필 세팅 → 상품·주제 → 아이디어 문서화 → 카드뉴스</p>
-        <h1>먼저 계정 프로필부터 잡을까요?</h1>
+        <p class="hero__eyebrow">${icon('sparkles', 'icon--sm')} 인스타그램 계정 설정</p>
+        <h1>계정 프로필을 설정해 보세요</h1>
         <p class="hero__sub">
           유형을 고르면 이름·소개·프로필 이미지 초안을 만들어 드립니다.
           마음에 안 들면 「다시 뽑기」를 누르시면 됩니다.
         </p>
       </section>
-
-      ${stepperHTML('/profile')}
 
       <section class="section" aria-labelledby="sec-type">
         <div class="section__head">
@@ -79,7 +76,6 @@ export function render(root) {
       </div>
     </div>`;
 
-  bindStepper(root);
   bindType(root);
   bindDraft(root);
 

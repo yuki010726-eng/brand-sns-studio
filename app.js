@@ -7,7 +7,7 @@ import { loadLocalConfig } from './lib/localconfig.js';
 import { detect } from './lib/serverapi.js';
 import { initAuth, onAuth, getUser } from './lib/auth.js';
 import { pull, applyRemote } from './lib/sync.js';
-import { getState, setState } from './store.js';
+import { setState } from './store.js';
 import { toast } from './components/toast.js';
 import * as ProfilePage from './pages/profile.js';
 import * as HomePage from './pages/home.js';
@@ -62,8 +62,8 @@ function route() {
   if (hasAccess && path === LOGIN_PATH) {
     const savedPath = sessionStorage.getItem(RETURN_PATH_KEY);
     sessionStorage.removeItem(RETURN_PATH_KEY);
-    // 프로필 세팅을 한 번도 안 했으면 1단계로, 이미 했으면 2단계(상품 선택)로 보낸다.
-    const fallback = getState().profile ? '/' : '/profile';
+    // 프로필은 게시물 제작 단계가 아닌 독립 탭이다. 로그인 후에는 새 게시물로 보낸다.
+    const fallback = '/';
     const destination = savedPath && ROUTES[savedPath] && savedPath !== LOGIN_PATH ? savedPath : fallback;
     location.replace(`#${destination}`);
     return;

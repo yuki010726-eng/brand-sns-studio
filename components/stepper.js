@@ -1,4 +1,4 @@
-/** 4단계 진행 표시 — 도달하지 않은 단계는 disabled 로 막는다 */
+/** 3단계 게시물 제작 진행 표시 — 도달하지 않은 단계는 disabled 로 막는다 */
 import { icon } from '../assets/icons.js';
 import { STEPS, reachedStep, navigate } from '../store.js';
 
