@@ -510,6 +510,8 @@ body.is-login-page .site-footer { display: none; }
   display: flex;
   flex-direction: column;
   gap: 10px;
+  position: sticky;
+  top: calc(var(--header-h) + var(--gap));
 }
 /* 4:5 세로형 — 레퍼런스 세 계정과 같은 비율 */
 .tpl-stage__canvas {
@@ -595,10 +597,17 @@ body.is-login-page .site-footer { display: none; }
 /* ---- 오브젝트 자유 배치 — 숫자 입력 패널(오른쪽 폼) ---- */
 .tpl-layout { display: flex; flex-direction: column; gap: var(--gap-sm); }
 .tpl-layout__grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap-sm); }
-.tpl-layout__grid--type { padding-top: var(--gap-sm); border-top: 1px solid var(--border); }
 
 /* ---- 오른쪽 입력 폼 ---- */
-.tpl-form { padding: var(--gap-lg); display: flex; flex-direction: column; gap: var(--gap); }
+.tpl-form { padding: var(--gap-lg); display: flex; flex-direction: column; gap: var(--gap-lg); }
+#tpl-form-fields { display: flex; flex-direction: column; gap: var(--gap); }
+.tpl-form__footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  padding-top: var(--gap-lg);
+  border-top: 1px solid var(--border);
+}
 .tpl-form__head {
   display: flex;
   align-items: center;
@@ -792,6 +801,10 @@ body.is-login-page .site-footer { display: none; }
 .tpl-count { font-size: 12px; color: var(--sub-strong); font-variant-numeric: tabular-nums; flex: none; }
 /* 상한은 막는 값이 아니라 알리는 값이다 — 넘어도 입력은 계속된다 */
 .tpl-count--over { color: var(--danger); font-weight: 700; }
+.tpl-align-tools { justify-content: flex-start; }
+.tpl-align-button { display: inline-flex; align-items: center; justify-content: center; min-width: 36px; }
+.tpl-align-button.is-active { color: var(--ink); background: var(--surface-strong, #EEF1F4); border-color: var(--ink); }
+.tpl-format-icon { display: inline-flex; align-items: center; justify-content: center; min-width: 36px; font-size: 16px; }
 /* 실제로 카드에서 잘린 칸만 표시한다 (글자 수 초과와 다르다) */
 .tpl-ta.is-clipped, .input.is-clipped { border-color: var(--danger); }
 .notice--warn { border-color: #F3C9C9; background: #FDF3F3; }

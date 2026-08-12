@@ -222,7 +222,26 @@ function ensureTexts(product) {
   // 템플릿 교체 — 슬롯이 달라졌으므로 반드시 새 구성으로 다시 세운다.
   // 오브젝트 구성도 템플릿마다 다르므로 배치도 함께 새로 시작한다.
   if (card.concept !== s.concept) {
-    setState({ card: { key: card.key, concept: s.concept, texts: mergeTexts(card, base), base, layout: emptyLayout(), extraTexts: fitExtraTexts(card.extraTexts) } });
+    // 템플릿마다 추가 텍스트와 배치를 따로 보관한다. A → B → A처럼 돌아와도
+    // A에서 만든 상자와 위치·크기 설정이 복원되며 B/C에는 나타나지 않는다.
+    const extraTextsByConcept = {
+      ...(card.extraTextsByConcept || {}),
+      [card.concept]: fitExtraTexts(card.extraTexts),
+    };
+    const layoutByConcept = {
+      ...(card.layoutByConcept || {}),
+      [card.concept]: fitLayout(card.layout),
+    };
+    setState({ card: {
+      key: card.key,
+      concept: s.concept,
+      texts: mergeTexts(card, base),
+      base,
+      layout: fitLayout(layoutByConcept[s.concept]),
+      extraTexts: fitExtraTexts(extraTextsByConcept[s.concept]),
+      extraTextsByConcept,
+      layoutByConcept,
+    } });
     return;
   }
 
@@ -323,7 +342,13 @@ export function render(root) {
             <p class="tpl-stage__note" id="tpl-layout-hint">${layoutHintHTML()}</p>
             <!-- 글이 잘렸을 때만 채워진다. 미리보기 바로 아래라 눈에 바로 걸린다. -->
             <div id="tpl-overflow"></div>
-            <div class="tpl-stage__actions">
+          </div>
+
+          <div class="tpl-form card" id="tpl-form">
+            <div id="tpl-form-fields">${formHTML()}</div>
+
+            <div class="tpl-form__footer">
+              <div class="tpl-stage__actions" aria-label="카드 이미지 저장">
               <button type="button" class="btn btn--ghost btn--sm" id="save-one"
                       aria-label="이 카드 PNG로 저장하기">
                 ${icon('download', 'icon--sm')} 이 카드 저장
@@ -332,13 +357,12 @@ export function render(root) {
                       aria-label="카드 ${deck.length}장 모두 PNG로 저장하기">
                 ${icon('download', 'icon--sm')} ${deck.length}장 모두 저장
               </button>
+              </div>
+
+              <!-- 카드 편집을 마친 뒤 바로 이어서 이미지 프롬프트와 파일을 다룬다. -->
+              <div id="tpl-image">${imagePanelSlot()}</div>
             </div>
-
-            <!-- 문구 입력칸 반대쪽. 이미지는 필수가 아니라 원할 때만 쓰는 자리다. -->
-            <div id="tpl-image">${imagePanelSlot()}</div>
           </div>
-
-          <div class="tpl-form card" id="tpl-form">${formHTML()}</div>
         </div>
 
         <div class="flow-actions">
@@ -489,6 +513,15 @@ const INSERTS = [
   { label: '🔥', text: '🔥 ' }, { label: '💡', text: '💡 ' }, { label: '⚠️', text: '⚠️ ' },
 ];
 
+function insertToolsHTML(targetId, targetLabel) {
+  return `<div class="tpl-inserts" aria-label="${esc(targetLabel)} 서식 도구">
+    ${INSERTS.map((x, i) => `
+      <button type="button" class="tpl-insert" data-insert="${i}" data-insert-target="${esc(targetId)}"
+              aria-label="${esc(targetLabel)}에 ${x.hint || x.label} 넣기"
+              title="${esc(x.hint || x.label)}">${x.label}</button>`).join('')}
+  </div>`;
+}
+
 function fieldHTML(f, value, conceptId) {
   const control = f.tag === 'textarea'
     ? `<textarea class="textarea tpl-ta" id="f-${f.id}" data-f="${f.id}" rows="${f.rows || 3}"
@@ -499,12 +532,7 @@ function fieldHTML(f, value, conceptId) {
               aria-describedby="h-${f.id}" />`;
 
   const tools = conceptId === 'note' && f.id === 'body'
-    ? `<div class="tpl-inserts">
-         ${INSERTS.map((x, i) => `
-           <button type="button" class="tpl-insert" data-insert="${i}"
-                   aria-label="본문에 ${x.hint || x.label} 넣기"
-                   title="${esc(x.hint || x.label)}">${x.label}</button>`).join('')}
-       </div>`
+    ? insertToolsHTML(`f-${f.id}`, f.label)
     : '';
 
   /**
@@ -774,7 +802,7 @@ function selectCard(root, i) {
 }
 
 function refreshForm(root) {
-  const slot = root.querySelector('#tpl-form');
+  const slot = root.querySelector('#tpl-form-fields');
   if (!slot) return;
   slot.innerHTML = formHTML();
   bindForm(root);
@@ -794,7 +822,7 @@ function bindForm(root) {
     const s = getState();
     const extraTexts = fitExtraTexts(s.card.extraTexts);
     const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
-    extraTexts[active].push({ id, text: '텍스트를 입력하세요', x: 0.1, y: 0.42, w: 0.8, h: 0.14, fontSize: 44, fontWeight: 700 });
+    extraTexts[active].push({ id, text: '텍스트를 입력하세요', x: 0.1, y: 0.42, w: 0.8, h: 0.14, fontSize: 40, fontWeight: 400, textAlign: 'left' });
     setState({ card: { ...s.card, extraTexts } });
     selectedObj = `extra-${id}`;
     refreshForm(root);
@@ -825,6 +853,20 @@ function bindForm(root) {
       delete layout[active][`extra-${id}`];
       setState({ card: { ...s.card, extraTexts, layout } });
       if (selectedObj === `extra-${id}`) selectedObj = null;
+      refreshForm(root);
+      paint(root);
+      markDirty(root);
+    });
+  });
+
+  root.querySelectorAll('[data-extra-align]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const s = getState();
+      const extraTexts = fitExtraTexts(s.card.extraTexts);
+      const item = extraTexts[active].find((x) => x.id === button.dataset.extraId);
+      if (!item) return;
+      item.textAlign = button.dataset.extraAlign;
+      setState({ card: { ...s.card, extraTexts } });
       refreshForm(root);
       paint(root);
       markDirty(root);
@@ -928,7 +970,7 @@ function bindForm(root) {
 
   root.querySelectorAll('[data-insert]').forEach((btn) => {
     btn.addEventListener('click', () => {
-      const ta = root.querySelector('#f-body');
+      const ta = root.querySelector(`#${btn.dataset.insertTarget}`);
       if (!ta) return;
       const x = INSERTS[Number(btn.dataset.insert)];
       const { selectionStart: a, selectionEnd: b, value: v } = ta;
@@ -1227,8 +1269,8 @@ function commitLayout(root, objId, box) {
   if (obj?.type === 'text' && !nextBox.fontSize) {
     const defaultSizes = { brand: 36, eyebrow: 30, title: 82, footer: 30 };
     const defaultWeights = { brand: 900, eyebrow: 700, title: 900, footer: 500 };
-    nextBox.fontSize = lastSizes()[objId]?.size || defaultSizes[objId] || 30;
-    nextBox.fontWeight = Number(nextBox.fontWeight) || defaultWeights[objId] || 500;
+    nextBox.fontSize = lastSizes()[objId]?.size || defaultSizes[objId] || (objId.startsWith('extra-') ? 40 : 30);
+    nextBox.fontWeight = Number(nextBox.fontWeight) || defaultWeights[objId] || (objId.startsWith('extra-') ? 400 : 500);
   }
 
   layout[active] = { ...layout[active], [objId]: nextBox };
@@ -1311,6 +1353,20 @@ function extraTextsHTML(items) {
           </div>
           <textarea class="textarea tpl-ta" id="extra-${esc(item.id)}" data-extra-text="${esc(item.id)}"
                     rows="2" spellcheck="false">${esc(item.text || '')}</textarea>
+          <div class="tpl-inserts tpl-align-tools" role="group" aria-label="추가 텍스트 서식과 정렬">
+            <button type="button" class="tpl-insert tpl-format-icon" data-insert="0" data-insert-target="extra-${esc(item.id)}"
+                    aria-label="강조" title="강조"><strong aria-hidden="true">B</strong></button>
+            <button type="button" class="tpl-insert" data-insert="1" data-insert-target="extra-${esc(item.id)}"
+                    aria-label="하이라이트 바" title="하이라이트 바">하이라이트 바</button>
+            <button type="button" class="tpl-insert" data-insert="2" data-insert-target="extra-${esc(item.id)}"
+                    aria-label="번호 목록" title="번호 목록">번호 목록</button>
+            ${[['left', 'alignLeft', '왼쪽 정렬'], ['center', 'alignCenter', '가운데 정렬'], ['right', 'alignRight', '오른쪽 정렬']].map(([value, iconName, label]) => `
+              <button type="button" class="tpl-insert tpl-align-button${(item.textAlign || 'left') === value ? ' is-active' : ''}"
+                      data-extra-align="${value}" data-extra-id="${esc(item.id)}"
+                      aria-label="${label}" title="${label}" aria-pressed="${(item.textAlign || 'left') === value}">
+                ${icon(iconName, 'icon--sm')}
+              </button>`).join('')}
+          </div>
         </div>`).join('')}
     </div>`;
 }
@@ -1346,48 +1402,35 @@ function bindOverlay(root) {
   });
 }
 
-/** 선택된 오브젝트의 x/y/w/h 를 px 단위 숫자 입력으로 보여준다(1080×1350 기준) */
+/** 선택된 텍스트 오브젝트의 크기와 굵기 설정을 보여준다. */
 function layoutPanelHTML() {
   if (!selectedObj) return '';
   const s = getState();
   const obj = editableObjects(s).find((o) => o.id === selectedObj);
   const cur = lastBoxes()[selectedObj];
-  if (!obj || !cur) return '';
+  if (!obj || !cur || obj.type !== 'text') return '';
   const saved = s.card.layout?.[active]?.[selectedObj] || {};
-  const isText = obj.type === 'text';
   const defaultWeights = { brand: 900, eyebrow: 700, title: 900, footer: 500 };
   const defaultSizes = { brand: 36, eyebrow: 30, title: 82, footer: 30 };
   const isExtra = selectedObj.startsWith('extra-');
-  const shownWeight = Number(saved.fontWeight) || defaultWeights[selectedObj] || (isExtra ? 700 : 500);
+  const shownWeight = Number(saved.fontWeight) || defaultWeights[selectedObj] || (isExtra ? 400 : 500);
   const measuredSize = lastSizes()[selectedObj]?.size || null;
   const legacySize = saved.fontScale ? Math.round((defaultSizes[selectedObj] || 30) * saved.fontScale) : null;
-  const shownSize = Math.round(Number(saved.fontSize) || measuredSize || legacySize || defaultSizes[selectedObj] || 30);
-  const r = (v) => Math.round(v);
+  const shownSize = Math.round(Number(saved.fontSize) || measuredSize || legacySize || defaultSizes[selectedObj] || (isExtra ? 40 : 30));
 
   return `
     <div class="tpl-layout">
       <div class="tpl-form__head">
-        <h3 class="tpl-form__legend" style="border:0;padding:0">${esc(obj.label)} 위치·크기</h3>
+        <h3 class="tpl-form__legend" style="border:0;padding:0">${esc(obj.label)} 텍스트 설정</h3>
       </div>
       <div class="tpl-layout__grid">
-        <label class="field"><span class="field__label">X (px)</span>
-          <input class="input" type="number" id="lo-x" data-lo="x" value="${r(cur.x)}" /></label>
-        <label class="field"><span class="field__label">Y (px)</span>
-          <input class="input" type="number" id="lo-y" data-lo="y" value="${r(cur.y)}" /></label>
-        <label class="field"><span class="field__label">폭 (px)</span>
-          <input class="input" type="number" id="lo-w" data-lo="w" value="${r(cur.w)}" min="20" /></label>
-        <label class="field"><span class="field__label">높이 (px)</span>
-          <input class="input" type="number" id="lo-h" data-lo="h" value="${r(cur.h)}" min="20" /></label>
-      </div>
-      ${isText ? `<div class="tpl-layout__grid tpl-layout__grid--type">
         <label class="field"><span class="field__label">텍스트 크기 (px)</span>
           <input class="input" type="number" id="lo-font-size" value="${shownSize}" min="12" max="180" step="1" /></label>
         <label class="field"><span class="field__label">텍스트 굵기</span>
           <select class="input" id="lo-font-weight">
             ${[[400, '보통'], [500, '중간'], [700, '굵게'], [900, '아주 굵게']].map(([v, label]) => `<option value="${v}" ${shownWeight === v ? 'selected' : ''}>${label}</option>`).join('')}
           </select></label>
-      </div>` : ''}
-      <p class="field__hint">1080×1350 기준 좌표(px)입니다. 미리보기 위 상자를 드래그해도 같이 바뀝니다.</p>
+      </div>
     </div>`;
 }
 
@@ -1400,27 +1443,16 @@ function refreshLayoutPanel(root) {
 }
 
 function bindLayoutPanel(root) {
-  root.querySelectorAll('[data-lo]').forEach((el) => {
-    el.addEventListener('change', () => applyLayoutInputs(root));
-  });
   root.querySelector('#lo-font-size')?.addEventListener('change', () => applyLayoutInputs(root, 'fontSize'));
   root.querySelector('#lo-font-weight')?.addEventListener('change', () => applyLayoutInputs(root, 'fontWeight'));
 }
 
-function applyLayoutInputs(root, changed = 'box') {
+function applyLayoutInputs(root, changed) {
   if (!selectedObj) return;
-  const num = (id, fallback) => {
-    const v = Number(root.querySelector(`#lo-${id}`)?.value);
-    return Number.isFinite(v) ? v : fallback;
-  };
   const cur = lastBoxes()[selectedObj];
   if (!cur) return;
-  const x = num('x', cur.x);
-  const y = num('y', cur.y);
-  const w = Math.max(20, num('w', cur.w));
-  const h = Math.max(20, num('h', cur.h));
   const prev = getState().card.layout?.[active]?.[selectedObj] || {};
-  const next = { ...prev, x: x / W, y: y / H, w: w / W, h: h / H };
+  const next = { ...prev };
   if (changed === 'fontSize') {
     const defaults = { brand: 36, eyebrow: 30, title: 82, footer: 30 };
     const oldSize = Number(prev.fontSize) || lastSizes()[selectedObj]?.size || defaults[selectedObj] || 30;
@@ -1429,8 +1461,8 @@ function applyLayoutInputs(root, changed = 'box') {
     // 줄일 때는 배치 영역까지 작아지지 않도록 사용자가 잡아 둔 상자 크기를 그대로 둔다.
     const ratio = next.fontSize / oldSize;
     if (ratio > 1) {
-      next.w = (w * ratio) / W;
-      next.h = (h * ratio) / H;
+      next.w = (cur.w * ratio) / W;
+      next.h = (cur.h * ratio) / H;
     }
     delete next.fontScale;
   }
