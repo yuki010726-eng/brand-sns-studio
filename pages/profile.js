@@ -36,7 +36,7 @@ export function render(root) {
       <section class="section" aria-labelledby="sec-type">
         <div class="section__head">
           <h2 id="sec-type">1. 계정 유형</h2>
-          <p class="section__desc">요청자가 주신 인스타그램 레퍼런스를 분석해 두 갈래로 나눴습니다.</p>
+          <p class="section__desc">계정 성격에 맞는 유형을 고르세요.</p>
         </div>
 
         <ul class="channel-row">
@@ -51,7 +51,6 @@ export function render(root) {
                 <span>
                   <strong>${esc(t.label)}</strong>
                   <em>${esc(t.desc)}</em>
-                  <em>레퍼런스 · ${esc(t.refs)}</em>
                 </span>
               </label>
             </li>`).join('')}
