@@ -503,7 +503,10 @@ export const CHANNELS = [
   { id: 'blog', name: '블로그', icon: 'blog', hint: '검색 유입 중심 · 장수에 맞춰 700~1,600자 + 이미지 + 캡션',
     limit: 2000, limitLabel: '장수에 따라 700~1,600자' },
   { id: 'instagram', name: '인스타그램', icon: 'instagram', hint: '첫 두 줄 후킹 · 해시태그 · 카드뉴스 연계',
-    limit: 2200, limitLabel: '캡션 최대 2,200자' },
+    // ⚠️ 인스타 자체 상한은 2,200자지만 **그만큼 쓰면 아무도 안 읽는다**(요청자 지적 2026-08-13).
+    //    인기 정보 계정 캡션은 400자 안팎이다. 프롬프트는 500자를 목표로 지시하고
+    //    여기 limit 은 편집 여유를 둔 안전망이다.
+    limit: 700, limitLabel: '권장 400~500자' },
   { id: 'threads', name: '쓰레드', icon: 'thread', hint: '짧은 대화체 · 500자 제한 · 질문형 마무리',
     limit: 500, limitLabel: '최대 500자' },
 ];
