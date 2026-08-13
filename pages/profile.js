@@ -39,7 +39,14 @@ export function render(root) {
           <p class="section__desc">계정 성격에 맞는 유형을 고르세요.</p>
         </div>
 
-        <ul class="channel-row">
+        <!--
+          ⚠️ 가로 배치다 (요청자 지시 2026-08-13: "세로로 나누니 칸이 너무 길다").
+             유형이 3종이라 한 줄에 셋이 들어간다. 좁은 화면에서는 CSS 가 세로로 되돌린다.
+          ⚠️ 브랜드 선택(#brand-slot)은 **어워즈 카드 안**에 있다 (요청자 지시).
+             `<label>` 바깥에 두는 것이 중요하다 — 안에 넣으면 칩을 누를 때 라벨이
+             먼저 먹어서 유형 라디오가 다시 선택되고 칩 클릭이 씹힌다.
+        -->
+        <ul class="channel-row channel-row--cols">
           ${PROFILE_TYPES.map((t) => `
             <li>
               <input class="sr-only channel__input" type="radio" name="ptype" id="ptype-${t.id}"
@@ -53,10 +60,9 @@ export function render(root) {
                   <em>${esc(t.desc)}</em>
                 </span>
               </label>
+              ${t.id === 'awards' ? `<div id="brand-slot">${brandHTML(profile)}</div>` : ''}
             </li>`).join('')}
         </ul>
-
-        <div id="brand-slot">${brandHTML(profile)}</div>
       </section>
 
       <section class="section" aria-labelledby="sec-draft">

@@ -228,6 +228,20 @@ body.is-login-page .site-footer { display: none; }
 
 /* 채널 선택 */
 .channel-row { display: flex; flex-direction: column; gap: 8px; }
+/*
+  유형 선택 가로 배치 (2026-08-13, 요청자 지시 — 세로로 쌓으니 칸이 너무 길었다).
+  ⚠️ 좁은 화면에서는 세로로 되돌린다. 3칸을 375px 에 밀어 넣으면 글자가 다 깨진다.
+*/
+.channel-row--cols { flex-direction: row; align-items: stretch; gap: 10px; }
+.channel-row--cols > li { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; }
+.channel-row--cols .channel { flex: 1; flex-direction: column; align-items: flex-start; }
+/* 어워즈 카드 안에 들어간 브랜드 칩 — 카드에 붙여 한 덩어리로 보이게 한다 */
+.channel-row--cols .brandpick { margin: 8px 0 0; padding: 10px 12px; background: var(--fill); border-radius: var(--radius-md); }
+.channel-row--cols .brandpick__label { margin: 0 0 6px; font-size: 12px; }
+@media (max-width: 720px) {
+  .channel-row--cols { flex-direction: column; }
+  .channel-row--cols .channel { flex-direction: row; align-items: flex-start; }
+}
 .channel {
   display: flex;
   align-items: flex-start;
