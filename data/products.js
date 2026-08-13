@@ -684,8 +684,12 @@ export const CHANNELS = [
     //    인기 정보 계정 캡션은 400자 안팎이다. 프롬프트는 500자를 목표로 지시하고
     //    여기 limit 은 편집 여유를 둔 안전망이다.
     limit: 700, limitLabel: '권장 400~500자' },
-  { id: 'threads', name: '쓰레드', icon: 'thread', hint: '짧은 대화체 · 500자 제한 · 질문형 마무리',
-    limit: 500, limitLabel: '최대 500자' },
+  // ⚠️ 500 → 300 (2026-08-14, 요청자 지시: "쓰레드는 500자에서 300자로 줄이자. 글이 너무 많다").
+  //    쓰레드는 원래 '한 가지만 흘리는' 채널이라 길면 톤 자체가 무너진다.
+  //    ⚠️ 여기만 고치면 안 된다 — `threadsCopy()`(규칙 기반)와 `channelRules()`(AI 프롬프트)의
+  //       숫자도 같이 본다. 세 곳이 어긋나면 경로마다 다른 길이가 나온다.
+  { id: 'threads', name: '쓰레드', icon: 'thread', hint: '짧은 대화체 · 300자 제한 · 질문형 마무리',
+    limit: 300, limitLabel: '최대 300자' },
 ];
 
 /** @param {ProductId} id */

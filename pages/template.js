@@ -419,7 +419,6 @@ function conceptCardHTML(c, checked) {
         <span class="concept__name">${c.name}</span>
         <span class="concept__desc">${c.desc}</span>
         <span class="concept__mood">${c.mood}</span>
-        <span class="concept__ref">참고 · ${c.ref}</span>
       </label>
     </div>`;
 }
@@ -544,15 +543,25 @@ function fieldHTML(f, value, conceptId) {
              aria-live="polite">${value.length} / ${f.max}자</span>`
     : '';
 
+  /**
+   * ⚠️ **자리 설명은 라벨 옆에 둔다** (2026-08-14, 요청자 지시).
+   *    예전에는 라벨 → 입력칸 → 설명 순이라 「계정 이름」과 「카드 맨 위 가운데」 사이를
+   *    입력칸이 갈라놓고 있었다. 무엇을 어디에 쓰는 칸인지 한 번에 안 읽혔다.
+   *    ⚠️ 세 템플릿이 **모두 이 함수 하나**를 쓴다. 여기만 고치면 셋 다 바뀐다 —
+   *       템플릿별로 따로 만들지 말 것.
+   *    ⚠️ 노트형 본문처럼 설명이 긴 칸은 라벨 아래로 감긴다(`flex-wrap`). 그건 정상이다.
+   */
   return `
     <div class="field tpl-field">
       <div class="tpl-field__head">
-        <label class="field__label" for="f-${f.id}">${f.label}</label>
+        <span class="tpl-field__title">
+          <label class="field__label" for="f-${f.id}">${f.label}</label>
+          <span class="field__hint field__hint--inline" id="h-${f.id}">${f.hint}</span>
+        </span>
         ${counter}
       </div>
       ${control}
       ${tools}
-      <p class="field__hint" id="h-${f.id}">${f.hint}</p>
     </div>`;
 }
 

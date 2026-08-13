@@ -57,7 +57,7 @@ export function render(root) {
 
         <ul class="channel-row channel-row--cols">
           ${PROFILE_TYPES.map((t) => `
-            <li>
+            <li class="channel-cell${t.id === 'awards' ? ' channel-cell--group' : ''}">
               <input class="sr-only channel__input" type="radio" name="ptype" id="ptype-${t.id}"
                      value="${t.id}" autocomplete="off"
                      aria-label="${escAttr(t.label)} — ${escAttr(t.desc)}"
@@ -110,14 +110,19 @@ export function render(root) {
  * ⚠️ **litt.ly 주소를 여기에 다시 붙이지 말 것** (요청자 지적 2026-08-11).
  *    브랜드를 고르는 자리에 주소가 왜 나오는지 읽는 사람이 알 수 없다.
  *    주소는 아래 링크 칸에서만 다룬다. 칩의 `title`·`aria-label` 에도 넣지 않는다.
+ *
+ * ⚠️ **「어느 브랜드인가요?」 라벨을 다시 넣지 말 것** (요청자 지시 2026-08-14).
+ *    칩이 어워즈 칸 **안에** 들어가 있으므로 무엇을 고르는 자리인지는 칸이 이미 말해 준다.
+ *    라벨을 넣으면 한 칸 안에 제목이 둘이 되고 칸만 길어진다.
+ *    ⚠️ 라벨을 없앤다고 `role="radiogroup"` 까지 없애면 안 된다 — 스크린리더에는 묶음 이름이
+ *       있어야 한다. 화면에 안 보이는 `aria-label` 로 남긴다.
  */
 function brandHTML(profile) {
   if (profile?.typeId !== 'awards') return '';
   return `
     <div class="brandpick">
-      <p class="brandpick__label" id="pbrand-label">어느 브랜드인가요?</p>
       <!-- 한 줄짜리 칩으로 둔다. 예전에는 4개가 큰 카드로 세로로 쌓여 화면을 다 먹었다. -->
-      <div class="pickrow" role="radiogroup" aria-labelledby="pbrand-label">
+      <div class="pickrow" role="radiogroup" aria-label="어느 브랜드인가요?">
         ${AWARD_BRANDS.map((b) => `
           <input class="sr-only pick__input" type="radio" name="pbrand" id="pbrand-${b.id}"
                  value="${b.id}" autocomplete="off" aria-label="${escAttr(b.label)}"
