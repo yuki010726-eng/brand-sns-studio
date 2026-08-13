@@ -6,7 +6,7 @@ import { icon } from '../assets/icons.js';
 import { CHANNELS, BANNED_PHRASES, getProduct } from '../data/products.js';
 import { stepperHTML, bindStepper } from '../components/stepper.js';
 import { getState, setState, navigate, draftKeyOf } from '../store.js';
-import { findBanned, TONE_LABEL, IMAGE_PLAN, HEAD_MARK } from '../lib/copywriter.js';
+import { findBanned, TONE_LABEL, IMAGE_PLAN, HEAD_MARK, bodyLength } from '../lib/copywriter.js';
 import { generateWithAI, promptKeyOf } from '../lib/copyai.js';
 import { coreWithOutline, outlineKeyOf } from '../lib/outline.js';
 import {
@@ -263,6 +263,26 @@ function bindAibar(root) {
 
 /* ---------------- 패널 ---------------- */
 
+/**
+ * 글자 수 표시 — **블로그는 「본문」과 「전체」를 나눠 보여준다** (2026-08-14, 요청자 지시).
+ *
+ * 실측: 1,138자짜리 글에서 실제 읽을 본문은 570자(50%)였다. 나머지는 📷 이미지 자리,
+ * ⤷ 캡션, 🔔 개요표, 해시태그 — **붙여넣고 나면 이미지로 바뀌거나 지워지는 줄**이다.
+ * 한 숫자만 보여주면 글이 충분한지 얇은지 판단할 수가 없다.
+ *
+ * ⚠️ 상한(`c.limit`) 판정은 **전체 기준 그대로** 둔다. 그건 붙여넣기 전 글 전체의 안전망이다.
+ * ⚠️ **블로그에서만 나눈다.** 사라지는 줄(📷·⤷)이 있는 채널이 블로그뿐이다.
+ *    인스타의 해시태그는 붙여넣으면 그대로 남는 글이라 빼면 오히려 헷갈린다.
+ */
+function counterText(text, c) {
+  const total = text.length;
+  if (c.id !== 'blog') return `${total.toLocaleString()} / ${c.limit.toLocaleString()}자`;
+  const body = bodyLength(text);
+  return body === total
+    ? `${total.toLocaleString()} / ${c.limit.toLocaleString()}자`
+    : `본문 ${body.toLocaleString()}자 · 전체 ${total.toLocaleString()} / ${c.limit.toLocaleString()}자`;
+}
+
 function panelHTML() {
   const s = getState();
   const c = CHANNELS.find((x) => x.id === activeTab);
@@ -270,6 +290,7 @@ function panelHTML() {
   const banned = findBanned(text, BANNED_PHRASES);
   const over = text.length > c.limit;
   const edited = s.drafts[activeTab] !== s.generated[activeTab];
+
 
   return `
     <div class="panel card" role="tabpanel" id="panel-${c.id}" aria-labelledby="tab-${c.id}" tabindex="0">
@@ -283,7 +304,7 @@ function panelHTML() {
         <div class="panel__tools">
           <output class="counter${over ? ' counter--over' : ''}" id="counter"
                   for="draft-${c.id}" aria-live="polite">
-            ${text.length.toLocaleString()} / ${c.limit.toLocaleString()}자
+            ${counterText(text, c)}
           </output>
           <button type="button" class="btn btn--ghost btn--sm" id="view-toggle"
                   aria-pressed="${readMode}"
@@ -798,7 +819,7 @@ function updateCounter(root, ta) {
   const over = ta.value.length > c.limit;
   const counter = root.querySelector('#counter');
   if (counter) {
-    counter.textContent = `${ta.value.length.toLocaleString()} / ${c.limit.toLocaleString()}자`;
+    counter.textContent = counterText(ta.value, c);
     counter.classList.toggle('counter--over', over);
   }
   const warn = root.querySelector('#warn-slot');
