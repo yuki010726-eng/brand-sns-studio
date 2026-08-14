@@ -1067,6 +1067,108 @@ body.is-login-page .site-footer { display: none; }
    ============================================================ */
 .profile-draft { display: flex; flex-direction: column; gap: var(--gap); padding: 20px; }
 
+/* ---- 좌측 인스타 미리보기 + 우측 입력칸 (요청자 지시 2026-08-14) ----
+   4단계(.tpl-editor)와 같은 구조다 — 왼쪽은 따라오는 미리보기, 오른쪽은 입력.
+   ⚠️ 미리보기 열에 `min-width: 0` 이 없으면 긴 소개 줄이 열을 밀어 오른쪽 폼을 좁힌다. */
+.profile-editor {
+  display: grid;
+  grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
+  gap: var(--gap);
+  align-items: start;
+}
+.profile-stage {
+  position: sticky;
+  top: calc(var(--header-h) + var(--gap));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.profile-stage__note { margin: 0; color: var(--sub-strong); font-size: 12px; line-height: 1.5; }
+
+@media (max-width: 900px) {
+  .profile-editor { grid-template-columns: 1fr; }
+  /* 좁은 화면에서 고정하면 미리보기가 입력칸을 계속 가린다 */
+  .profile-stage { position: static; }
+}
+
+/* ---- 인스타 프로필 흉내 ----
+   ⚠️ 실제 인스타 UI 를 그대로 베끼지 않는다. 배치만 같은 결로 두고 색은 우리 토큰을 쓴다.
+   ⚠️ 게시물·팔로워 수는 `—` 다. 없는 계정의 숫자를 지어내면 그 자체가 거짓 정보다. */
+.igp {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.igp--empty {
+  align-items: center;
+  justify-content: center;
+  min-height: 220px;
+  color: var(--sub-strong);
+  font-size: 14px;
+  text-align: center;
+}
+.igp--empty p { margin: 0; }
+.igp__bar { padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+.igp__handle { font-size: 15px; font-weight: 700; color: var(--ink); word-break: break-all; }
+.igp__top { display: flex; align-items: center; gap: 16px; }
+/* 인스타 아바타는 원형이고 40px 로도 뜬다 — 여기서도 원형으로 둔다(8-5 이미지 프롬프트와 같은 전제) */
+.igp__avatar {
+  flex: 0 0 auto;
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--fill);
+  border: 1px solid var(--border);
+  font-size: 26px;
+  font-weight: 900;
+  color: var(--ink);
+}
+.igp__stats { display: flex; flex: 1; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.igp__stats li {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.igp__stats strong { font-size: 15px; font-weight: 700; color: var(--ink); }
+.igp__stats span { font-size: 12px; color: var(--sub-strong); }
+.igp__name { margin: 0; font-size: 14px; font-weight: 700; color: var(--ink); }
+/* ⚠️ pre-line 이 이 미리보기의 핵심이다. 소개는 `。` 로 여백을 만드는 구조라(8-5)
+   줄바꿈이 살아 있어야 실제로 어떻게 보이는지 알 수 있다. */
+.igp__bio {
+  margin: 0;
+  white-space: pre-line;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text);
+  word-break: break-word;
+}
+.igp__link { margin: 0; font-size: 14px; font-weight: 600; color: var(--primary-dark); word-break: break-all; }
+.igp__actions { display: flex; gap: 6px; }
+.igp__btn {
+  flex: 1;
+  padding: 7px 0;
+  border-radius: var(--radius-md);
+  background: var(--cta-bg);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+.igp__btn--soft { background: var(--fill); color: var(--ink); }
+.igp__grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; }
+.igp__grid span { aspect-ratio: 1; background: var(--fill); border-radius: 2px; }
+
 /* litt.ly/ 접두사와 입력칸을 한 줄로 붙인다 — 주소 전체가 한눈에 보여야 한다 */
 .inline-field { display: flex; align-items: stretch; }
 .inline-field__prefix {

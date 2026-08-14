@@ -159,6 +159,14 @@ let dragging = null;
 let draftBox = null;
 /** 캔버스 반복 그리기를 rAF 로 한 프레임에 한 번만 하도록 묶는다(드래그는 pointermove 가 매우 잦다) */
 let paintScheduled = false;
+/**
+ * 바깥을 눌렀을 때 선택을 푸는 document 리스너.
+ *
+ * ⚠️ 오버레이(`#tpl-overlay`)는 `pointer-events: none` 이라 **손잡이 밖의 클릭이 오버레이에 닿지 않는다.**
+ *    그래서 여기서 문서 전체를 듣는다. 화면을 다시 그릴 때마다 이전 것을 반드시 떼어야
+ *    라우트를 오갈수록 리스너가 쌓인다(프로필 라디오에서 겪었던 것과 같은 실패다).
+ */
+let outsideTap = null;
 
 /* ---------------- 문구 상태 ---------------- */
 
@@ -1273,6 +1281,19 @@ function commitLayout(root, objId, box) {
   const previous = layout[active][objId] || {};
   let nextBox = { ...previous, ...box };
 
+  /**
+   * ⚠️ 위치·크기가 하나도 없는 오버라이드를 만들면 안 된다 (요청자 지적 2026-08-14 — "튕김").
+   *
+   * 드래그 없이 글자를 한 번 누르고 곧바로 「텍스트 크기」를 바꾸면 `applyLayoutInputs()` 가
+   * `{ fontSize }` 만 들고 온다. 그대로 저장하면 `layout[id]` 는 있는데 x·y 가 없는 상자가 되고,
+   * 렌더러의 `denorm()` 이 undefined 를 계산해 **NaN 좌표**가 나온다 — 글자가 엉뚱한 자리로 튄다.
+   * 지금 그려져 있는 자리(`lastBoxes()`)를 바닥값으로 깔아 둔다. 방향키 경로가 이미 하는 일과 같다.
+   */
+  const drawn = lastBoxes()[objId];
+  if (drawn && nextBox.x === undefined) {
+    nextBox = { x: drawn.x / W, y: drawn.y / H, w: drawn.w / W, h: drawn.h / H, ...nextBox };
+  }
+
   // 자동 배치 텍스트를 처음 옮기는 순간에도 현재 보이던 서체를 그대로 이어받는다.
   // 이 값이 없으면 위치 저장 직후 상자 맞춤 로직이 다시 돌아 글자가 갑자기 작아진다.
   if (obj?.type === 'text' && !nextBox.fontSize) {
@@ -1390,6 +1411,25 @@ function bindOverlay(root) {
     const grip = e.target.closest('.tpl-handle__grip');
     startDrag(root, e, handle.dataset.obj, grip?.dataset.grip || null);
   });
+
+  /**
+   * 다른 곳을 누르면 선택을 푼다 (요청자 지적 2026-08-14 — "파란색 표시가 계속 떠서 불편함").
+   * 예전에는 Esc 말고는 푸는 방법이 없어서, 한 번 고르면 파란 상자가 계속 남았다.
+   *
+   * ⚠️ 두 곳은 예외다. 여기서 풀면 기능이 죽는다.
+   *    - `.tpl-handle` — 손잡이·그립을 누른 것이니 선택을 유지해야 드래그가 된다.
+   *    - `#tpl-layout-slot` — 크기·굵기 입력칸이다. 누르는 순간 풀리면 값을 못 바꾼다.
+   */
+  outsideTap?.();
+  const onDocDown = (e) => {
+    if (!selectedObj) return;
+    if (e.target.closest?.('.tpl-handle')) return;
+    if (e.target.closest?.('#tpl-layout-slot')) return;
+    selectedObj = null;
+    syncOverlay(root);
+  };
+  document.addEventListener('pointerdown', onDocDown);
+  outsideTap = () => document.removeEventListener('pointerdown', onDocDown);
 
   // 마우스 없이도 옮길 수 있어야 한다 — 화살표로 미세 이동, Shift 로 크게, Esc 로 선택 해제
   overlay.addEventListener('keydown', (e) => {

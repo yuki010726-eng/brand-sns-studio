@@ -79,7 +79,15 @@ export function render(root) {
           <h2 id="sec-draft">2. 이름 · 소개 · 프로필 이미지</h2>
           <p class="section__desc">인스타 제한에 맞춰 이름 ${LIMITS.name}자, 소개 ${LIMITS.bio}자 안에서 만듭니다.</p>
         </div>
-        <div id="draft-slot">${draftHTML(profile)}</div>
+        <div class="profile-editor">
+          <div class="profile-stage">
+            <div id="p-preview">${previewHTML(profile)}</div>
+            <p class="profile-stage__note">
+              인스타그램 프로필에서 보이는 모양을 흉내 낸 미리보기입니다. 실제 화면과는 다를 수 있어요.
+            </p>
+          </div>
+          <div id="draft-slot">${draftHTML(profile)}</div>
+        </div>
       </section>
 
       <div class="flow-actions">
@@ -131,6 +139,64 @@ function brandHTML(profile) {
         `).join('')}
       </div>
     </div>`;
+}
+
+/* ---------------- 인스타 프로필 미리보기 ---------------- */
+
+/**
+ * 왼쪽에 붙는 인스타그램 느낌의 프로필 미리보기 (요청자 지시 2026-08-14 —
+ * "이름·소개·프로필, 좌측에 미리 보기 세팅. 계정 세팅 시 시각적으로 보여줌").
+ *
+ * 입력칸만 보고서는 30자·150자가 실제로 어떻게 보이는지 알 수 없다. 특히 소개는
+ * `。` 로 여백을 만드는 구조라(8-5) 줄바꿈이 살아 있는 화면에서 봐야 판단이 된다.
+ *
+ * ⚠️ **게시물·팔로워 수를 지어내지 않는다.** 아직 없는 계정이라 숫자를 채우면 거짓이 된다.
+ *    자리는 인스타 모양대로 두되 값은 `—` 로 비워 둔다.
+ * ⚠️ **소개는 `white-space: pre-line` 으로 그린다.** 줄바꿈이 이 화면의 존재 이유다.
+ * ⚠️ 이 함수는 `render()` 의 템플릿 리터럴 안에서 불린다. 파일 머리말 경고대로
+ *    여기에 HTML 주석과 백틱을 넣지 말 것.
+ */
+function previewHTML(profile) {
+  if (!profile) {
+    return `
+      <div class="igp igp--empty">
+        <p>유형을 고르면 여기에 프로필 미리보기가 나타납니다.</p>
+      </div>`;
+  }
+
+  const initial = (profile.name || '?').trim().charAt(0) || '?';
+  const handle = profile.slug || 'account';
+  const shownLink = String(profile.link || '').replace(/^https?:\/\//, '');
+
+  return `
+    <div class="igp">
+      <div class="igp__bar">
+        <span class="igp__handle">${esc(handle)}</span>
+      </div>
+      <div class="igp__top">
+        <span class="igp__avatar" aria-hidden="true">${esc(initial)}</span>
+        <ul class="igp__stats">
+          ${[['게시물', '—'], ['팔로워', '—'], ['팔로우', '—']].map(([label, value]) => `
+            <li><strong>${value}</strong><span>${label}</span></li>`).join('')}
+        </ul>
+      </div>
+      <p class="igp__name">${esc(profile.name)}</p>
+      <p class="igp__bio">${esc(profile.bio)}</p>
+      ${shownLink ? `<p class="igp__link">${esc(shownLink)}</p>` : ''}
+      <div class="igp__actions" aria-hidden="true">
+        <span class="igp__btn">팔로우</span>
+        <span class="igp__btn igp__btn--soft">메시지</span>
+      </div>
+      <div class="igp__grid" aria-hidden="true">
+        ${Array.from({ length: 6 }, () => '<span></span>').join('')}
+      </div>
+    </div>`;
+}
+
+/** 미리보기만 다시 그린다 — 입력칸을 건드리면 캐럿이 튄다 */
+function refreshPreview(root) {
+  const slot = root.querySelector('#p-preview');
+  if (slot) slot.innerHTML = previewHTML(getState().profile);
 }
 
 /* ---------------- 초안 ---------------- */
@@ -284,6 +350,7 @@ function remake(root, opts) {
   const brandSlot = root.querySelector('#brand-slot');
   if (brandSlot) brandSlot.innerHTML = brandHTML(getState().profile);
   refreshDraft(root);
+  refreshPreview(root);
   bindBrand(root);   // 브랜드 라디오만 새로 그려졌다 — 유형 라디오는 건드리지 않는다
 }
 
@@ -298,10 +365,12 @@ function bindDraft(root) {
   // 편집한 값은 그대로 저장한다. 화면을 다시 그리면 캐럿이 튀므로 여기서는 상태만 갱신한다.
   root.querySelector('#p-name')?.addEventListener('input', (e) => {
     setState({ profile: { ...s().profile, name: e.target.value } });
+    refreshPreview(root);
   });
 
   root.querySelector('#p-bio')?.addEventListener('input', (e) => {
     setState({ profile: { ...s().profile, bio: e.target.value } });
+    refreshPreview(root);
   });
 
   root.querySelector('#p-slug')?.addEventListener('input', (e) => {
@@ -313,6 +382,7 @@ function bindDraft(root) {
     // 주소를 따로 보여주던 줄은 화면에서 뺐다. `link` 는 「전체 복사」가 계속 쓰므로 상태에는 남긴다.
     const bioEl = root.querySelector('#p-bio');
     if (bioEl && bioEl.value !== bio) bioEl.value = bio;   // 캐럿이 슬러그 칸에 있으므로 안전하다
+    refreshPreview(root);
   });
 
   root.querySelector('#p-copy')?.addEventListener('click', () => {
