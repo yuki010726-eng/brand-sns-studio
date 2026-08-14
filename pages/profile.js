@@ -28,7 +28,7 @@ import { icon } from '../assets/icons.js';
 import { getState, setState, navigate } from '../store.js';
 import { toast } from '../components/toast.js';
 import {
-  PROFILE_TYPES, AWARD_BRANDS, LIMITS, LITTLY_SIGNUP,
+  PROFILE_TYPES, AWARD_BRANDS, MARKETER_STYLES, LIMITS, LITTLY_SIGNUP,
   buildProfile, littlySlug, littlyUrl, replaceLinkLine, needsPhoto,
 } from '../lib/profile.js';
 import { putImage, getImage, deleteImage, objectUrl } from '../lib/imagestore.js';
@@ -69,7 +69,7 @@ export function render(root) {
 
         <ul class="channel-row channel-row--cols">
           ${PROFILE_TYPES.map((t) => `
-            <li class="channel-cell${t.id === 'awards' ? ' channel-cell--group' : ''}">
+            <li class="channel-cell${t.id === 'awards' || t.id === 'marketer' ? ' channel-cell--group' : ''}">
               <input class="sr-only channel__input" type="radio" name="ptype" id="ptype-${t.id}"
                      value="${t.id}" autocomplete="off"
                      aria-label="${escAttr(t.label)} — ${escAttr(t.desc)}"
@@ -82,6 +82,7 @@ export function render(root) {
                 </span>
               </label>
               ${t.id === 'awards' ? `<div id="brand-slot">${brandHTML(profile)}</div>` : ''}
+              ${t.id === 'marketer' ? `<div id="marketer-style-slot">${marketerStyleHTML(profile)}</div>` : ''}
             </li>`).join('')}
         </ul>
       </section>
@@ -161,6 +162,27 @@ function brandHTML(profile) {
                  value="${b.id}" autocomplete="off" aria-label="${escAttr(b.label)}"
                  ${profile.brandId === b.id ? 'checked' : ''} />
           <label class="pick" for="pbrand-${b.id}">${esc(b.short)}</label>
+        `).join('')}
+      </div>
+    </div>`;
+}
+
+/**
+ * 마케터형 아바타 방식 선택 (심볼/인물) — 브랜드 칩과 같은 자리, 같은 패턴이다.
+ * 어워즈의 `brandHTML()` 을 그대로 본떴다 — 칩을 라디오 `<label>` 밖에 두는 이유,
+ * 라벨을 생략하고 `aria-label` 로만 이름을 남기는 이유가 전부 같다(위 `brandHTML` 주석 참고).
+ */
+function marketerStyleHTML(profile) {
+  if (profile?.typeId !== 'marketer') return '';
+  const current = profile.marketerStyle || 'symbol';
+  return `
+    <div class="brandpick">
+      <div class="pickrow" role="radiogroup" aria-label="아바타를 심볼로 만들까요, 인물로 만들까요?">
+        ${MARKETER_STYLES.map((m) => `
+          <input class="sr-only pick__input" type="radio" name="pmstyle" id="pmstyle-${m.id}"
+                 value="${m.id}" autocomplete="off" aria-label="${escAttr(m.label)} — ${escAttr(m.desc)}"
+                 ${current === m.id ? 'checked' : ''} />
+          <label class="pick" for="pmstyle-${m.id}">${esc(m.label)}</label>
         `).join('')}
       </div>
     </div>`;
@@ -328,7 +350,7 @@ function draftHTML(profile) {
  *    `api/` 를 배포 안 하면서도 남겨 둔 것과 같은 판단이다.
  */
 function imageHTML(profile) {
-  const photo = needsPhoto(profile.typeId);
+  const photo = needsPhoto(profile);
   const award = profile.typeId === 'awards';
   return `
     <div class="field">
@@ -353,7 +375,7 @@ function imageHTML(profile) {
  */
 function photoRowHTML() {
   const p = getState().profile;
-  const photo = p ? needsPhoto(p.typeId) : false;
+  const photo = p ? needsPhoto(p) : false;
   return `
     <div class="field" id="p-photo-row">
       <span class="field__label">${photo ? '얼굴 사진 올리기' : '만든 이미지 올려 보기'}</span>
@@ -403,11 +425,12 @@ function bindType(root) {
   root.querySelectorAll('input[name="ptype"]').forEach((el) => {
     el.addEventListener('change', () => {
       // 유형이 바뀌면 초안을 처음부터 다시 뽑는다 — 유형별로 구조가 완전히 다르다
-      remake(root, { typeId: el.value, brandId: AWARD_BRANDS[0].id, seed: 0 });
+      remake(root, { typeId: el.value, brandId: AWARD_BRANDS[0].id, marketerStyle: 'symbol', seed: 0 });
       toast('프로필 초안을 만들었습니다.');
     });
   });
   bindBrand(root);
+  bindMarketerStyle(root);
 }
 
 /** 브랜드 라디오 — `#brand-slot` 을 다시 그릴 때마다 함께 다시 묶는다 */
@@ -421,14 +444,28 @@ function bindBrand(root) {
   });
 }
 
+/** 마케터 아바타 방식 라디오 — `#marketer-style-slot` 을 다시 그릴 때마다 함께 다시 묶는다 */
+function bindMarketerStyle(root) {
+  root.querySelectorAll('input[name="pmstyle"]').forEach((el) => {
+    el.addEventListener('change', () => {
+      const s = getState();
+      // 방식만 갈아 끼운다 — 문장 조합(seed)은 그대로 둬야 비교가 된다
+      remake(root, { typeId: 'marketer', marketerStyle: el.value, seed: s.profileSeed ?? 0 });
+    });
+  });
+}
+
 /** 초안을 다시 만들고 화면을 맞춘다 */
 function remake(root, opts) {
   setState({ profile: buildProfile(opts), profileSeed: opts.seed });
   const brandSlot = root.querySelector('#brand-slot');
   if (brandSlot) brandSlot.innerHTML = brandHTML(getState().profile);
+  const styleSlot = root.querySelector('#marketer-style-slot');
+  if (styleSlot) styleSlot.innerHTML = marketerStyleHTML(getState().profile);
   refreshDraft(root);
   refreshPreview(root);
-  bindBrand(root);   // 브랜드 라디오만 새로 그려졌다 — 유형 라디오는 건드리지 않는다
+  bindBrand(root);          // 브랜드 라디오만 새로 그려졌다 — 유형 라디오는 건드리지 않는다
+  bindMarketerStyle(root);  // 마케터 방식 라디오도 마찬가지
 }
 
 function bindDraft(root) {
@@ -436,7 +473,10 @@ function bindDraft(root) {
 
   root.querySelector('#p-regen')?.addEventListener('click', () => {
     const p = s().profile;
-    remake(root, { typeId: p.typeId, brandId: p.brandId, seed: (s().profileSeed ?? 0) + 1 });
+    remake(root, {
+      typeId: p.typeId, brandId: p.brandId, marketerStyle: p.marketerStyle ?? 'symbol',
+      seed: (s().profileSeed ?? 0) + 1,
+    });
   });
 
   // 편집한 값은 그대로 저장한다. 화면을 다시 그리면 캐럿이 튀므로 여기서는 상태만 갱신한다.
