@@ -29,10 +29,22 @@ import { getState, setState, navigate } from '../store.js';
 import { toast } from '../components/toast.js';
 import {
   PROFILE_TYPES, AWARD_BRANDS, LIMITS, LITTLY_SIGNUP,
-  buildProfile, littlySlug, littlyUrl, replaceLinkLine,
+  buildProfile, littlySlug, littlyUrl, replaceLinkLine, needsPhoto,
 } from '../lib/profile.js';
+import { putImage, getImage, deleteImage, objectUrl } from '../lib/imagestore.js';
 
 export const title = '프로필 세팅';
+
+/**
+ * 미리보기 아바타에 쓸 이미지.
+ *
+ * ⚠️ **state 에 넣지 않는다.** 이미지 Blob 은 localStorage 에 안 들어가고(8-1 과 같은 이유),
+ *    `SYNCED_KEYS` 를 타면 실제 Blob 이 없는 기기에서 있다고 표시된다(11절 경고 그대로).
+ *    Blob 은 IndexedDB 에 두고 화면은 objectURL 만 들고 있는다.
+ * ⚠️ 계정은 하나뿐이라 키도 하나다. 카드 이미지(`imageKey`)와 섞이지 않게 이름을 따로 둔다.
+ */
+const AVATAR_KEY = 'profile-avatar';
+let avatarUrl = null;
 
 export function render(root) {
   const s = getState();
@@ -102,6 +114,19 @@ export function render(root) {
   bindDraft(root);
 
   root.querySelector('#go-home')?.addEventListener('click', () => navigate('/'));
+
+  /**
+   * 저장해 둔 아바타를 뒤늦게 얹는다. IndexedDB 는 비동기라 첫 렌더를 기다리게 하지 않는다 —
+   * 기다리면 이미지 하나 때문에 화면 전체가 늦게 뜬다.
+   */
+  if (!avatarUrl) {
+    getImage(AVATAR_KEY).then((blob) => {
+      if (!blob || !root.querySelector('#p-preview')) return;
+      avatarUrl = objectUrl(blob);
+      refreshPreview(root);
+      refreshPhotoRow(root);
+    }).catch(() => { /* 저장소가 막힌 환경이면 아바타 없이 간다 */ });
+  }
 }
 
 /* ---------------- 브랜드 선택 (어워즈형 전용) ---------------- */
@@ -168,13 +193,22 @@ function previewHTML(profile) {
   const handle = profile.slug || 'account';
   const shownLink = String(profile.link || '').replace(/^https?:\/\//, '');
 
+  /**
+   * 올린 사진이 있으면 그것을 아바타 자리에 그대로 넣는다 (요청자 지시 2026-08-14 —
+   * "사진 업로드해서 프로필 이미지가 이런 느낌으로 나온다고 보여주도록").
+   * 없으면 이름 첫 글자를 쓴다.
+   */
+  const avatar = avatarUrl
+    ? `<img class="igp__avatar igp__avatar--photo" src="${escAttr(avatarUrl)}" alt="올린 프로필 이미지 미리보기" />`
+    : `<span class="igp__avatar" aria-hidden="true">${esc(initial)}</span>`;
+
   return `
     <div class="igp">
       <div class="igp__bar">
         <span class="igp__handle">${esc(handle)}</span>
       </div>
       <div class="igp__top">
-        <span class="igp__avatar" aria-hidden="true">${esc(initial)}</span>
+        ${avatar}
         <ul class="igp__stats">
           ${[['게시물', '—'], ['팔로워', '—'], ['팔로우', '—']].map(([label, value]) => `
             <li><strong>${value}</strong><span>${label}</span></li>`).join('')}
@@ -294,15 +328,58 @@ function draftHTML(profile) {
  *    `api/` 를 배포 안 하면서도 남겨 둔 것과 같은 판단이다.
  */
 function imageHTML(profile) {
+  const photo = needsPhoto(profile.typeId);
+  const award = profile.typeId === 'awards';
   return `
     <div class="field">
       <label class="field__label" for="p-img">프로필 이미지 프롬프트 (영문)</label>
-      <textarea class="textarea" id="p-img" rows="3" readonly>${esc(profile.imagePrompt)}</textarea>
+      <textarea class="textarea" id="p-img" rows="4" readonly>${esc(profile.imagePrompt)}</textarea>
       <p class="field__hint">
-        프롬프트를 복사해 이미지 도구에 붙여 쓰시면 됩니다.
-        정사각형 아바타 기준이고, 글자는 넣지 않습니다.
+        프롬프트를 복사해 이미지 도구에 붙여 쓰시면 됩니다. 정사각형 아바타 기준입니다.
+        ${photo ? '<b>본인 얼굴 사진을 함께 첨부</b>해야 이 프롬프트가 제 일을 합니다.' : ''}
+        ${award ? '엠블럼에 <b>글자가 들어갑니다</b> — 만든 뒤 철자가 맞는지 꼭 눈으로 확인해 주세요. 이미지 도구는 글자를 자주 틀립니다.' : ''}
+      </p>
+    </div>
+
+    ${photoRowHTML()}`;
+}
+
+/**
+ * 아바타 미리보기용 사진 올리기.
+ *
+ * ⚠️ **여기서 이미지를 만들지 않는다.** 이 앱은 이미지 API 를 쓰지 않는다(8절 결정).
+ *    올린 사진은 "프로필에 넣으면 이렇게 보인다"를 확인하는 용도다 — 프롬프트로 만든
+ *    결과물을 올려 봐도 되고, 사진형이면 넣을 얼굴 사진을 올려 봐도 된다.
+ */
+function photoRowHTML() {
+  const p = getState().profile;
+  const photo = p ? needsPhoto(p.typeId) : false;
+  return `
+    <div class="field" id="p-photo-row">
+      <span class="field__label">${photo ? '얼굴 사진 올리기' : '만든 이미지 올려 보기'}</span>
+      <div class="keybar__actions">
+        <label class="btn btn--soft btn--sm" for="p-photo">
+          ${icon('image', 'icon--sm')} 파일 선택
+          <input class="sr-only" type="file" id="p-photo" accept="image/*" />
+        </label>
+        ${avatarUrl ? `
+          <button type="button" class="btn btn--text btn--sm" id="p-photo-clear"
+                  aria-label="올린 이미지 지우기">지우기</button>` : ''}
+      </div>
+      <p class="field__hint">
+        ${avatarUrl
+          ? '왼쪽 미리보기의 프로필 자리에 적용했습니다. 실제 인스타에서도 원형으로 잘립니다.'
+          : '올리면 왼쪽 미리보기의 프로필 자리에 바로 넣어 드립니다. 이 기기에만 저장되고 계정에 올라가지는 않습니다.'}
       </p>
     </div>`;
+}
+
+/** 사진 줄만 다시 그린다 — 폼 전체를 다시 그리면 입력 중이던 캐럿이 튄다 */
+function refreshPhotoRow(root) {
+  const row = root.querySelector('#p-photo-row');
+  if (!row) return;
+  row.outerHTML = photoRowHTML();
+  bindPhoto(root);
 }
 
 function refreshDraft(root) {
@@ -397,6 +474,37 @@ function bindDraft(root) {
 
   root.querySelector('#p-copy-img')?.addEventListener('click', () => {
     copyText(s().profile.imagePrompt, '이미지 프롬프트를 복사했습니다.');
+  });
+
+  bindPhoto(root);
+}
+
+function bindPhoto(root) {
+  root.querySelector('#p-photo')?.addEventListener('change', async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { toast('이미지 파일만 올릴 수 있습니다.'); return; }
+    try {
+      await putImage(AVATAR_KEY, file);
+      avatarUrl = objectUrl(file);
+      refreshPreview(root);
+      refreshPhotoRow(root);
+      toast('미리보기에 적용했습니다.');
+    } catch {
+      // 저장이 막혀도 이번 화면에서는 보여 준다 — 새로고침하면 사라진다는 것만 알린다
+      avatarUrl = objectUrl(file);
+      refreshPreview(root);
+      refreshPhotoRow(root);
+      toast('미리보기에만 적용했습니다. 저장에 실패해 새로고침하면 사라집니다.');
+    }
+  });
+
+  root.querySelector('#p-photo-clear')?.addEventListener('click', async () => {
+    avatarUrl = null;
+    try { await deleteImage(AVATAR_KEY); } catch { /* 지우기 실패는 화면을 막지 않는다 */ }
+    refreshPreview(root);
+    refreshPhotoRow(root);
+    toast('올린 이미지를 지웠습니다.');
   });
 }
 

@@ -232,8 +232,11 @@ body.is-login-page .site-footer { display: none; }
   유형 선택 가로 배치 (2026-08-13, 요청자 지시 — 세로로 쌓으니 칸이 너무 길었다).
   ⚠️ 좁은 화면에서는 세로로 되돌린다. 3칸을 375px 에 밀어 넣으면 글자가 다 깨진다.
 */
-.channel-row--cols { flex-direction: row; align-items: stretch; gap: 10px; }
-.channel-row--cols > li { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; }
+/* ⚠️ 유형이 3개에서 4개가 됐다(마케터 심볼·사진 분리, 2026-08-14).
+   넷을 한 줄에 밀어 넣으면 좁은 화면에서 칸마다 글이 두세 줄로 접힌다.
+   wrap + min-width 로 자리가 모자라면 2×2 로 내려가게 둔다. */
+.channel-row--cols { flex-direction: row; align-items: stretch; gap: 10px; flex-wrap: wrap; }
+.channel-row--cols > li { flex: 1 1 190px; min-width: 190px; display: flex; flex-direction: column; }
 .channel-row--cols .channel { flex: 1; flex-direction: column; align-items: flex-start; }
 
 /*
@@ -690,6 +693,17 @@ body.is-login-page .site-footer { display: none; }
   background: rgba(49, 130, 246, 0.1);
 }
 .tpl-handle:focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; }
+/* 편집 영역 밖을 누른 뒤 — 점선을 감춘다 (요청자 지적 2026-08-14 "파란 점점점이 시야에 방해").
+   ⚠️ `display:none` 이 아니라 색만 지운다. 클릭은 그대로 받아야 미리보기를 눌러 다시 켤 수 있다.
+   ⚠️ 키보드 포커스는 예외로 살려 둔다 — 안 그러면 Tab 으로 옮길 때 어디에 있는지 알 수 없다. */
+.tpl-stage__overlay.is-idle .tpl-handle:not(:focus-visible) {
+  border-color: transparent;
+  background: transparent;
+}
+.tpl-stage__overlay.is-idle .tpl-handle:not(:focus-visible):hover {
+  border-color: rgba(49, 130, 246, 0.45);
+  background: rgba(49, 130, 246, 0.06);
+}
 /* 이름은 평소엔 숨어 있다가 상자를 누른 순간에만 잠깐 떴다 사라진다(요청자 지시 2026-08-11) —
    상자가 많을 때 이름이 전부 떠 있으면 미리보기가 지저분해 보인다는 지적이었다.
    ⚠️ opacity 만으로 껐다 켜면 요소가 다시 그려질 때(re-render) 트랜지션이 못 걸린다 —
@@ -1131,6 +1145,13 @@ body.is-login-page .site-footer { display: none; }
   font-weight: 900;
   color: var(--ink);
 }
+/* 올린 사진 — 인스타와 같이 원형으로 잘라서 보여준다.
+   ⚠️ object-fit: cover 가 없으면 세로 사진이 찌그러져서 "이렇게 보인다"가 거짓말이 된다. */
+.igp__avatar--photo {
+  object-fit: cover;
+  object-position: center top;   /* 증명사진은 얼굴이 위쪽에 있다 */
+  padding: 0;
+}
 .igp__stats { display: flex; flex: 1; gap: 4px; margin: 0; padding: 0; list-style: none; }
 .igp__stats li {
   flex: 1;
@@ -1145,11 +1166,14 @@ body.is-login-page .site-footer { display: none; }
 .igp__name { margin: 0; font-size: 14px; font-weight: 700; color: var(--ink); }
 /* ⚠️ pre-line 이 이 미리보기의 핵심이다. 소개는 `。` 로 여백을 만드는 구조라(8-5)
    줄바꿈이 살아 있어야 실제로 어떻게 보이는지 알 수 있다. */
+/* ⚠️ 소개는 이름·링크보다 한 단계 작다 (요청자 지적 2026-08-14 — "소개 글이 너무 커서 괴리감").
+   미리보기 카드 폭이 실제 인스타 화면보다 좁아서 같은 크기로 두면 글이 화면을 다 먹는다.
+   너무 줄이면 줄바꿈 확인이라는 이 미리보기의 목적이 사라지므로 13px 까지만 내린다. */
 .igp__bio {
   margin: 0;
   white-space: pre-line;
-  font-size: 14px;
-  line-height: 1.55;
+  font-size: 13px;
+  line-height: 1.5;
   color: var(--text);
   word-break: break-word;
 }

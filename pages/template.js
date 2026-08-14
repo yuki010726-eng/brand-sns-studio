@@ -167,6 +167,17 @@ let paintScheduled = false;
  *    라우트를 오갈수록 리스너가 쌓인다(프로필 라디오에서 겪었던 것과 같은 실패다).
  */
 let outsideTap = null;
+/**
+ * 편집 영역 밖을 눌러 손잡이를 통째로 감춘 상태 (요청자 지시 2026-08-14).
+ *
+ * 선택만 푸는 것으로는 부족했다 — `.tpl-handle` 은 선택 여부와 무관하게 **늘 파란 점선**이라
+ * 폼을 만지는 동안에도 미리보기가 점선으로 덮여 있었다("파란색 점점점이 시야에 방해된다").
+ * 그래서 미리보기·크기 패널 밖을 누르면 손잡이 자체를 안 보이게 한다.
+ *
+ * ⚠️ **손잡이를 없애지는 않는다.** 테두리만 투명해지고 클릭은 그대로 받는다.
+ *    지우면 다시 켤 방법이 없어져서 미리보기가 죽은 그림이 된다.
+ */
+let overlayIdle = false;
 
 /* ---------------- 문구 상태 ---------------- */
 
@@ -452,7 +463,7 @@ const usesImage = (conceptId, kind) => !(conceptId === 'card' && roleOf('card', 
  *    빈 배열을 돌려주므로 손잡이 자체가 안 뜬다. 왜 안 보이는지 헷갈리지 않게 안내한다.
  */
 function layoutHintHTML() {
-  return '미리보기 위 점선 상자를 드래그하면 위치·크기를 바꿀 수 있습니다. 상자를 누르면 이름이 잠깐 떴다 사라지고, 아래에서 숫자·글자 크기로도 조정할 수 있어요.';
+  return '미리보기 위 점선 상자를 드래그하면 위치·크기를 바꿀 수 있습니다. 상자를 누르면 이름이 잠깐 떴다 사라지고, 아래에서 숫자·글자 크기로도 조정할 수 있어요. 오른쪽 입력칸처럼 미리보기 밖을 누르면 점선이 사라지고, 미리보기를 다시 누르면 나타납니다.';
 }
 
 function imagePanelSlot() {
@@ -1241,6 +1252,8 @@ function syncOverlay(root) {
   if (selectedObj && !known.has(selectedObj)) selectedObj = null;
 
   overlay.innerHTML = objs.filter((o) => boxes[o.id]).map((o) => handleHTML(o, boxes[o.id])).join('');
+  // 편집 영역 밖을 만진 뒤에는 점선을 숨긴다. 클릭은 그대로 받으므로 미리보기를 누르면 다시 켜진다.
+  overlay.classList.toggle('is-idle', overlayIdle);
   refreshLayoutPanel(root);
 }
 
@@ -1422,10 +1435,24 @@ function bindOverlay(root) {
    */
   outsideTap?.();
   const onDocDown = (e) => {
-    if (!selectedObj) return;
-    if (e.target.closest?.('.tpl-handle')) return;
-    if (e.target.closest?.('#tpl-layout-slot')) return;
+    /**
+     * 편집 영역 = 미리보기(손잡이·캔버스)와 크기·굵기 패널.
+     * ⚠️ 캔버스까지 포함해야 한다. 상자를 감춘 뒤 다시 켜는 유일한 방법이 미리보기를 누르는 것이다.
+     * ⚠️ 크기 패널을 빼면 안 된다 — 값을 누르는 순간 선택이 풀려 입력 자체가 죽는다.
+     */
+    const inEditor = Boolean(
+      e.target.closest?.('.tpl-handle')
+      || e.target.closest?.('#tpl-canvas-wrap')
+      || e.target.closest?.('#tpl-layout-slot'),
+    );
+
+    if (inEditor) {
+      if (overlayIdle) { overlayIdle = false; syncOverlay(root); }
+      return;
+    }
+    if (!selectedObj && overlayIdle) return;   // 이미 정리된 상태면 다시 그리지 않는다
     selectedObj = null;
+    overlayIdle = true;
     syncOverlay(root);
   };
   document.addEventListener('pointerdown', onDocDown);
