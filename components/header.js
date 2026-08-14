@@ -94,19 +94,22 @@ function hasUnsavedPost(state) {
  * 예전에는 `clearLibraryEdit()` 만 해서 상품·주제·글귀·카드가 그대로 남았다.
  * 새로 만들려고 눌렀는데 앞 게시물이 남아 있으니 매번 손으로 지워야 했다.
  *
- * ⚠️ **저장하지 않은 내용이 있으면 반드시 물어본다.** 말없이 지우면 보관함에 담지 않은
- *    작업이 통째로 날아간다. 판단 기준은 로그아웃과 같은 `hasUnsavedPost()` 를 쓴다 —
- *    보관함에 이미 같은 내용이 들어 있으면 묻지 않고 바로 비운다.
+ * ⚠️ **만들던 내용이 있으면 저장 여부와 상관없이 한 번 물어본다** (요청자 지시 2026-08-14).
+ *    처음에는 `hasUnsavedPost()` 로 저장 안 한 경우에만 물었는데, 보관함에 담아 둔 게시물을
+ *    이어서 손보던 중에도 말없이 화면이 비워지는 건 마찬가지로 놀랄 일이다.
+ *    묻는 건 한 번뿐이고, 확인하면 전부 비운다.
+ *    ⚠️ 시작도 안 한 상태(상품·주제 둘 다 비었음)에서는 묻지 않는다 — 지울 것이 없다.
  * ⚠️ **프로필은 지우지 않는다.** `resetFlow()` 가 계정 정보를 건드리지 않는 이유와 같다.
+ * ⚠️ **보관함에 저장한 게시물은 지워지지 않는다.** 비우는 것은 지금 화면의 작업 상태뿐이다.
  */
 async function startNewPost(e) {
   e.preventDefault();
   const state = getState();
   const started = Boolean(state.productId) || Boolean(String(state.topic || '').trim());
 
-  if (started && hasUnsavedPost(state)) {
+  if (started) {
     const ok = await confirmModal(
-      '저장하지 않은 내용이 있습니다. 지우고 새로 시작할까요?',
+      '지금 만들던 내용을 모두 지우고 새로 시작할까요? 보관함에 저장한 게시물은 그대로 남습니다.',
       { title: '새 게시물 시작', okLabel: '새로 시작', cancelLabel: '취소' },
     );
     if (!ok) return;
