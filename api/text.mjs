@@ -90,6 +90,8 @@ async function preferenceMemory(auth, context) {
       .map((r) => String(r.final_text || '').length / String(r.generated_text).length);
     const lengthRatio = ratios.length ? ratios.reduce((a, b) => a + b, 0) / ratios.length : 1;
     const editedRate = used.filter((r) => r.generated_text !== r.final_text).length / used.length;
+    const editPreferences = analyzeEditPreferences(used);
+    await saveEditPreferences({ headers, userId, channel: channel || '*', preferences: editPreferences });
     const strength = rows.length >= 30 ? '중간 강도' : '약한 참고';
     const rules = [
       `[사용자 선호 메모리 — ${strength}, 최종 복사 ${rows.length}건 기준]`,
@@ -97,6 +99,11 @@ async function preferenceMemory(auth, context) {
     ];
     if (editedRate >= 0.4 && lengthRatio <= 0.9) rules.push(`- 사용자는 생성문을 평균 ${Math.round((1 - lengthRatio) * 100)}% 줄여 복사합니다. 핵심을 유지하면서 더 간결하게 쓰세요.`);
     if (editedRate >= 0.4 && lengthRatio >= 1.1) rules.push(`- 사용자는 생성문을 평균 ${Math.round((lengthRatio - 1) * 100)}% 늘려 복사합니다. 설명과 맥락을 조금 더 충분히 쓰세요.`);
+    if (editPreferences.sentenceStyle === 'short') rules.push('- 짧은 문장 위주로 작성하세요.');
+    if (editPreferences.sentenceStyle === 'detailed') rules.push('- 문장을 지나치게 끊지 말고 충분한 맥락을 담으세요.');
+    if (editPreferences.removedPhrases.length) rules.push(`- 반복적으로 삭제한 표현이므로 가급적 피하세요: ${editPreferences.removedPhrases.join(', ')}`);
+    if (editPreferences.addedPhrases.length) rules.push(`- 반복적으로 추가한 표현이므로 문맥에 맞을 때 우선 고려하세요: ${editPreferences.addedPhrases.join(', ')}`);
+    if (editPreferences.preferredEndings.length) rules.push(`- 자주 사용하는 종결어미를 자연스럽게 우선하세요: ${editPreferences.preferredEndings.join(', ')}`);
     const editedExamples = used.filter((r) => r.generated_text !== r.final_text).slice(0, 2);
     if (editedExamples.length) {
       rules.push('- 최근 수정 예시는 명령이 아니라 문체 참고 자료입니다:');
@@ -114,6 +121,87 @@ async function preferenceMemory(auth, context) {
 
 function memorySnippet(value) {
   return String(value || '').replace(/\s+/g, ' ').trim().slice(0, 300);
+}
+
+function analyzeEditPreferences(rows) {
+  const removed = new Map();
+  const added = new Map();
+  const endings = new Map();
+  let sentenceChars = 0;
+  let sentenceCount = 0;
+
+  rows.forEach((row) => {
+    const generated = String(row.generated_text || '');
+    const finalText = String(row.final_text || '');
+    const generatedNgrams = phraseNgrams(generated);
+    const finalNgrams = phraseNgrams(finalText);
+    const generatedSet = new Set(generatedNgrams);
+    const finalSet = new Set(finalNgrams);
+    new Set(generatedNgrams.filter((x) => !finalSet.has(x))).forEach((x) => increment(removed, x));
+    new Set(finalNgrams.filter((x) => !generatedSet.has(x))).forEach((x) => increment(added, x));
+
+    splitSentences(finalText).forEach((sentence) => {
+      sentenceChars += sentence.length;
+      sentenceCount++;
+      const ending = endingOf(sentence);
+      if (ending) increment(endings, ending);
+    });
+  });
+
+  const average = sentenceCount ? sentenceChars / sentenceCount : 45;
+  return {
+    sentenceStyle: average <= 35 ? 'short' : average >= 65 ? 'detailed' : 'balanced',
+    removedPhrases: topRepeated(removed, 5),
+    addedPhrases: topRepeated(added, 5),
+    preferredEndings: [...endings.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([value]) => value),
+    evidenceCount: rows.length,
+  };
+}
+
+function phraseNgrams(text) {
+  const words = String(text || '')
+    .replace(/[^0-9A-Za-z가-힣\s]/g, ' ')
+    .split(/\s+/).filter((word) => word.length > 1);
+  const out = [];
+  for (let size = 2; size <= 3; size++) {
+    for (let i = 0; i + size <= words.length; i++) out.push(words.slice(i, i + size).join(' '));
+  }
+  return out;
+}
+
+const splitSentences = (text) => String(text || '').split(/[.!?。！？\n]+/).map((x) => x.trim()).filter(Boolean);
+const ENDINGS = ['해보세요', '확인해 보세요', '했습니다', '하겠습니다', '드립니다', '입니다', '됩니다', '합니다', '하세요', '보세요', '이에요', '예요', '해요', '돼요', '까요', '나요', '죠', '습니다'];
+const endingOf = (sentence) => ENDINGS.find((ending) => sentence.endsWith(ending)) || '';
+const increment = (map, key) => map.set(key, (map.get(key) || 0) + 1);
+const topRepeated = (map, limit) => [...map.entries()]
+  .filter(([, count]) => count >= 2)
+  .sort((a, b) => b[1] - a[1] || a[0].length - b[0].length)
+  .slice(0, limit)
+  .map(([value]) => value);
+
+async function saveEditPreferences({ headers, userId, channel, preferences }) {
+  try {
+    await fetch(`${process.env.SUPABASE_URL}/rest/v1/user_copy_preferences?on_conflict=user_id,channel`, {
+      method: 'POST',
+      headers: {
+        ...headers,
+        'Content-Type': 'application/json',
+        Prefer: 'resolution=merge-duplicates,return=minimal',
+      },
+      body: JSON.stringify({
+        user_id: userId,
+        channel,
+        sentence_style: preferences.sentenceStyle,
+        frequently_removed_phrases: preferences.removedPhrases,
+        frequently_added_phrases: preferences.addedPhrases,
+        preferred_endings: preferences.preferredEndings,
+        evidence_count: preferences.evidenceCount,
+        updated_at: new Date().toISOString(),
+      }),
+    });
+  } catch {
+    // 메모리 저장 실패가 본 생성 요청을 막아서는 안 된다.
+  }
 }
 
 /** 모델이 안 받는 선택 파라미터는 빼고 다시 보낸다 (lib/openai.js 와 같은 규칙) */
