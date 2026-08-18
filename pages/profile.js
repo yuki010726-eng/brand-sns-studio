@@ -53,18 +53,22 @@ export function render(root) {
   root.innerHTML = `
     <div class="container">
       <section class="hero">
-        <p class="hero__eyebrow">${icon('sparkles', 'icon--sm')} 인스타그램 계정 설정</p>
-        <h1>계정 프로필을 설정해 보세요</h1>
-        <p class="hero__sub">
-          유형을 고르면 이름·소개·프로필 이미지 초안을 만들어 드립니다.
-          마음에 안 들면 「다시 뽑기」를 누르시면 됩니다.
-        </p>
+        <div class="hero__title-row">
+          <h1>계정 프로필을 설정해 보세요</h1>
+          <span class="hero__info">
+            <button class="hero__info-button" type="button"
+                    aria-label="계정 프로필 설정 안내" aria-describedby="profile-hero-help">i</button>
+            <span class="hero__sub" id="profile-hero-help" role="tooltip">
+              유형을 고르면 이름·소개·프로필 이미지 초안을 만들어 드립니다.
+              마음에 들지 않을 경우 하단 「다시 뽑기」를 누르시면 됩니다.
+            </span>
+          </span>
+        </div>
       </section>
 
       <section class="section" aria-labelledby="sec-type">
         <div class="section__head">
           <h2 id="sec-type">1. 계정 유형</h2>
-          <p class="section__desc">계정 성격에 맞는 유형을 고르세요.</p>
         </div>
 
         <ul class="channel-row channel-row--cols">
@@ -90,7 +94,6 @@ export function render(root) {
       <section class="section" aria-labelledby="sec-draft">
         <div class="section__head">
           <h2 id="sec-draft">2. 이름 · 소개 · 프로필 이미지</h2>
-          <p class="section__desc">인스타 제한에 맞춰 이름 ${LIMITS.name}자, 소개 ${LIMITS.bio}자 안에서 만듭니다.</p>
         </div>
         <div class="profile-editor">
           <div class="profile-stage">

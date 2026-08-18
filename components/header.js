@@ -106,8 +106,11 @@ async function startNewPost(e) {
   e.preventDefault();
   const state = getState();
   const started = Boolean(state.productId) || Boolean(String(state.topic || '').trim());
+  const fromProfile = location.hash === '#/profile';
 
-  if (started) {
+  // 프로필은 게시물 작성 흐름 밖의 독립 탭이므로 새 게시물로 돌아갈 때는
+  // 초기화 확인을 다시 묻지 않고 바로 새 작성 화면을 연다.
+  if (started && !fromProfile) {
     const ok = await confirmModal(
       '지금 만들던 내용을 모두 지우고 새로 시작할까요? 보관함에 저장한 게시물은 그대로 남습니다.',
       { title: '새 게시물 시작', okLabel: '새로 시작', cancelLabel: '취소' },
