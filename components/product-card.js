@@ -5,7 +5,7 @@
 import { icon } from '../assets/icons.js';
 
 /**
- * @param {import('../data/products.js').PRODUCTS[number]} p
+ * @param {object} p
  * @param {boolean} checked
  */
 export function productCardHTML(p, checked) {

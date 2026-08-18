@@ -9,6 +9,7 @@ import { initAuth, onAuth, getUser } from './lib/auth.js';
 import { pull, applyRemote } from './lib/sync.js';
 import { setState } from './store.js';
 import { toast } from './components/toast.js';
+import { loadProducts } from './lib/products.js';
 import * as ProfilePage from './pages/profile.js';
 import * as HomePage from './pages/home.js';
 import * as CopyPage from './pages/copy.js';
@@ -102,10 +103,14 @@ function route() {
 // initAuth() 안에서도 onAuth 가 울리므로, 불러오기는 여기 한 곳에만 둔다 — 두 번 받지 않게.
 let restored = false;
 
-onAuth((user) => {
+onAuth(async (user) => {
   if (!authReady) return;
   route();
   if (user?.status !== 'approved') { restored = false; return; }
+
+  // 비로그인 상태로 앱을 연 뒤 로그인한 경우에도 이 시점에 상품 원본을 받는다.
+  await loadProducts();
+  route();
   if (restored) return;
   restored = true;
 
@@ -130,7 +135,9 @@ if (!location.hash) location.replace('#/');
  *    키가 있는데도 「키를 넣어 주세요」가 한 번 그려졌다가 바뀐다.
  *    설정 파일이 없거나 `/api` 가 없어도(로컬 실행) 실패하지 않는다(빈 값 · 로컬 모드로 진행).
  */
-Promise.all([loadLocalConfig(), initAuth(), detect()]).finally(() => {
+Promise.all([loadLocalConfig(), initAuth(), detect()]).finally(async () => {
+  // products RLS는 로그인 세션과 승인 상태를 확인하므로 인증 복구 뒤에 읽는다.
+  await loadProducts();
   authReady = true;
   route();
 });

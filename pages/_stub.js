@@ -5,7 +5,7 @@
  */
 import { icon } from '../assets/icons.js';
 import { stepperHTML, bindStepper } from '../components/stepper.js';
-import { getProduct } from '../data/products.js';
+import { getProduct } from '../lib/products.js';
 import { getState, navigate } from '../store.js';
 
 /**

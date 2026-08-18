@@ -180,6 +180,9 @@ body.is-login-page .site-footer { display: none; }
 }
 .product-card__handle { font-size: 12px; color: var(--sub-strong); }
 
+/* 짧은 계정명의 마지막 카드도 앞 카드들과 같은 두 줄 하단 배치를 유지한다. */
+.product-card:last-child .product-card__handle { flex-basis: 100%; }
+
 .product-card__input:checked + .product-card__body {
   border-color: var(--select-panel-border);
   box-shadow: inset 0 0 0 1px var(--select-panel-border);
@@ -489,6 +492,18 @@ body.is-login-page .site-footer { display: none; }
   font-weight: 700;
 }
 .preview > * + .preview__tags { margin-top: var(--flow-lg); }
+
+.blog-editor { overflow: hidden; border: 1px solid var(--border); border-radius: 16px; background: #fff; box-shadow: 0 12px 36px rgba(25, 31, 40, .06); }
+.blog-editor__toolbar { display: flex; gap: 4px; padding: 9px 16px; border-block: 1px solid var(--border); background: #fafbfc; position: sticky; top: 0; z-index: 1; }
+.blog-editor__toolbar button { padding: 7px 11px; border: 0; border-radius: 7px; background: transparent; color: var(--text); font-size: 13px; font-weight: 700; cursor: pointer; }
+.blog-editor__toolbar button:hover { background: var(--fill); }
+.blog-editor__body { display: block; width: 100%; min-height: 420px; padding: 36px 40px 52px; border: 0; outline: 0; resize: none; background: #fff; font-family: Georgia, 'Noto Sans KR', serif; font-size: 16px; line-height: 2; color: var(--text); }
+
+@media (max-width: 640px) {
+  .blog-editor__toolbar { overflow-x: auto; }
+  .blog-editor__toolbar button { flex: 0 0 auto; }
+  .blog-editor__body { padding: 28px 20px 40px; }
+}
 
 /* AI 가 주제를 어떻게 읽었는지 — 주제 바로 아래 한 줄 (박스로 만들지 않는다) */
 .angle {

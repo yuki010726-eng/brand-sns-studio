@@ -3,10 +3,12 @@
  * 선택한 상품·주제·톤으로 채널별 추천 글귀를 만들고, 그 자리에서 편집·복사한다.
  */
 import { icon } from '../assets/icons.js';
-import { CHANNELS, BANNED_PHRASES, getProduct } from '../data/products.js';
+import { getProduct } from '../lib/products.js';
+import { CHANNELS } from '../data/channels.js';
+import { BANNED_PHRASES } from '../data/banned-phrases.js';
 import { stepperHTML, bindStepper } from '../components/stepper.js';
 import { getState, setState, navigate, draftKeyOf } from '../store.js';
-import { findBanned, TONE_LABEL, IMAGE_PLAN, HEAD_MARK, bodyLength } from '../lib/copywriter.js';
+import { findBanned, TONE_LABEL, HEAD_MARK, bodyLength } from '../lib/copywriter.js';
 import { generateWithAI, promptKeyOf } from '../lib/copyai.js';
 import { coreWithOutline, outlineKeyOf } from '../lib/outline.js';
 import {
@@ -71,9 +73,7 @@ export function render(root) {
       <section class="section">
         <div class="section__head">
           <h1>${hasAnyDraft ? '추천 글귀가 준비됐습니다' : '아래 조건으로 글귀를 만들어 보세요'}</h1>
-          <p class="section__desc">${hasAnyDraft
-            ? '그대로 써도 되고, 바로 고쳐 써도 됩니다. 복사 버튼을 누르면 클립보드에 담깁니다.'
-            : '「AI 생성」은 한 주제당 2번까지 AI 1 · AI 2 로 만들어 오가며 볼 수 있습니다.'}</p>
+          <p>AI 생성은 주제 및 채널 별 2개씩 생성할 수 있습니다. </p>
         </div>
 
         <!--
@@ -85,17 +85,22 @@ export function render(root) {
         <div class="ctxbar card">
           <dl class="ctxbar__list">
             <div><dt>상품</dt><dd>${esc(p.name)}</dd></div>
-            <div><dt>주제</dt><dd>${esc(s.topic)}<span id="angle-slot">${angleHTML()}</span></dd></div>
+            <div><dt>주제</dt><dd>${esc(s.topic)}</dd></div>
             <div><dt>톤</dt><dd>${esc(toneLabel(s.tone))}</dd></div>
           </dl>
           <div class="ctxbar__actions">
             <a class="btn btn--ghost btn--sm" href="#/" aria-label="상품과 주제를 다시 선택하기">
               ${icon('arrowLeft', 'icon--sm')} 조건 수정
             </a>
+            <button type="button" class="btn btn--ghost btn--sm" id="ai-channel"
+                    ${channelAiDisabled(s, activeTab) ? 'disabled' : ''}
+                    aria-label="${CHANNELS.find((c) => c.id === activeTab).name} 채널만 AI로 생성하기">
+              ${icon('sparkles', 'icon--sm')} ${busyChannels.has(activeTab) ? '생성 중…' : '현재 채널만 AI 생성'}
+            </button>
             <button type="button" class="btn btn--sm" id="ai-all"
                     aria-label="${aiAllLabel(s)}"
                     ${aiAllDisabled(s) ? 'disabled' : ''}>
-              ${icon('sparkles', 'icon--sm')} AI 생성
+              ${icon('sparkles', 'icon--sm')} 전체 채널 AI 생성
             </button>
           </div>
         </div>
@@ -117,8 +122,6 @@ export function render(root) {
                 이 바를 지워도 그대로 보인다. 지우면서 그쪽까지 건드리지 말 것.
         -->
         ${isBuiltInKey() ? '' : `<div class="aibar card" id="aibar">${aibarHTML()}</div>`}
-        <div id="ai-status"></div>
-
         <!-- 채널 탭 -->
         <div class="tabs" role="tablist" aria-label="채널별 글귀">
           ${channels.map((c) => `
@@ -159,10 +162,12 @@ export function render(root) {
 
   root.querySelector('#ai-all')?.addEventListener('click', () => {
     if (!hasKey()) { toast('OpenAI 키가 없습니다. 설정에서 먼저 입력해 주세요.'); return; }
-    if (aiAllDisabled(getState())) { toast('이 주제로는 AI 글을 이미 2번 만들었습니다.'); return; }
+    if (aiAllDisabled(getState())) { toast('지금 생성할 수 있는 채널이 없습니다.'); return; }
     if (hasEdits() && !confirm('편집한 내용이 있습니다. 계속하면 지금 보이는 화면이 새 AI 글로 바뀝니다.')) return;
-    aiAll(root);
+    aiGenerate(root, getState().channels);
   });
+
+  bindChannelAi(root);
 
   bindAiRuns(root);
 
@@ -296,9 +301,8 @@ function panelHTML() {
     <div class="panel card" role="tabpanel" id="panel-${c.id}" aria-labelledby="tab-${c.id}" tabindex="0">
       <div class="panel__bar">
         <div class="panel__meta">
-          <span class="badge">${c.name}</span>
           <span class="panel__hint">${c.hint}</span>
-          ${s.sources[activeTab] === 'ai' ? `<span class="badge">${s.activeAiRun !== null ? `AI ${s.activeAiRun + 1}${josa(s.activeAiRun + 1)} 씀` : 'AI가 씀'}</span>` : ''}
+          ${s.sources[activeTab] === 'ai' ? `<span class="badge">${activeAiRunFor(s) !== null ? `AI ${activeAiRunFor(s) + 1}${josa(activeAiRunFor(s) + 1)} 씀` : 'AI가 씀'}</span>` : ''}
           ${edited ? '<span class="badge badge--neutral">편집됨</span>' : ''}
         </div>
         <div class="panel__tools">
@@ -318,20 +322,22 @@ function panelHTML() {
         </div>
       </div>
 
+      <div id="ai-status">${aiStatusHTML(c.id)}</div>
+
       ${readMode ? `
       <div class="preview" id="preview-${c.id}" tabindex="0" role="article"
            aria-label="${c.name} 글귀 미리보기">${previewHTML(text)}</div>
-      ` : `
+      ` : (c.id === 'blog' ? blogEditorHTML(text) : `
       <label class="sr-only" for="draft-${c.id}">${c.name} 글귀 편집</label>
       <textarea class="textarea draft" id="draft-${c.id}" data-draft="${c.id}"
                 spellcheck="false" autocomplete="off"
                 placeholder="위 「AI 생성」을 눌러 글귀를 만들어 주세요."
                 aria-describedby="limit-${c.id}">${esc(text)}</textarea>
-      `}
+      `)}
       <!-- ⚠️ 안내는 **한 줄**로만. 예전엔 글자 수·저장·이미지 배포 안내가 세 줄로 쌓여
            정작 봐야 할 글보다 안내가 더 눈에 들어왔다(요청자 지적 2026-08-12). -->
       <p class="field__hint" id="limit-${c.id}">
-        ${c.limitLabel} · ${readMode ? '고치려면 「고치기」' : '자동 저장됨'} · ${esc(IMAGE_PLAN[c.id] || '')}
+        ${c.limitLabel} · ${readMode ? '고치려면 「고치기」' : '자동 저장됨'}
       </p>
 
       <div id="warn-slot">${warnHTML(banned, over, c)}</div>
@@ -351,6 +357,24 @@ function panelHTML() {
  *    붙여넣은 결과와 미리보기가 어긋난다. 이미 글에 들어 있는 표시만 해석한다.
  */
 const SLOT_LINE = /^\s*📷\s*\[(이미지[^\]]*)\]\s*(.*)$/;
+
+function blogEditorHTML(text) {
+  // 예전 초안의 네모 표시는 편집기에 들어오는 순간 올바른 마크다운 제목으로 보여 준다.
+  const editableText = String(text || '').replace(/^\s*■\s+/gm, `${HEAD_MARK} `);
+  return `
+    <section class="blog-editor" aria-label="블로그 글 편집기">
+      <div class="blog-editor__toolbar" role="toolbar" aria-label="본문 서식">
+        <button type="button" data-blog-insert="heading">소제목</button>
+        <button type="button" data-blog-insert="quote">인용</button>
+        <button type="button" data-blog-insert="image">이미지</button>
+        <button type="button" data-blog-insert="rule">구분선</button>
+        <button type="button" data-blog-insert="tags">태그</button>
+      </div>
+      <label class="sr-only" for="draft-blog">블로그 본문 편집</label>
+      <textarea class="blog-editor__body" id="draft-blog" data-draft="blog" spellcheck="true"
+                placeholder="이야기를 시작해 보세요…" aria-describedby="limit-blog">${esc(editableText)}</textarea>
+    </section>`;
+}
 
 function previewHTML(text) {
   const raw = String(text || '').trim();
@@ -386,10 +410,11 @@ function previewHTML(text) {
     // 구분선
     if (/^─{2,}$/.test(s)) { flushAll(); out.push('<hr class="preview__rule">'); return; }
 
-    // 소제목
-    if (s.startsWith(`${HEAD_MARK} `)) {
+    // 소제목. 예전에 저장한 `■ 소제목`도 계속 같은 모양으로 보여 준다.
+    const headingMark = s.startsWith(`${HEAD_MARK} `) ? HEAD_MARK : (s.startsWith('■ ') ? '■' : '');
+    if (headingMark) {
       flushAll();
-      out.push(`<h3 class="preview__head">${esc(s.slice(HEAD_MARK.length).trim())}</h3>`);
+      out.push(`<h3 class="preview__head">${esc(s.slice(headingMark.length).trim())}</h3>`);
       return;
     }
 
@@ -467,22 +492,54 @@ function warnHTML(banned, over, c) {
 
 /* ---------------- AI 결과 버전 (AI 1 · AI 2) ---------------- */
 
-/** 지금 상품·주제·톤 조합에서 몇 벌까지 만들었는지 — 주제가 바뀌면 다시 0부터 센다 */
-function aiRunsFor(s) {
-  const key = outlineKeyOf(s);
-  return s.aiRuns?.key === key ? s.aiRuns.list : [];
+/**
+ * AI 생성 횟수의 지문. 생성 제한은 톤과 무관하게 상품·주제·채널별로 센다.
+ * 글의 내용/아웃라인 캐시는 계속 `outlineKeyOf()`로 톤까지 구분한다.
+ */
+const aiRunsKeyOf = (s) => `${s.productId}|${String(s.topic || '').trim()}`;
+
+/** 이전 버전의 `상품|주제|톤` 지문도 읽어 기존 생성 횟수가 사라지지 않게 한다. */
+function matchesAiRunsKey(storedKey, s) {
+  const key = aiRunsKeyOf(s);
+  return storedKey === key
+    || Object.keys(TONE_LABEL).some((tone) => storedKey === `${key}|${tone}`);
+}
+
+/** 지금 상품·주제 조합에서 채널별로 몇 벌까지 만들었는지 — 톤을 바꿔도 유지한다 */
+function aiRunEntries(s, channelId = activeTab) {
+  if (!matchesAiRunsKey(s.aiRuns?.key, s) || !Array.isArray(s.aiRuns.list)) return [];
+  return s.aiRuns.list
+    .map((run, index) => ({ run, index }))
+    .filter(({ run }) => Object.prototype.hasOwnProperty.call(run?.drafts || {}, channelId));
+}
+
+function aiRunsFor(s, channelId = activeTab) {
+  return aiRunEntries(s, channelId).map(({ run }) => run);
+}
+
+function activeAiRunFor(s, channelId = activeTab) {
+  return s.activeAiRun && typeof s.activeAiRun === 'object'
+    ? (s.activeAiRun[channelId] ?? null)
+    : s.activeAiRun;
 }
 
 const AI_RUN_LIMIT = 2;
 
 function aiAllDisabled(s) {
-  return !hasKey() || aiRunsFor(s).length >= AI_RUN_LIMIT;
+  return !hasKey()
+    || busyChannels.size > 0
+    || s.channels.some((id) => aiRunsFor(s, id).length >= AI_RUN_LIMIT);
+}
+
+function channelAiDisabled(s, channelId) {
+  return !hasKey() || busyChannels.has(channelId) || aiRunsFor(s, channelId).length >= AI_RUN_LIMIT;
 }
 
 function aiAllLabel(s) {
   if (!hasKey()) return 'OpenAI 키가 없어 AI 생성을 쓸 수 없습니다';
-  if (aiRunsFor(s).length >= AI_RUN_LIMIT) return '이 주제로는 AI 글을 이미 2번 만들었습니다';
-  return '2단계에서 고른 상품·주제·톤으로 AI가 세 채널 글을 쓰게 하기';
+  if (busyChannels.size) return '채널별 AI 생성이 진행 중이라 전체 채널 생성을 시작할 수 없습니다';
+  if (s.channels.some((id) => aiRunsFor(s, id).length >= AI_RUN_LIMIT)) return 'AI 2까지 생성한 채널이 있어 전체 채널 생성을 시작할 수 없습니다';
+  return '선택한 채널 중 아직 생성 가능한 모든 채널의 글을 한 번에 만들기';
 }
 
 /** AI 1 · AI 2 를 오가는 버튼 — 만든 적이 없으면(0벌) 아무것도 그리지 않는다 */
@@ -493,7 +550,7 @@ function aiRunsHTML() {
   return `
     <div class="ai-runs" role="group" aria-label="AI가 만든 글 버전 선택">
       ${runs.map((_, i) => `
-        <button type="button" class="chip" data-ai-run="${i}" aria-pressed="${s.activeAiRun === i}"
+        <button type="button" class="chip" data-ai-run="${i}" aria-pressed="${activeAiRunFor(s) === i}"
                 aria-label="AI가 ${i + 1}번째로 쓴 글 보기">
           AI ${i + 1}
         </button>`).join('')}
@@ -511,7 +568,7 @@ function refreshAiRuns(root) {
 function bindAiRuns(root) {
   root.querySelectorAll('[data-ai-run]').forEach((btn) => {
     btn.addEventListener('click', () => {
-      if (aiBusy) return;
+      if (busyChannels.has(activeTab)) return;
       switchAiRun(root, Number(btn.dataset.aiRun));
     });
   });
@@ -522,13 +579,12 @@ function switchAiRun(root, index) {
   const s = getState();
   const run = aiRunsFor(s)[index];
   if (!run) return;
-  const sources = {};
-  Object.keys(run.drafts).forEach((id) => { sources[id] = 'ai'; });
+  const id = activeTab;
   setState({
-    drafts: { ...run.drafts },
-    generated: { ...run.generated },
-    sources: { ...s.sources, ...sources },
-    activeAiRun: index,
+    drafts: { ...s.drafts, [id]: run.drafts[id] },
+    generated: { ...s.generated, [id]: run.generated[id] },
+    sources: { ...s.sources, [id]: 'ai' },
+    activeAiRun: { ...(typeof s.activeAiRun === 'object' && s.activeAiRun ? s.activeAiRun : {}), [id]: index },
   });
   refreshPanel(root);
   refreshAiRuns(root);
@@ -563,6 +619,24 @@ function selectTab(root, id) {
     t.tabIndex = on ? 0 : -1;
   });
   refreshPanel(root);
+  refreshAiRuns(root);
+  refreshAiControls(root);
+}
+
+function refreshAiControls(root) {
+  const s = getState();
+  const c = CHANNELS.find((channel) => channel.id === activeTab);
+  const channelBtn = root.querySelector('#ai-channel');
+  if (channelBtn && c) {
+    channelBtn.disabled = channelAiDisabled(s, c.id);
+    channelBtn.setAttribute('aria-label', `${c.name} 채널만 AI로 생성하기`);
+    channelBtn.innerHTML = `${icon('sparkles', 'icon--sm')} ${busyChannels.has(c.id) ? '생성 중…' : '현재 채널만 AI 생성'}`;
+  }
+  const allBtn = root.querySelector('#ai-all');
+  if (allBtn) {
+    allBtn.disabled = aiAllDisabled(s);
+    allBtn.setAttribute('aria-label', aiAllLabel(s));
+  }
 }
 
 function refreshPanel(root) {
@@ -581,6 +655,7 @@ function bindPanel(root) {
    *    예전 구조는 여기서 바로 return 했다 — 그대로 뒀으면 읽기 모드에서 복사가 죽는다.
    */
   const ta = root.querySelector('[data-draft]');
+  bindAiStatus(root);
 
   if (ta) {
     autoGrow(ta);
@@ -593,20 +668,47 @@ function bindPanel(root) {
     };
     window.addEventListener('resize', onResize);
 
-    ta.addEventListener('input', () => {
+    const draftValue = () => ta.value;
+
+    const saveDraft = () => {
       const s = getState();
       const id = ta.dataset.draft;
-      const patch = { drafts: { ...s.drafts, [id]: ta.value } };
+      const value = draftValue();
+      const patch = { drafts: { ...s.drafts, [id]: value } };
       // 지금 보고 있는 게 AI 1·AI 2 중 하나면, 그 벌에도 편집을 같이 남긴다.
       // 안 남기면 다른 벌로 갔다 돌아왔을 때 방금 고친 내용이 사라진다.
-      const runs = aiRunsFor(s);
-      if (s.activeAiRun !== null && runs[s.activeAiRun]) {
-        const list = runs.map((r, i) => (i === s.activeAiRun ? { ...r, drafts: { ...r.drafts, [id]: ta.value } } : r));
+      const activeRun = activeAiRunFor(s, id);
+      const entry = aiRunEntries(s, id)[activeRun];
+      if (activeRun !== null && entry) {
+        const list = s.aiRuns.list.map((r, i) => (i === entry.index ? { ...r, drafts: { ...r.drafts, [id]: value } } : r));
         patch.aiRuns = { ...s.aiRuns, list };
       }
       setState(patch);
       autoGrow(ta);
-      updateCounter(root, ta);
+      updateCounter(root, { value, dataset: ta.dataset });
+    };
+    ta.addEventListener('input', saveDraft);
+
+    root.querySelectorAll('[data-blog-insert]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const snippets = {
+          heading: `${HEAD_MARK} 소제목`, quote: '> 인용할 문장',
+          image: '📷 [이미지] 이미지 설명\n📝 캡션을 입력하세요',
+          rule: '────────', tags: '#키워드 #브랜드',
+        };
+        const snippet = snippets[button.dataset.blogInsert];
+        const start = ta.selectionStart;
+        const end = ta.selectionEnd;
+        const before = ta.value.slice(0, start);
+        const after = ta.value.slice(end);
+        const prefix = before && !before.endsWith('\n') ? '\n\n' : '';
+        const suffix = after && !after.startsWith('\n') ? '\n\n' : '';
+        ta.value = `${before}${prefix}${snippet}${suffix}${after}`;
+        const caret = before.length + prefix.length + snippet.length;
+        ta.setSelectionRange(caret, caret);
+        saveDraft();
+        ta.focus();
+      });
     });
   }
 
@@ -621,13 +723,26 @@ function bindPanel(root) {
     const id = e.currentTarget.dataset.copy;
     copyText(getState().drafts[id] || '', `${CHANNELS.find((c) => c.id === id).name} 글귀를 복사했습니다.`);
   });
+
+}
+
+function bindChannelAi(root) {
+  root.querySelector('#ai-channel')?.addEventListener('click', () => {
+    const id = activeTab;
+    const s = getState();
+    if (!hasKey()) { toast('OpenAI 키가 없습니다. 설정에서 먼저 입력해 주세요.'); return; }
+    if (channelAiDisabled(s, id)) return;
+    if (s.drafts[id] !== s.generated[id]
+      && !confirm('이 채널에 편집한 내용이 있습니다. 계속하면 새 AI 글로 화면이 바뀝니다.')) return;
+    aiGenerate(root, [id]);
+  });
 }
 
 /* ---------------- AI 생성 ---------------- */
 
-let aiBusy = false;
-/** 지금 도는 AI 세션 — 일시정지 · 취소 버튼이 이걸 조작한다. 없으면(=null) 아무것도 안 도는 것 */
-let aiSession = null;
+/** 채널별 생성 상태와 세션. 서로 다른 탭의 요청이 동시에 돌아도 취소·결과가 섞이지 않는다. */
+const busyChannels = new Set();
+const aiSessions = new Map();
 
 /**
  * AI 요청 하나(또는 한 묶음)의 진행을 조작하는 손잡이.
@@ -668,14 +783,19 @@ function makeAiSession() {
   };
 }
 
-function setAiBusy(root, on) {
-  aiBusy = on;
-  const aiAllBtn = root.querySelector('#ai-all');
-  if (aiAllBtn) {
-    aiAllBtn.disabled = on || aiAllDisabled(getState());
-    if (!on) aiAllBtn.setAttribute('aria-label', aiAllLabel(getState()));
-  }
-  root.querySelectorAll('[data-ai-run]').forEach((b) => { b.disabled = on; });
+function setAiBusy(root, channelIds, on, session = null) {
+  channelIds.forEach((id) => {
+    if (on) {
+      busyChannels.add(id);
+      aiSessions.set(id, session);
+    } else if (!session || aiSessions.get(id) === session) {
+      busyChannels.delete(id);
+      aiSessions.delete(id);
+    }
+  });
+  refreshAiControls(root);
+  root.querySelectorAll('[data-ai-run]').forEach((b) => { b.disabled = busyChannels.has(activeTab); });
+  refreshPanel(root);
 }
 
 /**
@@ -686,16 +806,16 @@ function setAiBusy(root, on) {
  *    처음 뽑은 글과 비교해 보고 싶다는 요구라 한 주제당 `AI_RUN_LIMIT`(2)까지만 쌓는다.
  *    실패한 채널은 지금 화면에 보이는 값을 그대로 새 벌에 담는다 — 나쁜 글로 덮어쓰지 않는다.
  */
-async function aiAll(root) {
-  if (aiBusy) return;
+async function aiGenerate(root, requestedIds) {
   const s0 = getState();
-  if (aiAllDisabled(s0)) return;
-  const picked = s0.channels;
-  const channels = CHANNELS.filter((c) => picked.includes(c.id));
+  const channels = CHANNELS.filter((c) => requestedIds.includes(c.id)
+    && s0.channels.includes(c.id)
+    && !busyChannels.has(c.id)
+    && aiRunsFor(s0, c.id).length < AI_RUN_LIMIT);
   if (!channels.length) return;
   const session = makeAiSession();
-  aiSession = session;
-  setAiBusy(root, true);
+  const channelIds = channels.map((c) => c.id);
+  setAiBusy(root, channelIds, true, session);
 
   /**
    * 이번이 몇 번째 벌인지 — AI 1 이면 0, AI 2 면 1.
@@ -704,24 +824,26 @@ async function aiAll(root) {
    *    `ensureOutline()` 이 캐시된 뼈대를 그대로 돌려줬고, 핵심 3가지·후킹·마무리가 통째로
    *    같은 채로 다시 써서 "두 번 돌려도 비슷한 글"이 나왔다(요청자 지적 2026-08-12).
    */
-  const round = aiRunsFor(s0).length;
+  const rounds = Object.fromEntries(channels.map((c) => [c.id, aiRunsFor(s0, c.id).length]));
+  const round = Math.max(0, ...Object.values(rounds));
 
   try {
     // 뼈대를 먼저 짠다. 세 채널이 같은 뼈대 위에서 써야 내용이 통일된다.
-    const outlineError = await ensureOutline(root, { round, session });
+    const { core, error: outlineError } = await ensureOutline(root, { round, session, channelIds });
     if (outlineError) {
       toast(`AI 주제 구성을 만들지 못했습니다 — ${outlineError}`, 5000);
       return;
     }
+    if (session.signal.aborted) throw new DOMException('Aborted', 'AbortError');
 
     const runningMessage = `AI가 ${channels.length}개 채널 글을 쓰고 있습니다… 30초쯤 걸립니다.`;
-    showAiStatus(root, runningMessage, session);
+    showAiStatus(root, channelIds, runningMessage, session);
     const results = await Promise.allSettled(channels.map((c) =>
-      generateWithAI(c.id, aiCtx(0, round), { signal: session.signal, waitIfPaused: session.waitIfPaused })));
+      generateWithAI(c.id, aiCtx(0, rounds[c.id], core), { signal: session.signal, waitIfPaused: session.waitIfPaused })));
 
     // 새 벌은 지금 화면 값에서 시작해, 성공한 채널만 AI 글로 바꾼다.
     const base = getState();
-    const runDrafts = { ...base.drafts };
+    const runDrafts = {};
     const runSources = { ...base.sources };
     let ok = 0;
     let cancelled = 0;
@@ -739,25 +861,33 @@ async function aiAll(root) {
       ok++;
     });
 
-    let runNo = 0;
+    let runSummary = '';
     if (ok) {
-      const key = outlineKeyOf(base);
-      const prevList = base.aiRuns?.key === key ? base.aiRuns.list : [];
+      const key = aiRunsKeyOf(base);
+      const prevList = matchesAiRunsKey(base.aiRuns?.key, base) ? base.aiRuns.list : [];
       const list = [...prevList, { drafts: { ...runDrafts }, generated: { ...runDrafts } }];
-      runNo = list.length;
+      runSummary = channels
+        .filter((c) => runDrafts[c.id] !== undefined)
+        .map((c) => `${c.name} AI ${rounds[c.id] + 1}`)
+        .join(' · ');
 
       // 성공한 채널만 방금 이 지문으로 썼다고 남긴다 — 안 남기면 다음에 들어올 때 또 부른다.
       const marked = { ...base.aiKey };
-      channels.forEach((c) => { if (runSources[c.id] === 'ai') marked[c.id] = promptKeyOf(c.id, base); });
+      channels.forEach((c) => {
+        if (Object.prototype.hasOwnProperty.call(runDrafts, c.id)) marked[c.id] = promptKeyOf(c.id, base);
+      });
 
       setState({
-        drafts: runDrafts,
-        generated: { ...runDrafts },
+        drafts: { ...base.drafts, ...runDrafts },
+        generated: { ...base.generated, ...runDrafts },
         sources: runSources,
         draftKey: draftKeyOf(base),
         aiKey: marked,
         aiRuns: { key, list },
-        activeAiRun: list.length - 1,
+        activeAiRun: {
+          ...(typeof base.activeAiRun === 'object' && base.activeAiRun ? base.activeAiRun : {}),
+          ...Object.fromEntries(channels.filter((c) => runDrafts[c.id] !== undefined).map((c) => [c.id, rounds[c.id]])),
+        },
       });
     }
 
@@ -765,16 +895,15 @@ async function aiAll(root) {
     refreshAiRuns(root);
     refreshAngle(root);
 
-    if (ok) toast(`AI ${runNo} — ${ok}개 채널 글을 새로 썼습니다.`);
+    if (ok) toast(`${runSummary} 글을 새로 썼습니다.`);
     if (cancelled) toast(`${cancelled}개 채널 생성을 취소했습니다.`);
   } catch (e) {
     // 아웃라인 단계에서 취소하면 채널 호출까지 가지 않고 여기로 곧장 떨어진다
     if (e.name === 'AbortError') toast('AI 생성을 취소했습니다.');
     else toast(`AI 생성 실패 · ${e.message}`, 5000);
   } finally {
-    setAiBusy(root, false);
-    showAiStatus(root, '');
-    aiSession = null;
+    setAiBusy(root, channelIds, false, session);
+    showAiStatus(root, channelIds, '');
   }
 }
 
@@ -782,13 +911,14 @@ async function aiAll(root) {
  * 진행 상황 한 줄 — 30초 넘게 걸려서 아무 표시가 없으면 멈춘 줄 안다.
  * `session` 을 넘기면 일시정지·취소 버튼을 같이 그린다.
  */
-function showAiStatus(root, message, session) {
-  const slot = root.querySelector('#ai-status');
-  if (!slot) return;
-  if (!message) { slot.innerHTML = ''; return; }
+const aiStatuses = new Map();
 
+function aiStatusHTML(channelId) {
+  const status = aiStatuses.get(channelId);
+  if (!status) return '';
+  const { message, session } = status;
   const paused = !!session?.paused;
-  slot.innerHTML = `
+  return `
     <div class="notice notice--info" role="status">
       <span class="spinner" aria-hidden="true"></span>
       <div>
@@ -805,12 +935,25 @@ function showAiStatus(root, message, session) {
           취소
         </button>` : ''}
     </div>`;
+}
 
+function bindAiStatus(root) {
+  const status = aiStatuses.get(activeTab);
+  if (!status) return;
+  const { message, session, channelIds } = status;
   root.querySelector('#ai-pause')?.addEventListener('click', () => {
     if (session.paused) session.resume(); else session.pause();
-    showAiStatus(root, message, session);
+    showAiStatus(root, channelIds, message, session);
   });
   root.querySelector('#ai-cancel')?.addEventListener('click', () => session.cancel());
+}
+
+function showAiStatus(root, channelIds, message, session = null) {
+  channelIds.forEach((id) => {
+    if (message) aiStatuses.set(id, { message, session, channelIds });
+    else if (!session || aiStatuses.get(id)?.session === session) aiStatuses.delete(id);
+  });
+  if (channelIds.includes(activeTab)) refreshPanel(root);
 }
 
 /** 카운터와 경고 문구만 갱신 — 입력 중 캐럿이 튀지 않도록 textarea 는 건드리지 않는다 */
@@ -843,9 +986,9 @@ function ctx(variant) {
  * AI 로 쓸 때 쓰는 ctx — **주제 뼈대를 함께 넘긴다.**
  * AI로 만든 뼈대가 있을 때만 채널 글을 생성한다.
  */
-function aiCtx(variant, round = 0) {
+function aiCtx(variant, round = 0, coreOverride = null) {
   const s = getState();
-  const core = s.outline?.key === outlineKeyOf(s) ? s.outline.core : null;
+  const core = coreOverride || (s.outline?.key === outlineKeyOf(s) ? s.outline.core : null);
   // round 는 채널 프롬프트의 '진입 방식'을 바꾼다 (lib/copyai.js 의 ROUND_OPENING)
   return { ...ctx(variant), core, round };
 }
@@ -860,9 +1003,11 @@ function aiCtx(variant, round = 0) {
  *
  * `session` 을 넘기면 이 단계에서도 일시정지·취소 버튼을 보여주고, 취소 시 AbortError 를
  * 그대로 던진다(`coreWithOutline` 이 이미 그렇게 한다) — 호출한 쪽이 잡아서 처리한다.
- * @returns {Promise<string|null>} 실패 사유 (성공하면 null)
+ * @returns {Promise<{core:object|null,error:string|null}>}
  */
-async function ensureOutline(root, { force = false, round = 0, session } = {}) {
+const outlineJobs = new Map();
+
+async function ensureOutline(root, { force = false, round = 0, session, channelIds = [] } = {}) {
   const s = getState();
   const key = outlineKeyOf(s);
   /**
@@ -870,18 +1015,28 @@ async function ensureOutline(root, { force = false, round = 0, session } = {}) {
    *    지문이 똑같다. 지문만 비교하면 캐시된 뼈대를 그대로 돌려주고, 그러면 AI 2 가
    *    AI 1 과 같은 내용을 말한다 — 요청자가 지적한 바로 그 증상이다.
    */
-  if (!force && s.outline?.key === key && (s.outline.round || 0) === round) return null;
+  if (!force && s.outline?.key === key && (s.outline.round || 0) === round) {
+    return { core: s.outline.core, error: null };
+  }
+
+  const jobKey = `${key}|r${round}`;
+  if (!force && outlineJobs.has(jobKey)) return outlineJobs.get(jobKey);
 
   // 직전 라운드의 소제목을 넘겨 **같은 구성을 다시 짜지 못하게** 한다.
   const avoid = (s.outline?.core?.points || []).map((x) => x.q).filter(Boolean);
 
-  showAiStatus(root, '주제를 어떻게 풀지 뼈대를 짜는 중입니다…', session);
-  const { core, error } = await coreWithOutline(
-    { ...ctx(0), round, avoid },
-    { signal: session?.signal, waitIfPaused: session?.waitIfPaused },
-  );
-  if (!error) setState({ outline: { key, round, core } });
-  return error;
+  showAiStatus(root, channelIds, '주제를 어떻게 풀지 뼈대를 짜는 중입니다…', session);
+  const job = coreWithOutline({ ...ctx(0), round, avoid })
+    .then(({ core, error }) => {
+      const latest = getState();
+      if (!error && (latest.outline?.key !== key || (latest.outline.round || 0) <= round)) {
+        setState({ outline: { key, round, core } });
+      }
+      return { core: error ? null : core, error };
+    })
+    .finally(() => outlineJobs.delete(jobKey));
+  outlineJobs.set(jobKey, job);
+  return job;
 }
 
 function hasEdits() {

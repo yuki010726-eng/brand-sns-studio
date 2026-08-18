@@ -108,7 +108,9 @@ styles/
   pages.css           페이지 레이아웃
 assets/icons.js       라인 아이콘 24x24 (stroke 1.5)
 assets/logos/         브랜드 로고 원본 — 프로필 이미지를 만들 때 AI 에 함께 넣는다 (README 참고)
-data/products.js      4개 상품 기준 정보 · 채널 정의 · 금지 표현
+data/channels.js      게시 채널 정의
+data/banned-phrases.js 공통 금지 표현
+lib/products.js       Supabase 상품 조회 · 앱 공용 상품 저장소
 lib/copywriter.js     채널별 글귀 생성기 + 금지 표현 검사 + 카드 6장 buildDeck()
 lib/concepts.js       템플릿 3종 정의 (스타일 지시어 · 색 · 강조 색상 후보)
 lib/templates.js      템플릿·장별 편집 슬롯 정의 (폼과 렌더러가 함께 본다)
@@ -282,7 +284,7 @@ http://localhost:5610/tools/bench.html
 
 ## 데이터 출처
 
-`data/products.js` 의 상품 정보는 바탕화면 `07_BRAND_INFORMATION.md`(기준일 2026-07-23)를 옮긴 것이다.
+Supabase의 상품 정보는 공식 브랜드 자료를 기준으로 관리한다.
 일정·접수 상태·금액은 게시 시점에 공식 자료로 다시 확인해야 하며, 상품별 `cautions` 배열의 표현 주의 사항을 화면에 항상 노출한다.
 
 ## API 키 취급 (중요)

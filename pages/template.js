@@ -11,7 +11,8 @@
  * 배경 이미지는 선택 사항이다. 3단계에서 만든 이미지가 있으면 쓰고, 없으면 기본 배경으로 그린다.
  */
 import { icon } from '../assets/icons.js';
-import { getProduct, BANNED_PHRASES } from '../data/products.js';
+import { getProduct } from '../lib/products.js';
+import { BANNED_PHRASES } from '../data/banned-phrases.js';
 import {
   CONCEPTS, ACCENTS, MARKS, CARD_THEMES, NOTE_SYMBOLS, NOTE_PAPERS, DEFAULT_NOTE_GRAIN,
   getConcept, getCardTheme, getMark, isHex, contrastWithWhite,
@@ -287,16 +288,22 @@ export function render(root) {
    *    예전에는 늘 규칙 기반이라 글귀를 새로 뽑아도 카드 문구가 그대로였다 — 요청자 지적.
    *    뼈대는 2단계에서 만들어 `state.outline` 에 담긴다.
    */
-  const core = s.outline?.key === outlineKeyOf(s) ? s.outline.core : null;
-  if (!core) {
+  const hasDraft = Object.values(s.drafts || {}).some((value) => String(value || '').trim());
+  if (!hasDraft) {
     toast('현재 주제로 AI 글을 먼저 생성해 주세요.');
     navigate('/copy');
     return;
   }
+  // Older library/sync snapshots can contain the generated channel drafts but
+  // not the outline that was added later. The drafts are the actual completion
+  // requirement; when their matching outline is unavailable, buildDeck() uses
+  // its deterministic core so the user can still continue to the template.
+  const core = s.outline?.key === outlineKeyOf(s) ? s.outline.core : null;
   deck = buildDeck({
     product: p, topic: s.topic.trim(), tone: s.tone,
     variant: s.image?.variant ?? 0, cardCount: s.cardCount,
     core,
+    allowRuleFallback: !core,
   });
   ensureTexts(p);
   if (active >= deck.length) active = 0;

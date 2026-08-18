@@ -3,7 +3,8 @@
  * 상품을 고르면 기준 정보 브리프가 열리고, 주제를 입력하면 2단계로 넘어간다.
  */
 import { icon } from '../assets/icons.js';
-import { PRODUCTS, getProduct, CHANNELS } from '../data/products.js';
+import { PRODUCTS, getProduct } from '../lib/products.js';
+import { CHANNELS } from '../data/channels.js';
 import { productCardHTML } from '../components/product-card.js';
 import { stepperHTML, bindStepper } from '../components/stepper.js';
 import { getState, setState, navigate } from '../store.js';
@@ -27,12 +28,8 @@ export function render(root) {
   root.innerHTML = `
     <div class="container">
       <section class="hero">
-        <p class="hero__eyebrow">${icon('sparkles', 'icon--sm')} 아이디어 문서화 → 이미지 제작 → 카드뉴스 템플릿</p>
         <h1>어떤 상품을 알리고 싶으세요?</h1>
-        <p class="hero__sub">
-          상품과 주제만 정하면 블로그·인스타그램·쓰레드 글귀와 이미지를 만들고,
-          템플릿에서 카드뉴스까지 이어서 완성합니다.
-        </p>
+        
       </section>
 
       ${stepperHTML('/')}
@@ -89,7 +86,7 @@ function briefHTML() {
           ${p.facts.map((f) => `<li>${icon('check', 'icon--sm')}<span>${f}</span></li>`).join('')}
         </ul>
 
-        ${p.events ? `
+        ${p.events.length ? `
         <h4 class="brief__label">행사 일정</h4>
         <ul class="brief__list brief__list--events">
           ${p.events.map((e) => `
@@ -99,7 +96,7 @@ function briefHTML() {
             </li>`).join('')}
         </ul>` : ''}
 
-        ${p.criteria ? `
+        ${p.criteria.length ? `
         <h4 class="brief__label">심사 기준</h4>
         <ul class="brief__bars">
           ${p.criteria.map((c) => `
@@ -324,10 +321,14 @@ function bindBrief(root) {
     // 불러와 편집 중인 게시물만 기존 결과를 유지한다.
     if (!isEditingExisting) {
       clearLibraryEdit();
+      const current = getState();
+      const runsKey = `${current.productId}|${String(current.topic || '').trim()}`;
+      const sameTopicRuns = current.aiRuns?.key === runsKey
+        || TONES.some(({ id }) => current.aiRuns?.key === `${runsKey}|${id}`);
       setState({
         drafts: {}, generated: {}, variants: {}, sources: {},
         draftKey: '', aiKey: {}, outline: null,
-        aiRuns: { key: '', list: [] }, activeAiRun: null,
+        aiRuns: sameTopicRuns ? current.aiRuns : { key: '', list: [] }, activeAiRun: null,
         image: null, images: {}, card: null,
       });
     }

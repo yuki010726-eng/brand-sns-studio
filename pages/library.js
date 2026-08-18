@@ -11,7 +11,8 @@
  *    넣으면 기기 간 동기화까지 따라가서 다른 PC 의 필터가 바뀐다.
  */
 import { icon } from '../assets/icons.js';
-import { getProduct, PRODUCTS, CHANNELS } from '../data/products.js';
+import { getProduct, PRODUCTS } from '../lib/products.js';
+import { CHANNELS } from '../data/channels.js';
 import { getConcept } from '../lib/concepts.js';
 import { TONE_LABEL } from '../lib/copywriter.js';
 import { getState, navigate } from '../store.js';

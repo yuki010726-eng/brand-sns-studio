@@ -14,9 +14,12 @@
  *
  * ⚠️ **이 도구는 실제 요금을 씁니다.** 돌리기 전에 예상 비용을 보여주고 확인을 받는다.
  */
-import { PRODUCTS, CHANNELS } from '../data/products.js';
+import { PRODUCTS, loadProducts } from '../lib/products.js';
+import { CHANNELS } from '../data/channels.js';
 import { generateWithAI } from '../lib/copyai.js';
 import { TEXT_MODELS, getTextModel, setTextModel, hasKey, maskedKey } from '../lib/openai.js';
+
+await loadProducts();
 
 /**
  * 1M 토큰당 단가 (2026-08 공식 가격표).
