@@ -57,7 +57,7 @@ const INITIAL = {
    * 「AI 생성」을 누를 때마다 쌓이는 결과물 — 최대 2벌 (AI 1 · AI 2).
    * `key` 는 `outlineKeyOf()`(상품·주제·톤)와 같은 지문이다. 주제가 바뀌면
    * 새 지문이라 다시 2벌까지 만들 수 있다 — 카운트는 **주제 단위**다.
-   * @type {{key:string, list:Array<{drafts:object, generated:object}>}}
+   * @type {{key:string, groupId?:string, list:Array<{drafts:object, generated:object}>}}
    */
   aiRuns: { key: '', list: [] },
   /** 지금 화면에 보이는 게 aiRuns.list 의 몇 번째인지 (0-based) — 규칙 기반을 보고 있으면 null */

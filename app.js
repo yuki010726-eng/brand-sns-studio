@@ -105,8 +105,11 @@ let restored = false;
 
 onAuth(async (user) => {
   if (!authReady) return;
-  route();
-  if (user?.status !== 'approved') { restored = false; return; }
+  if (user?.status !== 'approved') {
+    restored = false;
+    route();
+    return;
+  }
 
   // 비로그인 상태로 앱을 연 뒤 로그인한 경우에도 이 시점에 상품 원본을 받는다.
   await loadProducts();

@@ -17,6 +17,7 @@ import {
 } from '../lib/llm.js';
 import { keyFieldHTML } from '../components/keyfield.js';
 import { toast } from '../components/toast.js';
+import { recordCopySelection } from '../lib/copypreferences.js';
 
 export const title = '아이디어 문서화';
 
@@ -171,12 +172,13 @@ export function render(root) {
 
   bindAiRuns(root);
 
-  root.querySelector('#copy-all')?.addEventListener('click', () => {
+  root.querySelector('#copy-all')?.addEventListener('click', async () => {
     const s2 = getState();
     const text = channels
       .map((c) => `[${c.name}]\n${s2.drafts[c.id] || ''}`)
       .join('\n\n──────────\n\n');
-    copyText(text, `${channels.length}개 채널 글귀를 복사했습니다.`);
+    const copied = await copyText(text, `${channels.length}개 채널 글귀를 복사했습니다.`);
+    if (copied) channels.forEach((c) => recordCopiedAiVersion(c.id));
   });
 
   root.querySelector('#go-template')?.addEventListener('click', () => navigate('/template'));
@@ -719,9 +721,10 @@ function bindPanel(root) {
     if (!readMode) root.querySelector('[data-draft]')?.focus();
   });
 
-  root.querySelector('[data-copy]')?.addEventListener('click', (e) => {
+  root.querySelector('[data-copy]')?.addEventListener('click', async (e) => {
     const id = e.currentTarget.dataset.copy;
-    copyText(getState().drafts[id] || '', `${CHANNELS.find((c) => c.id === id).name} 글귀를 복사했습니다.`);
+    const copied = await copyText(getState().drafts[id] || '', `${CHANNELS.find((c) => c.id === id).name} 글귀를 복사했습니다.`);
+    if (copied) recordCopiedAiVersion(id);
   });
 
 }
@@ -866,6 +869,9 @@ async function aiGenerate(root, requestedIds) {
       const key = aiRunsKeyOf(base);
       const prevList = matchesAiRunsKey(base.aiRuns?.key, base) ? base.aiRuns.list : [];
       const list = [...prevList, { drafts: { ...runDrafts }, generated: { ...runDrafts } }];
+      const groupId = prevList.length && base.aiRuns?.groupId
+        ? base.aiRuns.groupId
+        : newGroupId();
       runSummary = channels
         .filter((c) => runDrafts[c.id] !== undefined)
         .map((c) => `${c.name} AI ${rounds[c.id] + 1}`)
@@ -883,7 +889,7 @@ async function aiGenerate(root, requestedIds) {
         sources: runSources,
         draftKey: draftKeyOf(base),
         aiKey: marked,
-        aiRuns: { key, list },
+        aiRuns: { key, groupId, list },
         activeAiRun: {
           ...(typeof base.activeAiRun === 'object' && base.activeAiRun ? base.activeAiRun : {}),
           ...Object.fromEntries(channels.filter((c) => runDrafts[c.id] !== undefined).map((c) => [c.id, rounds[c.id]])),
@@ -1046,10 +1052,11 @@ function hasEdits() {
 
 /** 클립보드 복사 — 권한이 막힌 환경을 위해 execCommand 폴백을 둔다 */
 async function copyText(text, okMessage) {
-  if (!text.trim()) { toast('복사할 내용이 없습니다.'); return; }
+  if (!text.trim()) { toast('복사할 내용이 없습니다.'); return false; }
   try {
     await navigator.clipboard.writeText(text);
     toast(okMessage);
+    return true;
   } catch {
     const tmp = document.createElement('textarea');
     tmp.value = text;
@@ -1060,7 +1067,53 @@ async function copyText(text, okMessage) {
     const ok = document.execCommand('copy');
     tmp.remove();
     toast(ok ? okMessage : '복사에 실패했습니다. 직접 선택해 복사해 주세요.');
+    return ok;
   }
+}
+
+/** 현재 화면의 AI 원문과 복사 순간 최종문을 한 쌍으로 저장한다. */
+const copyRecordQueues = new Map();
+
+function recordCopiedAiVersion(channelId) {
+  const s = getState();
+  const active = activeAiRunFor(s, channelId);
+  const entry = aiRunEntries(s, channelId)[active];
+  if (active === null || !entry || s.sources[channelId] !== 'ai') return;
+
+  let generationGroupId = s.aiRuns?.groupId;
+  if (!generationGroupId) {
+    generationGroupId = newGroupId();
+    setState({ aiRuns: { ...s.aiRuns, groupId: generationGroupId } });
+  }
+
+  const payload = {
+    generationGroupId,
+    channel: channelId,
+    variantNo: active + 1,
+    productId: s.productId,
+    topic: s.topic,
+    tone: s.tone,
+    generatedText: String(entry.run.generated?.[channelId] || ''),
+    finalText: String(s.drafts[channelId] || ''),
+  };
+
+  // 빠르게 연속 복사해도 클릭 순서대로 DB에 도착하게 해 마지막 클릭을 확실히 최종값으로 만든다.
+  const previous = copyRecordQueues.get(channelId) || Promise.resolve();
+  const next = previous
+    .catch(() => {})
+    .then(() => recordCopySelection(payload))
+    .finally(() => {
+      if (copyRecordQueues.get(channelId) === next) copyRecordQueues.delete(channelId);
+    });
+  copyRecordQueues.set(channelId, next);
+}
+
+function newGroupId() {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 3 | 8)).toString(16);
+  });
 }
 
 /* ---------------- 유틸 ---------------- */

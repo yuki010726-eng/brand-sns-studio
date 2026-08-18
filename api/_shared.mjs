@@ -94,7 +94,7 @@ export async function requireApprovedUser(req) {
   if (row?.status !== 'approved') {
     return { ok: false, status: 403, message: '관리자 승인이 완료된 계정만 사용할 수 있습니다.' };
   }
-  return { ok: true, user };
+  return { ok: true, user, token };
 }
 
 /** 프롬프트를 검사한다. 길이 상한은 비용 상한이기도 하다. */

@@ -34,7 +34,10 @@ export const title = '카드뉴스 템플릿';
 
 export function guard() {
   const s = getState();
-  return s.productId && s.topic.trim() ? null : '/';
+  // A persisted/synced product id can outlive the product itself (for example,
+  // when it is disabled in Supabase).  Checking only the id lets a null
+  // product reach defaultsFor(), which expects fields such as `short`.
+  return getProduct(s.productId) && s.topic.trim() ? null : '/';
 }
 
 const KIND_LABEL = { cover: '표지', body: '본문', note: '반론', outro: '마무리' };

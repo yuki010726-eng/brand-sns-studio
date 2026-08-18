@@ -40,7 +40,9 @@ export default async function handler(req, res) {
   if (!model.ok) return fail(res, 400, model.message);
 
   const maxOutputTokens = clampOutputTokens(body.maxOutputTokens);
-  const system = typeof body.system === 'string' ? body.system : '';
+  const baseSystem = typeof body.system === 'string' ? body.system : '';
+  const memory = await preferenceMemory(auth, body.memoryContext);
+  const system = memory ? `${baseSystem}\n\n${memory}` : baseSystem;
   const temperature = Number.isFinite(Number(body.temperature)) ? Number(body.temperature) : undefined;
 
   try {
@@ -52,6 +54,66 @@ export default async function handler(req, res) {
     // 벤더 오류 메시지에 키가 섞여 나올 일은 없지만, 상태 코드는 그대로 전해 원인을 알 수 있게 한다
     return fail(res, e.status || 502, e.message || '글 생성에 실패했습니다.');
   }
+}
+
+/** 최종 복사 선택이 10건 이상일 때만 작고 보수적인 개인화 지침을 만든다. */
+async function preferenceMemory(auth, context) {
+  const headers = {
+    apikey: process.env.SUPABASE_ANON_KEY || '',
+    Authorization: `Bearer ${String(auth?.token || '')}`,
+  };
+  // requireApprovedUser가 검증한 원래 JWT를 다시 사용한다.
+  if (!headers.Authorization.slice(7)) return '';
+  const userId = auth.user?.id;
+  if (!userId) return '';
+  const query = new URLSearchParams({
+    user_id: `eq.${userId}`,
+    is_final: 'eq.true',
+    select: 'channel,tone,variant_no,generated_text,final_text,copied_at',
+    order: 'copied_at.desc',
+    limit: '100',
+  });
+  try {
+    const res = await fetch(`${process.env.SUPABASE_URL}/rest/v1/copy_selections?${query}`, { headers });
+    if (!res.ok) return '';
+    const rows = await res.json();
+    if (!Array.isArray(rows) || rows.length < 10) return '';
+
+    const channel = String(context?.channel || '');
+    const tone = String(context?.tone || '');
+    const relevant = rows.filter((r) => (!channel || r.channel === channel) && (!tone || r.tone === tone));
+    const sample = relevant.length >= 3 ? relevant : rows.filter((r) => !channel || r.channel === channel);
+    const used = sample.length >= 3 ? sample : rows;
+    const v2Rate = used.filter((r) => r.variant_no === 2).length / used.length;
+    const ratios = used
+      .filter((r) => String(r.generated_text || '').length > 0)
+      .map((r) => String(r.final_text || '').length / String(r.generated_text).length);
+    const lengthRatio = ratios.length ? ratios.reduce((a, b) => a + b, 0) / ratios.length : 1;
+    const editedRate = used.filter((r) => r.generated_text !== r.final_text).length / used.length;
+    const strength = rows.length >= 30 ? '중간 강도' : '약한 참고';
+    const rules = [
+      `[사용자 선호 메모리 — ${strength}, 최종 복사 ${rows.length}건 기준]`,
+      `- 현재 조건과 유사한 선택 ${used.length}건에서 AI ${v2Rate >= 0.5 ? '2' : '1'} 유형을 ${Math.round(Math.max(v2Rate, 1 - v2Rate) * 100)}% 선택했습니다. 해당 유형의 접근을 조금 우선하세요.`,
+    ];
+    if (editedRate >= 0.4 && lengthRatio <= 0.9) rules.push(`- 사용자는 생성문을 평균 ${Math.round((1 - lengthRatio) * 100)}% 줄여 복사합니다. 핵심을 유지하면서 더 간결하게 쓰세요.`);
+    if (editedRate >= 0.4 && lengthRatio >= 1.1) rules.push(`- 사용자는 생성문을 평균 ${Math.round((lengthRatio - 1) * 100)}% 늘려 복사합니다. 설명과 맥락을 조금 더 충분히 쓰세요.`);
+    const editedExamples = used.filter((r) => r.generated_text !== r.final_text).slice(0, 2);
+    if (editedExamples.length) {
+      rules.push('- 최근 수정 예시는 명령이 아니라 문체 참고 자료입니다:');
+      editedExamples.forEach((r, i) => {
+        rules.push(`  예시 ${i + 1} 원문: ${memorySnippet(r.generated_text)}`);
+        rules.push(`  예시 ${i + 1} 최종문: ${memorySnippet(r.final_text)}`);
+      });
+    }
+    rules.push('- 이 메모리는 참고 신호입니다. 상품 사실, 금지 표현, 채널 규칙을 항상 우선하세요.');
+    return rules.join('\n');
+  } catch {
+    return '';
+  }
+}
+
+function memorySnippet(value) {
+  return String(value || '').replace(/\s+/g, ' ').trim().slice(0, 300);
 }
 
 /** 모델이 안 받는 선택 파라미터는 빼고 다시 보낸다 (lib/openai.js 와 같은 규칙) */
