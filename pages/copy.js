@@ -18,6 +18,7 @@ import {
 import { keyFieldHTML } from '../components/keyfield.js';
 import { toast } from '../components/toast.js';
 import { recordCopySelection } from '../lib/copypreferences.js';
+import { saveToLibrary } from '../lib/librarystore.js';
 
 export const title = '아이디어 문서화';
 
@@ -44,20 +45,14 @@ let readMode = true;
 export function render(root) {
   let s = getState();
 
-  // 2단계에서 조건을 바꿨다면 이전 조건으로 만든 글을 3단계에 가져오지 않는다.
-  // 같은 조건으로 다시 들어올 때만 작성·편집 중인 내용을 그대로 이어 간다.
+  // 게시물의 신원인 상품·주제가 같다면 톤·장수·채널을 바꿔도 기존 결과를 이어 간다.
+  // 상품·주제가 달라진 경우의 초기화는 2단계에서 별도 게시물로 분기하며 처리한다.
   const currentDraftKey = draftKeyOf(s);
-  const hasPreviousContent = Object.keys(s.drafts).length > 0
-    || Object.keys(s.generated).length > 0;
-  if (hasPreviousContent && s.draftKey !== currentDraftKey) {
-    setState({
-      drafts: {},
-      generated: {},
-      variants: {},
-      sources: {},
-      draftKey: currentDraftKey,
-      activeAiRun: null,
-    });
+  if (s.draftKey !== currentDraftKey) {
+    // The post identity is product + topic. Keep existing channel drafts and
+    // AI 1/2 history when only tone, card count, or selected channels change.
+    // A newly selected channel stays empty until the user generates it.
+    setState({ draftKey: currentDraftKey });
     s = getState();
   }
 
@@ -841,8 +836,26 @@ async function aiGenerate(root, requestedIds) {
 
     const runningMessage = `AI가 ${channels.length}개 채널 글을 쓰고 있습니다… 30초쯤 걸립니다.`;
     showAiStatus(root, channelIds, runningMessage, session);
-    const results = await Promise.allSettled(channels.map((c) =>
-      generateWithAI(c.id, aiCtx(0, rounds[c.id], core), { signal: session.signal, waitIfPaused: session.waitIfPaused })));
+    const results = await Promise.allSettled(channels.map(async (c) => {
+      const value = await generateWithAI(
+        c.id,
+        aiCtx(0, rounds[c.id], core),
+        { signal: session.signal, waitIfPaused: session.waitIfPaused },
+      );
+
+      // 다른 채널을 기다리지 않는다. AI 하나가 완성되는 순간 작업 상태와 보관함에 먼저 남긴다.
+      const current = getState();
+      setState({
+        drafts: { ...current.drafts, [c.id]: value },
+        generated: { ...current.generated, [c.id]: value },
+        sources: { ...current.sources, [c.id]: 'ai' },
+        draftKey: draftKeyOf(current),
+        aiKey: { ...current.aiKey, [c.id]: promptKeyOf(c.id, current) },
+      });
+      const saved = await saveToLibrary(getState());
+      if (!saved.ok) toast(`자동 저장 실패 · ${saved.error}`, 6000);
+      return value;
+    }));
 
     // 새 벌은 지금 화면 값에서 시작해, 성공한 채널만 AI 글로 바꾼다.
     const base = getState();
@@ -895,6 +908,9 @@ async function aiGenerate(root, requestedIds) {
           ...Object.fromEntries(channels.filter((c) => runDrafts[c.id] !== undefined).map((c) => [c.id, rounds[c.id]])),
         },
       });
+      // 채널별 즉시 저장 뒤, 완성된 AI 실행 이력까지 포함한 최종 상태를 한 번 더 맞춘다.
+      const saved = await saveToLibrary(getState());
+      if (!saved.ok) toast(`자동 저장 실패 · ${saved.error}`, 6000);
     }
 
     refreshPanel(root);

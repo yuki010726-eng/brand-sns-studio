@@ -10,7 +10,7 @@ import { stepperHTML, bindStepper } from '../components/stepper.js';
 import { getState, setState, navigate } from '../store.js';
 import { toast } from '../components/toast.js';
 import { choiceModal, confirmModal } from '../components/modal.js';
-import { clearLibraryEdit, getLibrary, getLibraryEditId, postKeyOf } from '../lib/librarystore.js';
+import { clearLibraryEdit, getLibrary, getLibraryEditId, loadFromLibrary, postKeyOf } from '../lib/librarystore.js';
 
 export const title = '상품·주제 선택';
 
@@ -299,20 +299,23 @@ function bindBrief(root) {
     const isEditingExisting = existing?.id === getLibraryEditId();
     if (existing && !isEditingExisting) {
       const choice = await choiceModal(
-        '이 주제의 게시물이 보관함에 있습니다.',
+        '보관함에 저장되어있는 주제입니다.',
         {
           title: '보관함에 저장된 주제',
           choices: [
-            { value: 'overwrite', label: '덮어쓰기', primary: true },
-            { value: 'cancel', label: '취소' },
-            { value: 'copy', label: '다른 이름으로 저장' },
+            { value: 'load', label: '불러오기', primary: true },
           ],
         },
       );
-      if (!choice || choice === 'cancel') return;
-      if (choice === 'copy') {
-        setState({ libraryTitle: nextCopyTitle(nextState.topic, nextState.productId) });
+      if (choice !== 'load') return;
+
+      const result = await loadFromLibrary(existing.id);
+      if (!result.ok) {
+        toast(result.error);
+        return;
       }
+      navigate('/copy');
+      return;
     }
 
     // 홈에서 시작하는 작업은 같은 상품·주제를 다시 골랐더라도 새 작업이다.
@@ -338,16 +341,6 @@ function bindBrief(root) {
   syncCta(root);
 }
 
-/** 같은 상품 안에서 겹치지 않는 `주제(1)`, `주제(2)` 이름을 만든다. */
-function nextCopyTitle(topic, productId) {
-  const base = String(topic || '').trim();
-  const used = new Set(getLibrary()
-    .filter((item) => item.productId === productId)
-    .map((item) => String(item.title || '').trim()));
-  let n = 1;
-  while (used.has(`${base}(${n})`)) n += 1;
-  return `${base}(${n})`;
-}
 
 /**
  * 장수를 줄여도 글은 기승전결을 그대로 쓴다. 줄어드는 것은 이미지뿐이다.

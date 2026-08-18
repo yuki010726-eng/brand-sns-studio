@@ -19,7 +19,7 @@ import {
 } from '../lib/concepts.js';
 import { slotsFor, defaultsFor, roleOf, objectsFor } from '../lib/templates.js';
 import { stepperHTML, bindStepper } from '../components/stepper.js';
-import { getState, setState, navigate, draftKeyOf } from '../store.js';
+import { getState, setState, subscribe, navigate, draftKeyOf } from '../store.js';
 import { buildDeck, TONE_LABEL, findBanned } from '../lib/copywriter.js';
 import { outlineKeyOf } from '../lib/outline.js';
 import { getImage, putImage, deleteImage, imageKey } from '../lib/imagestore.js';
@@ -27,8 +27,7 @@ import { renderCard, loadImage, cardAlt, downloadCanvas, ensureFonts, lastClippe
 import { buildPrompt } from '../lib/imageprompt.js';
 import { imagePanelHTML, bindImagePanel } from '../components/imagepanel.js';
 import { toast } from '../components/toast.js';
-import { confirmModal } from '../components/modal.js';
-import { saveToLibrary, getLibrary, postKeyOf } from '../lib/librarystore.js';
+import { saveToLibrary, hasLibraryChanges } from '../lib/librarystore.js';
 
 export const title = '카드뉴스 템플릿';
 
@@ -55,6 +54,28 @@ let active = 0;
 let bitmaps = [];
 let repaintTimer = null;
 let currentRoot = null;
+let archiveTimer = null;
+let unsubscribeArchive = null;
+let archiveSaving = false;
+
+const refreshArchiveButton = (root) => {
+  const btn = root?.querySelector('#save-library');
+  if (btn && !archiveSaving) btn.disabled = !hasLibraryChanges();
+};
+
+function bindArchiveAutosave(root) {
+  clearInterval(archiveTimer);
+  unsubscribeArchive?.();
+  unsubscribeArchive = subscribe(() => {
+    if (!root.isConnected) { unsubscribeArchive?.(); unsubscribeArchive = null; return; }
+    refreshArchiveButton(root);
+  });
+  archiveTimer = setInterval(() => {
+    if (!root.isConnected) { clearInterval(archiveTimer); archiveTimer = null; return; }
+    if (hasLibraryChanges()) saveToArchive(root, { automatic: true });
+  }, 60_000);
+  refreshArchiveButton(root);
+}
 
 /* ---------------- 작업 되돌리기·다시 실행 ---------------- */
 
@@ -349,8 +370,6 @@ export function render(root) {
           ${CONCEPTS.map((c) => conceptCardHTML(c, c.id === s.concept)).join('')}
         </fieldset>
 
-        <div id="tpl-notices">${noticesHTML()}</div>
-
         <div class="tpl-toolbar">
           <!-- 카드 선택 -->
           <div class="tpl-tabs" role="tablist" aria-label="편집할 카드 선택">
@@ -400,8 +419,8 @@ export function render(root) {
             ${icon('arrowLeft', 'icon--sm')} 글귀 단계로
           </button>
           <button type="button" class="btn" id="save-library"
-                  aria-label="지금 게시물을 보관함에 저장하기">
-            ${icon('archive', 'icon--sm')} 보관함에 저장
+                  aria-label="지금 게시물 저장하기">
+            ${icon('archive', 'icon--sm')} 저장
           </button>
         </div>
       </section>
@@ -422,6 +441,7 @@ export function render(root) {
   root.querySelector('#save-all')?.addEventListener('click', () => saveAll(root));
   root.querySelector('#save-library')?.addEventListener('click', () => saveToArchive(root));
   root.querySelector('#go-copy')?.addEventListener('click', () => navigate('/copy'));
+  bindArchiveAutosave(root);
 
   (async () => {
     await ensureFonts();
@@ -774,23 +794,6 @@ function warnHTML(t) {
     </div>`;
 }
 
-function noticesHTML() {
-  const s = getState();
-  const out = [];
-
-  if (!Object.keys(s.images).length) {
-    out.push(`
-      <div class="notice" role="note">
-        <span class="notice__icon" aria-hidden="true">${icon('image', 'icon--sm')}</span>
-        <div>
-          <strong>이미지 없이 만들고 있습니다</strong>
-          <p>템플릿 기본 배경으로 그려집니다. 오른쪽에서 직접 올리거나, 3단계에서 만들면 여기에 자동으로 반영됩니다.</p>
-        </div>
-      </div>`);
-  }
-  return out.join('');
-}
-
 /* ---------------- 바인딩 ---------------- */
 
 function bindConcepts(root) {
@@ -1120,7 +1123,6 @@ async function removeImage(root) {
 function refreshNotices(root) {
   const slot = root.querySelector('#tpl-notices');
   if (!slot) return;
-  slot.innerHTML = noticesHTML();
   bindNotices(root);
 }
 
@@ -1627,31 +1629,22 @@ async function makeThumb(s) {
   }
 }
 
-/**
- * 보관함에 넣는다. 같은 상품·주제가 이미 있으면 **덮어쓰기 전에 물어본다** —
- * 말없이 덮으면 다른 기기에서 쓴 내용을 날릴 수 있다.
- */
-async function saveToArchive(root) {
+/** 현재 편집본을 저장한다. 자동 저장은 변경이 있을 때만 1분마다 실행된다. */
+async function saveToArchive(root, { automatic = false } = {}) {
+  if (archiveSaving || !hasLibraryChanges()) { refreshArchiveButton(root); return; }
   const btn = root.querySelector('#save-library');
   const s = getState();
-
-  const existing = getLibrary().find((it) => it.postKey === postKeyOf(s));
-  if (existing) {
-    const ok = await confirmModal(
-      `「${existing.title}」이(가) 이미 보관함에 있습니다. 지금 내용으로 덮어쓸까요?`,
-      { okLabel: '덮어쓰기', title: '이미 보관된 게시물' },
-    );
-    if (!ok) return;
-  }
-
+  archiveSaving = true;
   if (btn) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); }
   try {
     const thumb = await makeThumb(s);
     const result = await saveToLibrary(getState(), thumb);
     if (!result.ok) { toast(result.error, 6000); return; }
-    toast(result.replaced ? '보관함의 게시물을 새로 덮어썼습니다.' : '보관함에 저장했습니다.');
+    toast(automatic ? '자동 저장했습니다.' : '저장했습니다.');
   } finally {
-    if (btn) { btn.disabled = false; btn.removeAttribute('aria-busy'); }
+    archiveSaving = false;
+    if (btn) btn.removeAttribute('aria-busy');
+    refreshArchiveButton(root);
   }
 }
 

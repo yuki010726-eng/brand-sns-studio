@@ -2,10 +2,11 @@
 import { icon } from '../assets/icons.js';
 import { onAuth, signOut, getUser, usernameOf } from '../lib/auth.js';
 import { getState, resetFlow, navigate } from '../store.js';
-import { getLibrary, postKeyOf, POST_KEYS, getLibraryEditId, clearLibraryEdit } from '../lib/librarystore.js';
+import {
+  getLibrary, postKeyOf, POST_KEYS, getLibraryEditId, clearLibraryEdit, saveToLibrary,
+} from '../lib/librarystore.js';
 import { flushSync } from '../lib/sync.js';
 import { toast } from './toast.js';
-import { confirmModal } from './modal.js';
 
 const NAV = [
   { path: '/profile', label: '프로필',   iconName: 'user' },
@@ -43,7 +44,7 @@ export function renderHeader(root, currentPath) {
 
   bindAuth(root);
   root.querySelector('[data-nav-path="/"]')?.addEventListener('click', startNewPost);
-  root.querySelector('.brand')?.addEventListener('click', clearLibraryEdit);
+  root.querySelector('.brand')?.addEventListener('click', startNewPost);
 
   // 라우트를 옮길 때마다 헤더가 다시 그려지므로 구독도 새로 건다
   unsubscribe?.();
@@ -94,41 +95,46 @@ function hasUnsavedPost(state) {
  * 예전에는 `clearLibraryEdit()` 만 해서 상품·주제·글귀·카드가 그대로 남았다.
  * 새로 만들려고 눌렀는데 앞 게시물이 남아 있으니 매번 손으로 지워야 했다.
  *
- * ⚠️ **만들던 내용이 있으면 저장 여부와 상관없이 한 번 물어본다** (요청자 지시 2026-08-14).
- *    처음에는 `hasUnsavedPost()` 로 저장 안 한 경우에만 물었는데, 보관함에 담아 둔 게시물을
- *    이어서 손보던 중에도 말없이 화면이 비워지는 건 마찬가지로 놀랄 일이다.
- *    묻는 건 한 번뿐이고, 확인하면 전부 비운다.
- *    ⚠️ 시작도 안 한 상태(상품·주제 둘 다 비었음)에서는 묻지 않는다 — 지울 것이 없다.
+ * 보관함에서 불러온 게시물은 수정본을 먼저 저장한 다음 확인창 없이 새 작업을 연다.
+ * 저장이 실패하면 초기화와 이동을 중단해 수정 내용이 사라지지 않게 한다.
  * ⚠️ **프로필은 지우지 않는다.** `resetFlow()` 가 계정 정보를 건드리지 않는 이유와 같다.
  * ⚠️ **보관함에 저장한 게시물은 지워지지 않는다.** 비우는 것은 지금 화면의 작업 상태뿐이다.
  */
+let startingNewPost = false;
+
 async function startNewPost(e) {
   e.preventDefault();
+  if (startingNewPost) return;
+  startingNewPost = true;
+
   const state = getState();
   const started = Boolean(state.productId) || Boolean(String(state.topic || '').trim());
-  const fromProfile = location.hash === '#/profile';
 
-  // 프로필은 게시물 작성 흐름 밖의 독립 탭이므로 새 게시물로 돌아갈 때는
-  // 초기화 확인을 다시 묻지 않고 바로 새 작성 화면을 연다.
-  if (started && !fromProfile) {
-    const ok = await confirmModal(
-      '지금 만들던 내용을 모두 지우고 새로 시작할까요? 보관함에 저장한 게시물은 그대로 남습니다.',
-      { title: '새 게시물 시작', okLabel: '새로 시작', cancelLabel: '취소' },
-    );
-    if (!ok) return;
+  try {
+    // 보관함에서 불러온 게시물은 확인창 없이 현재 수정본을 먼저 저장한다.
+    // 저장에 실패하면 작업 상태를 비우지 않아 사용자의 수정 내용을 보호한다.
+    if (getLibraryEditId()) {
+      const saved = await saveToLibrary(state);
+      if (!saved.ok) {
+        toast(`저장하지 못해 새 게시물로 이동하지 않았습니다. ${saved.error}`, 6000);
+        return;
+      }
+    }
+
+    /**
+     * 이미 홈(`#/`)에 있으면 해시가 안 바뀌어 라우터가 다시 돌지 않으므로
+     * 상태를 비운 뒤 화면 갱신을 직접 요청한다.
+     */
+    const onHome = location.hash === '#/' || location.hash === '';
+    clearLibraryEdit();
+    resetFlow();
+    if (onHome) window.dispatchEvent(new Event('hashchange'));
+    else navigate('/');
+
+    if (started) toast('현재 수정 내용을 저장하고 새 게시물을 시작합니다.');
+  } finally {
+    startingNewPost = false;
   }
-
-  /**
-   * ⚠️ 이미 홈(`#/`)에 있으면 해시가 안 바뀌어 라우터가 다시 돌지 않는다 —
-   *    상태만 비우고 화면에는 옛 입력이 그대로 남는다. 그때는 직접 한 번 돌려 준다.
-   */
-  const onHome = location.hash === '#/' || location.hash === '';
-  clearLibraryEdit();
-  resetFlow();
-  if (onHome) window.dispatchEvent(new Event('hashchange'));
-  else navigate('/');
-
-  if (started) toast('새 게시물을 시작합니다.');
 }
 
 function bindAuth(root) {

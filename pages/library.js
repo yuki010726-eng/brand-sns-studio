@@ -52,7 +52,7 @@ export function render(root) {
         <div class="section__head">
           <h1>내 게시물 보관함</h1>
           <p class="section__desc">
-            4단계에서 「보관함에 저장」을 누른 게시물이 모입니다.
+            AI로 생성한 게시물과 카드뉴스 편집본이 자동으로 모입니다.
             불러오면 글귀·템플릿·카드 문구가 그대로 되살아납니다.
           </p>
         </div>
@@ -130,7 +130,7 @@ function resultsHTML(all) {
       <div class="card empty">
         ${icon('archive', 'icon--lg')}
         <h2>아직 보관한 게시물이 없습니다</h2>
-        <p>게시물을 만들고 4단계 아래쪽 「보관함에 저장」을 누르면 여기 쌓입니다.</p>
+        <p>AI 글이 생성되면 자동으로 저장되고, 카드뉴스 편집 내용도 주기적으로 반영됩니다.</p>
         <div class="stub__actions">
           <a class="btn" href="#/" aria-label="새 게시물 만들기 화면으로 이동">새 게시물 만들기</a>
         </div>
