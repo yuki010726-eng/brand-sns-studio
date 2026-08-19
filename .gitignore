@@ -9,6 +9,7 @@ desktop.ini
 
 # 빌드 도구를 쓰지 않지만, 나중에 붙일 경우를 대비
 node_modules/
+.npm-cache/
 dist/
 research-output/
 

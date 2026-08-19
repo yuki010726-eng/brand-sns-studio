@@ -1,5 +1,6 @@
 import { generateText, hasKey } from '../lib/llm.js';
 import { toast } from '../components/toast.js';
+import { accessToken } from '../lib/auth.js';
 
 export const title = '블로그 스타일 연구';
 let candidates = [];
@@ -87,8 +88,9 @@ function showCollected(root) {
   root.querySelector('#collection-section').hidden = false;
   root.querySelector('#collection-list').innerHTML = collected.map((item) => item.error
     ? `<article class="card research-item research-item--error"><div class="research-item__body"><strong>수집 실패</strong><span>${esc(item.error)}</span><a href="${esc(item.url)}" target="_blank" rel="noopener noreferrer">원문 열기</a></div></article>`
-    : `<article class="card research-item research-item--collected"><div class="research-item__body"><strong>${esc(item.title)}</strong><span>${esc(item.author)} · 본문 ${item.text.length.toLocaleString()}자</span><div class="research-item__links"><a href="${esc(item.url)}" target="_blank" rel="noopener noreferrer">원문</a>${item.pdfUrl ? `<a href="${esc(item.pdfUrl)}" target="_blank">PDF 열기</a>` : `<span>PDF 실패: ${esc(item.pdfError)}</span>`}</div></div></article>`).join('');
+    : `<article class="card research-item research-item--collected"><div class="research-item__body"><strong>${esc(item.title)}</strong><span>${esc(item.author)} · 본문 ${item.text.length.toLocaleString()}자</span><div class="research-item__links"><a href="${esc(item.url)}" target="_blank" rel="noopener noreferrer">원문</a>${item.pdfUrl ? `<a href="${esc(item.pdfUrl)}" target="_blank">PDF 열기</a>` : item.canMakePdf ? `<button class="btn btn--text btn--sm research-pdf" type="button" data-pdf-url="${esc(item.url)}">PDF 다운로드</button>` : `<span>PDF 실패: ${esc(item.pdfError)}</span>`}</div></div></article>`).join('');
   root.querySelector('#analyze-button').disabled = !collected.some((item) => item.text);
+  root.querySelectorAll('.research-pdf').forEach((button) => button.addEventListener('click', () => downloadPdf(button)));
 }
 
 async function analyze(root) {
@@ -103,7 +105,19 @@ async function analyze(root) {
 }
 
 function showAnalysis(root, text) { root.querySelector('#analysis-section').hidden = false; root.querySelector('#analysis-result').textContent = text; root.querySelector('#analysis-section').scrollIntoView({ behavior: 'smooth', block: 'start' }); }
-async function post(url, body) { let response; try { response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); } catch { throw new Error('로컬 수집 서버에 연결하지 못했습니다. npm start로 실행했는지 확인해 주세요.'); } const data = await response.json().catch(() => ({})); if (!response.ok) throw new Error(data.error || `요청에 실패했습니다 (${response.status}).`); return data; }
+async function downloadPdf(button) {
+  setBusy(button, true, 'PDF 생성 중…');
+  try {
+    const token = await accessToken();
+    const response = await fetch('/api/research/pdf', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ url: button.dataset.pdfUrl }) });
+    if (!response.ok) { const data = await response.json().catch(() => ({})); throw new Error(data.error || `PDF 생성에 실패했습니다 (${response.status}).`); }
+    const blobUrl = URL.createObjectURL(await response.blob());
+    const anchor = document.createElement('a'); anchor.href = blobUrl; anchor.download = 'naver-blog.pdf'; anchor.click();
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+  } catch (error) { toast(error.message, 6000); }
+  finally { setBusy(button, false, 'PDF 다운로드'); }
+}
+async function post(url, body) { let response; try { const token = await accessToken(); response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body) }); } catch { throw new Error('수집 서버에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.'); } const data = await response.json().catch(() => ({})); if (!response.ok) throw new Error(data.error || `요청에 실패했습니다 (${response.status}).`); return data; }
 function status(root, message, error = false) { const node = root.querySelector('#research-status'); node.textContent = message; node.classList.toggle('is-error', error); }
 function setBusy(button, busy, label) { button.disabled = busy; button.textContent = label; button.setAttribute('aria-busy', String(busy)); }
 const esc = (value = '') => String(value).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
