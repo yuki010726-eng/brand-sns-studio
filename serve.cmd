@@ -1,8 +1,15 @@
 @echo off
-REM 로컬 정적 서버 실행 (빌드 없음 · ES 모듈이라 file:// 로는 동작하지 않는다)
-REM python -> py -> python3 순으로 있는 것을 쓴다.
+REM 로컬 서버 실행. Node가 있으면 블로그 수집·PDF 기능까지 함께 켠다.
+REM Node가 없을 때만 기존 Python 정적 서버로 돌아간다.
 
 cd /d "%~dp0"
+
+where node >nul 2>&1 && (
+  echo [brand-sns-studio] http://localhost:5610
+  echo [blog-research] enabled
+  node server.mjs
+  goto :eof
+)
 
 where python >nul 2>&1 && (
   echo [brand-sns-studio] http://localhost:5610
@@ -22,5 +29,5 @@ where python3 >nul 2>&1 && (
   goto :eof
 )
 
-echo Python을 찾지 못했습니다. https://www.python.org/downloads/ 에서 설치한 뒤 다시 실행하세요.
+echo Node.js 또는 Python을 찾지 못했습니다. Node.js를 설치한 뒤 다시 실행하세요.
 pause

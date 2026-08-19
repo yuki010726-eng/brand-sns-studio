@@ -12,6 +12,7 @@ const NAV = [
   { path: '/profile', label: '프로필',   iconName: 'user' },
   { path: '/',        label: '새 게시물', iconName: 'sparkles' },
   { path: '/library', label: '보관함',   iconName: 'archive' },
+  { path: '/research', label: '블로그 연구', iconName: 'search' },
 ];
 
 /** 로그인 상태가 바뀌면 헤더만 다시 그린다 — 페이지 전체를 건드리지 않는다 */
@@ -162,6 +163,7 @@ function bindAuth(root) {
 
 /** 보관함에서 불러온 편집 흐름은 세부 단계에서도 '보관함' 탭으로 표시한다. */
 function isActive(navPath, current) {
+  if (navPath === '/research') return current === '/research';
   const inLibrary = current === '/library' || Boolean(getLibraryEditId());
   if (navPath === '/profile') return current === '/profile';
   if (navPath === '/library') return inLibrary;

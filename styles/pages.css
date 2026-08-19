@@ -1157,6 +1157,33 @@ body.is-login-page .site-footer { display: none; }
   .lib-grid { grid-template-columns: 1fr; }
 }
 
+/* ---------- 블로그 스타일 연구 ---------- */
+.research-page { padding-bottom: 64px; }
+.research-search { padding: 22px; display: flex; flex-direction: column; gap: 16px; }
+.research-search__form { display: flex; gap: 10px; }
+.research-search__form .input { flex: 1; min-width: 0; }
+.research-status { min-height: 1.5em; margin: 0; color: var(--sub-strong); font-size: 14px; }
+.research-status.is-error { color: var(--danger); font-weight: 700; }
+.research-section-head { display: flex; justify-content: space-between; align-items: end; gap: 16px; }
+.research-results { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--gap); }
+.research-item { position: relative; display: flex; gap: 14px; padding: 18px; cursor: pointer; }
+.research-item__check { display: grid; place-items: center; width: 24px; height: 24px; flex: 0 0 24px; border: 1.5px solid var(--border-hover); border-radius: 50%; color: transparent; }
+.research-check:checked ~ .research-item__check { background: var(--select-panel-border); border-color: var(--select-panel-border); color: #fff; }
+.research-check:checked ~ .research-item__body::after { content: ''; position: absolute; inset: 0; border: 2px solid var(--select-panel-border); border-radius: var(--radius-lg); pointer-events: none; }
+.research-check:focus-visible ~ .research-item__body::after { content: ''; position: absolute; inset: -3px; border: 3px solid var(--primary); border-radius: var(--radius-lg); pointer-events: none; }
+.research-item__body { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.research-item__body strong { color: var(--ink); line-height: 1.5; }
+.research-item__body span { color: var(--sub-strong); font-size: 13px; }
+.research-item__body a { align-self: flex-start; color: var(--primary-dark); font-size: 13px; font-weight: 700; }
+.research-item--collected, .research-item--error { cursor: default; }
+.research-item--error { border-color: #F3C9C9; }
+.research-item__links { display: flex; gap: 12px; flex-wrap: wrap; }
+.research-analysis { padding: 24px; white-space: pre-wrap; line-height: 1.8; color: var(--text); }
+@media (max-width: 720px) {
+  .research-results { grid-template-columns: 1fr; }
+  .research-search__form, .research-section-head { align-items: stretch; flex-direction: column; }
+}
+
 /* ---------- 임시(스텁) 화면 ---------- */
 .stub { display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .stub h2 { color: #191F28; }

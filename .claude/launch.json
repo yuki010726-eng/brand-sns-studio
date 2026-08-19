@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "brand-sns-studio",
-      "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "5610"],
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["server.mjs"],
       "port": 5610
     }
   ]

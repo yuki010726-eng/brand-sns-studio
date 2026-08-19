@@ -16,6 +16,7 @@ import * as CopyPage from './pages/copy.js';
 import * as TemplatePage from './pages/template.js';
 import * as LibraryPage from './pages/library.js';
 import * as LoginPage from './pages/login.js';
+import * as ResearchPage from './pages/research.js';
 
 const ROUTES = {
   '/login': LoginPage,
@@ -24,6 +25,7 @@ const ROUTES = {
   '/copy': CopyPage,
   '/template': TemplatePage,
   '/library': LibraryPage,
+  '/research': ResearchPage,
 };
 
 const LOGIN_PATH = '/login';
