@@ -329,6 +329,10 @@ export function render(root) {
     core,
     allowRuleFallback: !core,
   });
+  // The captions embedded in the selected AI copy are the final card-to-copy
+  // mapping. Apply them even for legacy AI runs that did not save an outline
+  // snapshot, so AI 1 and AI 2 cannot render the same cached deck.
+  deck = deckWithDraftCaptions(deck, s);
   ensureTexts(p);
   if (active >= deck.length) active = 0;
   resetHistory();   // 이 화면에 새로 들어오거나(마운트) 템플릿을 바꿀 때 이력을 지금 상태로 다시 시작한다
@@ -1144,9 +1148,53 @@ async function loadBitmaps() {
  * 그림 프롬프트 — 지금 화면에 보이는 **대주제**를 함께 넘긴다.
  * 노트형은 그 주제를 아이콘으로 그리므로 제목이 빠지면 엉뚱한 그림이 나온다.
  */
+/**
+ * 블로그의 `📷 [이미지 N …]` 바로 다음 `⤷` 문장은 해당 카드 이미지의
+ * 실제 주제다. AI가 만든 shot보다 사용자가 보고 있는 최종 문구를 우선한다.
+ */
+function draftImageCaptions(s) {
+  const drafts = [s.drafts?.blog, ...Object.values(s.drafts || {})];
+  for (const draft of drafts) {
+    const lines = String(draft || '').split(/\r?\n/);
+    const captions = {};
+    lines.forEach((line, i) => {
+      const imageNo = line.match(/^\s*📷\s*\[이미지\s*(\d+)(?:\s*[·・-][^\]]*)?\]/)?.[1];
+      if (!imageNo) return;
+      const caption = String(lines[i + 1] || '').match(/^\s*⤷\s*(.+?)\s*$/)?.[1];
+      if (caption) captions[Number(imageNo) - 1] = caption;
+    });
+    if (Object.keys(captions).length) return captions;
+  }
+  return {};
+}
+
+function imageCaptionFor(s, index) {
+  return draftImageCaptions(s)[index] || '';
+}
+
+function replaceFirstSentence(body, caption) {
+  const text = String(body || '');
+  if (!text) return caption;
+  const match = text.match(/^.*?(?:[.!?](?=\s|$)|\n|$)/);
+  return `${caption}${text.slice(match?.[0]?.length || 0)}`;
+}
+
+function deckWithDraftCaptions(cards, s) {
+  const captions = draftImageCaptions(s);
+  return cards.map((card, i) => {
+    const caption = captions[i];
+    if (!caption) return card;
+    if (card.kind === 'cover') return { ...card, title: caption };
+    return { ...card, body: replaceFirstSentence(card.body, caption) };
+  });
+}
+
 const promptFor = (i) => {
   const s = getState();
-  return buildPrompt(deck[i], s.concept, { title: s.card?.texts?.[i]?.title || deck[i].title });
+  return buildPrompt(deck[i], s.concept, {
+    title: s.card?.texts?.[i]?.title || deck[i].title,
+    subject: imageCaptionFor(s, i),
+  });
 };
 
 

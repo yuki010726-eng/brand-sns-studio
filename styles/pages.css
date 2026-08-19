@@ -445,18 +445,43 @@ body.is-login-page .site-footer { display: none; }
 .preview > * + h3.preview__head { margin-top: 40px; }
 .preview > .preview__head + * { margin-top: var(--flow-lg); }
 
-.preview__rule { border: 0; border-top: 1px solid var(--border); }
+.preview__rule { position: relative; height: 18px; border: 0; color: #8d939c; }
+.preview__rule::before { content: ''; position: absolute; inset: 50% 0 auto; border-top: 1px solid currentColor; }
+.preview__rule--2::before { border-top: 3px double currentColor; }
+.preview__rule--3::before { border-top-style: dashed; }
+.preview__rule--4::before { border-top-style: dotted; border-top-width: 2px; }
+.preview__rule--5::before { left: 38%; right: 38%; border-top-width: 2px; }
+.preview__rule--6::before { left: 47%; right: 47%; border-top-width: 0; text-align: center; content: '◆'; top: 0; }
+.preview__rule--7::before { content: '·  ·  ·'; top: -4px; border: 0; text-align: center; font-size: 18px; letter-spacing: 8px; }
+.preview__rule--8::before { left: 35%; right: 35%; border-top: 1px solid currentColor; box-shadow: 0 5px 0 -0.5px currentColor; }
 .preview > * + .preview__rule,
 .preview > .preview__rule + * { margin-top: 24px; }
 
-/* 회색 요약 박스 — 아래 본문이 박스에 붙어 보이던 자리 */
+/* 네이버 에디터의 여섯 가지 인용구를 미리보기에서 구분한다. */
 .preview__quote {
-  padding: 16px 18px;
-  border-radius: 12px;
-  background: var(--bg);
+  position: relative;
+  padding: 18px 22px;
   font-weight: 500;
 }
+.preview__quote--1 { padding-inline: 48px; text-align: center; font-family: Georgia, 'Noto Sans KR', serif; }
+.preview__quote--1::before,
+.preview__quote--1::after { position: absolute; color: #c7cbd1; font: 700 44px/1 Georgia, serif; }
+.preview__quote--1::before { content: '“'; left: 10px; top: 8px; }
+.preview__quote--1::after { content: '”'; right: 10px; bottom: -8px; }
+.preview__quote--2 { padding: 8px 0 8px 20px; border-left: 4px solid #343a40; }
+.preview__quote--3 { margin-bottom: 10px; border: 1px solid #d9dde3; border-radius: 18px; background: #fff; }
+.preview__quote--3::after { content: ''; position: absolute; left: 28px; bottom: -9px; width: 16px; height: 16px; border: solid #d9dde3; border-width: 0 1px 1px 0; background: #fff; transform: rotate(45deg); }
+.preview__quote--4 { padding: 24px 42px; border-block: 1px solid #9097a1; text-align: center; }
+.preview__quote--4::before { content: '“'; position: absolute; left: 12px; top: 10px; color: #9097a1; font: 700 34px/1 Georgia, serif; }
+.preview__quote--5 { padding: 24px 26px 28px; border-radius: 2px; background: #fff4b8; box-shadow: 0 4px 10px rgba(39, 45, 53, .13); }
+.preview__quote--5::before { content: ''; position: absolute; top: -7px; left: 50%; width: 58px; height: 15px; background: rgba(222, 210, 174, .68); transform: translateX(-50%) rotate(-2deg); }
+.preview__quote--6 { border: 1px solid #707780; text-align: center; }
+.preview__quote--6::before { content: ''; position: absolute; inset: 5px; border: 1px solid #d5d8dc; pointer-events: none; }
 .preview > .preview__quote + * { margin-top: var(--flow-lg); }
+
+.preview__table { width: 100%; border-collapse: collapse; table-layout: fixed; background: #fff; font-size: 14.5px; }
+.preview__table td { padding: 12px 16px; border: 1px solid #d9dde3; line-height: 1.6; }
+.preview__table tr:nth-child(even) td { background: #fafbfc; }
 
 /* 카드뉴스가 들어갈 자리 — 글이 아니라 '자리'라는 게 보여야 한다 */
 .preview__slot {
@@ -495,13 +520,24 @@ body.is-login-page .site-footer { display: none; }
 
 .blog-editor { overflow: hidden; border: 1px solid var(--border); border-radius: 16px; background: #fff; box-shadow: 0 12px 36px rgba(25, 31, 40, .06); }
 .blog-editor__toolbar { display: flex; gap: 4px; padding: 9px 16px; border-block: 1px solid var(--border); background: #fafbfc; position: sticky; top: 0; z-index: 1; }
-.blog-editor__toolbar button { padding: 7px 11px; border: 0; border-radius: 7px; background: transparent; color: var(--text); font-size: 13px; font-weight: 700; cursor: pointer; }
-.blog-editor__toolbar button:hover { background: var(--fill); }
+.blog-editor__toolbar button,
+.blog-editor__toolbar select { padding: 7px 11px; border: 0; border-radius: 7px; background: transparent; color: var(--text); font-size: 13px; font-weight: 700; cursor: pointer; }
+.blog-editor__toolbar select {
+  width: 76px;
+  appearance: none;
+  padding-right: 23px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23505B67' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 7px center;
+}
+.blog-editor__toolbar button:hover,
+.blog-editor__toolbar select:hover { background-color: var(--fill); }
 .blog-editor__body { display: block; width: 100%; min-height: 420px; padding: 36px 40px 52px; border: 0; outline: 0; resize: none; background: #fff; font-family: Georgia, 'Noto Sans KR', serif; font-size: 16px; line-height: 2; color: var(--text); }
 
 @media (max-width: 640px) {
   .blog-editor__toolbar { overflow-x: auto; }
-  .blog-editor__toolbar button { flex: 0 0 auto; }
+  .blog-editor__toolbar button,
+  .blog-editor__toolbar select { flex: 0 0 auto; }
   .blog-editor__body { padding: 28px 20px 40px; }
 }
 

@@ -50,7 +50,7 @@ export function render(root) {
   const currentDraftKey = draftKeyOf(s);
   if (s.draftKey !== currentDraftKey) {
     // The post identity is product + topic. Keep existing channel drafts and
-    // AI 1/2 history when only tone, card count, or selected channels change.
+    // AI result history when only tone, card count, or selected channels change.
     // A newly selected channel stays empty until the user generates it.
     setState({ draftKey: currentDraftKey });
     s = getState();
@@ -62,6 +62,10 @@ export function render(root) {
 
   if (!activeTab || !channels.some((c) => c.id === activeTab)) activeTab = channels[0].id;
 
+  // 예전 저장 데이터에는 AI로 만든 현재 글과 선택 번호만 있고 aiRuns 이력이 없을 수 있다.
+  // 이 경우 현재 AI 글을 첫 이력으로 복구해 실제 `AI 1` 선택 버튼도 함께 보여 준다.
+  s = recoverMissingAiRuns(s);
+
   root.innerHTML = `
     <div class="container">
       ${stepperHTML('/copy')}
@@ -69,7 +73,7 @@ export function render(root) {
       <section class="section">
         <div class="section__head">
           <h1>${hasAnyDraft ? '추천 글귀가 준비됐습니다' : '아래 조건으로 글귀를 만들어 보세요'}</h1>
-          <p>AI 생성은 주제 및 채널 별 2개씩 생성할 수 있습니다. </p>
+          <p>AI 생성 결과는 주제 및 채널별로 계속 쌓입니다.</p>
         </div>
 
         <!--
@@ -102,10 +106,9 @@ export function render(root) {
         </div>
 
         <!--
-          「AI 생성」을 누를 때마다 결과가 AI 1 · AI 2 로 쌓인다 (요청자 지시 2026-08-11).
+          「AI 생성」을 누를 때마다 결과가 AI 1 · AI 2 · AI 3…으로 계속 쌓인다.
           예전엔 누를 때마다 이전 AI 글을 덮어썼는데, 처음 뽑은 글과 비교해 보고 싶다는
-          요구가 있어 두 벌까지 남기고 오가며 볼 수 있게 했다. 한 주제당 2번으로 막는다 —
-          더 늘리면 다시 예전처럼 "그래서 뭘 눌러야 하나" 가 된다.
+          요구가 있어 각 결과를 남기고 버튼으로 오가며 볼 수 있게 했다.
         -->
         <div id="ai-runs-slot">${aiRunsHTML()}</div>
 
@@ -354,6 +357,10 @@ function panelHTML() {
  *    붙여넣은 결과와 미리보기가 어긋난다. 이미 글에 들어 있는 표시만 해석한다.
  */
 const SLOT_LINE = /^\s*📷\s*\[(이미지[^\]]*)\]\s*(.*)$/;
+const QUOTE_TYPES = ['따옴표', '버티컬 라인', '말풍선', '라인&따옴표', '포스트잇', '프레임'];
+const QUOTE_MARK = /^\[(따옴표|버티컬 라인|말풍선|라인&따옴표|포스트잇|프레임) 인용구\]\s*(.*)$/;
+const RULE_MARK = /^\[구분선 ([1-8])\]$/;
+const TABLE_MARK = /^\[테이블 (\d+)열 (\d+)행\]$/;
 
 function blogEditorHTML(text) {
   // 예전 초안의 네모 표시는 편집기에 들어오는 순간 올바른 마크다운 제목으로 보여 준다.
@@ -362,9 +369,16 @@ function blogEditorHTML(text) {
     <section class="blog-editor" aria-label="블로그 글 편집기">
       <div class="blog-editor__toolbar" role="toolbar" aria-label="본문 서식">
         <button type="button" data-blog-insert="heading">소제목</button>
-        <button type="button" data-blog-insert="quote">인용</button>
+        <select data-blog-picker="quote" aria-label="인용구 스타일 선택">
+          <option value="">인용구</option>
+          ${QUOTE_TYPES.map((name) => `<option value="${name}">${name}</option>`).join('')}
+        </select>
         <button type="button" data-blog-insert="image">이미지</button>
-        <button type="button" data-blog-insert="rule">구분선</button>
+        <select data-blog-picker="rule" aria-label="구분선 스타일 선택">
+          <option value="">구분선</option>
+          ${Array.from({ length: 8 }, (_, i) => `<option value="${i + 1}">구분선 ${i + 1}</option>`).join('')}
+        </select>
+        <button type="button" data-blog-insert="table">테이블</button>
         <button type="button" data-blog-insert="tags">태그</button>
       </div>
       <label class="sr-only" for="draft-blog">블로그 본문 편집</label>
@@ -379,6 +393,7 @@ function previewHTML(text) {
 
   const lines = raw.split('\n');
   const out = [];
+  const consumed = new Set();
   let para = [];      // 이어지는 본문 줄
   let quote = [];     // '> ' 인용 줄
   let facts = [];     // '🔔 ' 개요표 줄
@@ -390,7 +405,7 @@ function previewHTML(text) {
   };
   const flushQuote = () => {
     if (!quote.length) return;
-    out.push(`<blockquote class="preview__quote">${quote.map(esc).join('<br>')}</blockquote>`);
+    out.push(`<blockquote class="preview__quote preview__quote--1">${quote.map(esc).join('<br>')}</blockquote>`);
     quote = [];
   };
   const flushFacts = () => {
@@ -401,12 +416,35 @@ function previewHTML(text) {
   const flushAll = () => { flushPara(); flushQuote(); flushFacts(); };
 
   lines.forEach((line, i) => {
+    if (consumed.has(i)) return;
     const s = line.trim();
     if (!s) { flushAll(); return; }
 
-    // 구분선
+    // 이름이 붙은 네이버 구분선 8종. 예전 초안의 ───도 1번으로 계속 보여 준다.
+    const styledRule = s.match(RULE_MARK);
+    if (styledRule) {
+      flushAll();
+      out.push(`<div class="preview__rule preview__rule--${styledRule[1]}" aria-label="구분선 ${styledRule[1]}"></div>`);
+      return;
+    }
     if (/^─{2,}$/.test(s)) { flushAll(); out.push('<hr class="preview__rule">'); return; }
 
+    // 목차 테이블. 표식 다음의 번호 매긴 행을 선언된 행 수만큼 묶는다.
+    const table = s.match(TABLE_MARK);
+    if (table) {
+      flushAll();
+      const rows = [];
+      const rowCount = Number(table[2]);
+      for (let n = 1; n <= rowCount; n++) {
+        const row = (lines[i + n] || '').trim();
+        if (!/^\d+\.\s+/.test(row)) break;
+        rows.push(row);
+        consumed.add(i + n);
+      }
+      out.push(`<table class="preview__table" aria-label="목차"><tbody>${rows.map((row) =>
+        `<tr><td>${esc(row)}</td></tr>`).join('')}</tbody></table>`);
+      return;
+    }
     // 소제목. 예전에 저장한 `■ 소제목`도 계속 같은 모양으로 보여 준다.
     const headingMark = s.startsWith(`${HEAD_MARK} `) ? HEAD_MARK : (s.startsWith('■ ') ? '■' : '');
     if (headingMark) {
@@ -430,7 +468,23 @@ function previewHTML(text) {
     // 개요표
     if (s.startsWith('🔔')) { flushPara(); flushQuote(); facts.push(s.replace(/^🔔\s*/, '')); return; }
 
-    // 요약 인용
+    // 이름이 붙은 네이버 인용구 6종
+    const styledQuote = s.match(QUOTE_MARK);
+    if (styledQuote) {
+      flushAll();
+      const type = QUOTE_TYPES.indexOf(styledQuote[1]) + 1;
+      const content = styledQuote[2] ? [styledQuote[2]] : [];
+      if (!styledQuote[2]) {
+        for (let n = i + 1; n < lines.length && lines[n].trim(); n++) {
+          content.push(lines[n].trim());
+          consumed.add(n);
+        }
+      }
+      out.push(`<blockquote class="preview__quote preview__quote--${type}">${content.map(esc).join('<br>')}</blockquote>`);
+      return;
+    }
+
+    // 예전 초안의 > 인용은 따옴표 인용구로 계속 보여 준다.
     if (s.startsWith('> ')) { flushPara(); flushFacts(); quote.push(s.slice(2)); return; }
 
     // 해시태그 줄 (샵으로만 이뤄진 줄)
@@ -487,10 +541,10 @@ function warnHTML(banned, over, c) {
     </div>`;
 }
 
-/* ---------------- AI 결과 버전 (AI 1 · AI 2) ---------------- */
+/* ---------------- AI 결과 버전 (AI 1 · AI 2 · AI 3…) ---------------- */
 
 /**
- * AI 생성 횟수의 지문. 생성 제한은 톤과 무관하게 상품·주제·채널별로 센다.
+ * AI 생성 이력의 지문. 톤과 무관하게 같은 상품·주제의 결과를 한 묶음으로 관리한다.
  * 글의 내용/아웃라인 캐시는 계속 `outlineKeyOf()`로 톤까지 구분한다.
  */
 const aiRunsKeyOf = (s) => `${s.productId}|${String(s.topic || '').trim()}`;
@@ -514,32 +568,63 @@ function aiRunsFor(s, channelId = activeTab) {
   return aiRunEntries(s, channelId).map(({ run }) => run);
 }
 
-function activeAiRunFor(s, channelId = activeTab) {
-  return s.activeAiRun && typeof s.activeAiRun === 'object'
-    ? (s.activeAiRun[channelId] ?? null)
-    : s.activeAiRun;
+function recoverMissingAiRuns(s) {
+  const missing = s.channels.filter((channelId) => s.sources[channelId] === 'ai'
+    && s.drafts[channelId]
+    && aiRunsFor(s, channelId).length === 0);
+  if (!missing.length) return s;
+
+  const sameKey = matchesAiRunsKey(s.aiRuns?.key, s);
+  const list = sameKey && Array.isArray(s.aiRuns?.list) ? [...s.aiRuns.list] : [];
+  const drafts = Object.fromEntries(missing.map((channelId) => [channelId, s.drafts[channelId]]));
+  const generated = Object.fromEntries(missing.map((channelId) => [
+    channelId,
+    s.generated[channelId] || s.drafts[channelId],
+  ]));
+  const activeAiRun = typeof s.activeAiRun === 'object' && s.activeAiRun
+    ? { ...s.activeAiRun }
+    : {};
+  missing.forEach((channelId) => { activeAiRun[channelId] = 0; });
+
+  setState({
+    aiRuns: {
+      key: aiRunsKeyOf(s),
+      groupId: sameKey ? s.aiRuns?.groupId : undefined,
+      list: [...list, { drafts, generated }],
+    },
+    activeAiRun,
+  });
+  return getState();
 }
 
-const AI_RUN_LIMIT = 2;
+function activeAiRunFor(s, channelId = activeTab) {
+  const index = s.activeAiRun && typeof s.activeAiRun === 'object'
+    ? (s.activeAiRun[channelId] ?? null)
+    : s.activeAiRun;
+  // 번호 태그와 선택 버튼은 반드시 같은 실제 이력을 가리켜야 한다.
+  // 이전 저장 데이터의 번호만 남았거나 주제가 바뀌어 이력이 없는 경우에는
+  // "AI 1이 씀"처럼 존재하지 않는 버튼을 암시하지 않는다.
+  return Number.isInteger(index) && index >= 0 && aiRunEntries(s, channelId)[index]
+    ? index
+    : null;
+}
 
 function aiAllDisabled(s) {
   return !hasKey()
-    || busyChannels.size > 0
-    || s.channels.some((id) => aiRunsFor(s, id).length >= AI_RUN_LIMIT);
+    || busyChannels.size > 0;
 }
 
 function channelAiDisabled(s, channelId) {
-  return !hasKey() || busyChannels.has(channelId) || aiRunsFor(s, channelId).length >= AI_RUN_LIMIT;
+  return !hasKey() || busyChannels.has(channelId);
 }
 
 function aiAllLabel(s) {
   if (!hasKey()) return 'OpenAI 키가 없어 AI 생성을 쓸 수 없습니다';
   if (busyChannels.size) return '채널별 AI 생성이 진행 중이라 전체 채널 생성을 시작할 수 없습니다';
-  if (s.channels.some((id) => aiRunsFor(s, id).length >= AI_RUN_LIMIT)) return 'AI 2까지 생성한 채널이 있어 전체 채널 생성을 시작할 수 없습니다';
-  return '선택한 채널 중 아직 생성 가능한 모든 채널의 글을 한 번에 만들기';
+  return '선택한 모든 채널의 새 글을 한 번에 만들기';
 }
 
-/** AI 1 · AI 2 를 오가는 버튼 — 만든 적이 없으면(0벌) 아무것도 그리지 않는다 */
+/** AI 생성 결과를 오가는 버튼 — 만든 적이 없으면(0벌) 아무것도 그리지 않는다 */
 function aiRunsHTML() {
   const s = getState();
   const runs = aiRunsFor(s);
@@ -551,7 +636,6 @@ function aiRunsHTML() {
                 aria-label="AI가 ${i + 1}번째로 쓴 글 보기">
           AI ${i + 1}
         </button>`).join('')}
-      ${runs.length >= AI_RUN_LIMIT ? '' : ''}
     </div>`;
 }
 
@@ -577,12 +661,25 @@ function switchAiRun(root, index) {
   const run = aiRunsFor(s)[index];
   if (!run) return;
   const id = activeTab;
-  setState({
+  const patch = {
     drafts: { ...s.drafts, [id]: run.drafts[id] },
     generated: { ...s.generated, [id]: run.generated[id] },
     sources: { ...s.sources, [id]: 'ai' },
     activeAiRun: { ...(typeof s.activeAiRun === 'object' && s.activeAiRun ? s.activeAiRun : {}), [id]: index },
-  });
+    // The selected copy also changes the captions used as card text. Clear
+    // the built card for both new and legacy runs before opening templates.
+    card: null,
+  };
+  // Runs saved before outline snapshots were introduced intentionally keep
+  // the current outline. New runs restore the exact core used for their copy.
+  if (run.core) {
+    patch.outline = {
+      key: outlineKeyOf(s),
+      round: Number.isInteger(run.outlineRound) ? run.outlineRound : index,
+      core: run.core,
+    };
+  }
+  setState(patch);
   refreshPanel(root);
   refreshAiRuns(root);
 }
@@ -686,25 +783,55 @@ function bindPanel(root) {
     };
     ta.addEventListener('input', saveDraft);
 
+    const insertSnippet = (snippet) => {
+      const start = ta.selectionStart;
+      const end = ta.selectionEnd;
+      const before = ta.value.slice(0, start);
+      const after = ta.value.slice(end);
+      const prefix = before && !before.endsWith('\n') ? '\n\n' : '';
+      const suffix = after && !after.startsWith('\n') ? '\n\n' : '';
+      ta.value = `${before}${prefix}${snippet}${suffix}${after}`;
+      const caret = before.length + prefix.length + snippet.length;
+      ta.setSelectionRange(caret, caret);
+      saveDraft();
+      ta.focus();
+    };
+
+    // 소제목과 인용구는 새 예시 문단을 만들지 않고, 커서가 놓인 현재 줄에 바로 적용한다.
+    const formatCurrentLine = (prefix) => {
+      const start = ta.selectionStart;
+      const lineStart = start === 0 ? 0 : ta.value.lastIndexOf('\n', start - 1) + 1;
+      ta.value = `${ta.value.slice(0, lineStart)}${prefix}${ta.value.slice(lineStart)}`;
+      const caret = start + prefix.length;
+      ta.setSelectionRange(caret, caret);
+      saveDraft();
+      ta.focus();
+    };
+
     root.querySelectorAll('[data-blog-insert]').forEach((button) => {
       button.addEventListener('click', () => {
+        if (button.dataset.blogInsert === 'heading') {
+          formatCurrentLine(`${HEAD_MARK} `);
+          return;
+        }
         const snippets = {
-          heading: `${HEAD_MARK} 소제목`, quote: '> 인용할 문장',
           image: '📷 [이미지] 이미지 설명\n📝 캡션을 입력하세요',
-          rule: '────────', tags: '#키워드 #브랜드',
+          table: '[테이블 1열 2행]\n1. 첫 번째 항목\n2. 두 번째 항목',
+          tags: '#키워드 #브랜드',
         };
-        const snippet = snippets[button.dataset.blogInsert];
-        const start = ta.selectionStart;
-        const end = ta.selectionEnd;
-        const before = ta.value.slice(0, start);
-        const after = ta.value.slice(end);
-        const prefix = before && !before.endsWith('\n') ? '\n\n' : '';
-        const suffix = after && !after.startsWith('\n') ? '\n\n' : '';
-        ta.value = `${before}${prefix}${snippet}${suffix}${after}`;
-        const caret = before.length + prefix.length + snippet.length;
-        ta.setSelectionRange(caret, caret);
-        saveDraft();
-        ta.focus();
+        insertSnippet(snippets[button.dataset.blogInsert]);
+      });
+    });
+
+    root.querySelectorAll('[data-blog-picker]').forEach((picker) => {
+      picker.addEventListener('change', () => {
+        if (!picker.value) return;
+        if (picker.dataset.blogPicker === 'quote') {
+          formatCurrentLine(`[${picker.value} 인용구] `);
+        } else {
+          insertSnippet(`[구분선 ${picker.value}]`);
+        }
+        picker.value = '';
       });
     });
   }
@@ -800,23 +927,21 @@ function setAiBusy(root, channelIds, on, session = null) {
  * 세 채널을 **동시에** 부른다.
  * 한 채널에 20~40초 걸려서 순서대로 돌리면 2분 가까이 기다려야 했다.
  *
- * ⚠️ 결과는 기존 벌을 덮어쓰지 않고 `aiRuns.list` 뒤에 **새 벌**로 쌓는다(AI 1 → AI 2).
- *    처음 뽑은 글과 비교해 보고 싶다는 요구라 한 주제당 `AI_RUN_LIMIT`(2)까지만 쌓는다.
+ * ⚠️ 결과는 기존 벌을 덮어쓰지 않고 `aiRuns.list` 뒤에 **새 벌**로 계속 쌓는다.
  *    실패한 채널은 지금 화면에 보이는 값을 그대로 새 벌에 담는다 — 나쁜 글로 덮어쓰지 않는다.
  */
 async function aiGenerate(root, requestedIds) {
   const s0 = getState();
   const channels = CHANNELS.filter((c) => requestedIds.includes(c.id)
     && s0.channels.includes(c.id)
-    && !busyChannels.has(c.id)
-    && aiRunsFor(s0, c.id).length < AI_RUN_LIMIT);
+    && !busyChannels.has(c.id));
   if (!channels.length) return;
   const session = makeAiSession();
   const channelIds = channels.map((c) => c.id);
   setAiBusy(root, channelIds, true, session);
 
   /**
-   * 이번이 몇 번째 벌인지 — AI 1 이면 0, AI 2 면 1.
+   * 이번이 몇 번째 벌인지 — AI 1 이면 0, AI 2 면 1, 이후에도 계속 증가한다.
    *
    * ⚠️ **이 값이 뼈대까지 내려가야 AI 2 가 AI 1 과 달라진다.** 예전에는 라운드 개념이 없어서
    *    `ensureOutline()` 이 캐시된 뼈대를 그대로 돌려줬고, 핵심 3가지·후킹·마무리가 통째로
@@ -881,7 +1006,15 @@ async function aiGenerate(root, requestedIds) {
     if (ok) {
       const key = aiRunsKeyOf(base);
       const prevList = matchesAiRunsKey(base.aiRuns?.key, base) ? base.aiRuns.list : [];
-      const list = [...prevList, { drafts: { ...runDrafts }, generated: { ...runDrafts } }];
+      // Keep the content core with the copy generated from it. Without this
+      // snapshot, selecting AI 1 after generating AI 2 changes only the copy;
+      // the template page would still build its deck from AI 2's outline.
+      const list = [...prevList, {
+        drafts: { ...runDrafts },
+        generated: { ...runDrafts },
+        core,
+        outlineRound: round,
+      }];
       const groupId = prevList.length && base.aiRuns?.groupId
         ? base.aiRuns.groupId
         : newGroupId();
@@ -900,6 +1033,9 @@ async function aiGenerate(root, requestedIds) {
         drafts: { ...base.drafts, ...runDrafts },
         generated: { ...base.generated, ...runDrafts },
         sources: runSources,
+        // A newly generated outline means the existing card deck belongs to
+        // the previous AI result, even though product/topic settings match.
+        card: null,
         draftKey: draftKeyOf(base),
         aiKey: marked,
         aiRuns: { key, groupId, list },
@@ -1136,9 +1272,9 @@ function newGroupId() {
 
 const toneLabel = (id) => TONE_LABEL[id] || id;
 
-/** "AI 1이" · "AI 2가" — 숫자를 읽을 때 받침 유무에 따라 이/가가 갈린다. AI_RUN_LIMIT 범위(1~10)만 다룬다 */
+/** "AI 1이" · "AI 2가" — 마지막 숫자를 읽을 때 받침 유무에 따라 이/가가 갈린다. */
 const NO_BATCHIM = new Set([2, 4, 5, 9]); // 이·사·오·구 — 받침 없이 끝난다
-const josa = (n) => (NO_BATCHIM.has(n) ? '가' : '이');
+const josa = (n) => (NO_BATCHIM.has(Math.abs(n) % 10) ? '가' : '이');
 
 const esc = (str = '') =>
   str.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
