@@ -1342,6 +1342,21 @@ function blogCardSource(s) {
  * 블로그에 `📷` 줄이 없으면(규칙 기반 글·옛 보관본) 원래 카드를 그대로 둔다.
  */
 function deckFromBlog(cards, s) {
+  /**
+   * ⚠️ **파생 1회가 만든 카드 문구가 있으면 그것이 우선이다** (2026-08-20).
+   *    `blogCardSource()` 는 블로그 소제목을 **앞에서부터** 집어 오므로, 장수가 적으면
+   *    글 뒤쪽이 통째로 빠진다(요청자 지적: "카드만 쓸 때 내용이 자연스럽지 않다").
+   *    `cardCopy` 는 글 전체를 보고 만든 것이라 **카드만 넘겨도 말이 된다.**
+   *    ⚠️ 마무리 카드는 여기서도 건드리지 않는다 — 승인된 CTA·마무리 문장 자리다.
+   */
+  const copy = s.cardCopy?.key === draftKeyOf(s) ? s.cardCopy.cards : null;
+  if (copy?.length === cards.length) {
+    return cards.map((card, i) => (card.kind === 'outro' ? card : {
+      ...card,
+      title: copy[i].title || card.title,
+      body: copy[i].body || card.body,
+    }));
+  }
   const src = blogCardSource(s);
   if (!Object.keys(src).length) return cards;
   return cards.map((card, i) => {

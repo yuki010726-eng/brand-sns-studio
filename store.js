@@ -53,6 +53,12 @@ const INITIAL = {
    * @type {{key:string, data:object}|null}
    */
   outline: null,
+  /**
+   * 파생 1회에서 나온 **카드 전용 문구** (2026-08-20). `key` 가 지금 조건과 같을 때만 쓴다.
+   * 블로그 소제목을 앞에서 자른 덱보다 낫다 — 글 전체를 보고 만든 것이라 카드만 넘겨도 말이 된다.
+   * @type {{key:string, cards:Array<{title:string, body:string}>}|null}
+   */
+  cardCopy: null,
   /** 블로그 연구에서 추출한 스타일. key가 현재 상품·주제와 같을 때만 AI 생성에 쓴다. */
   researchStyle: null, // { key, guide, at }
   /**

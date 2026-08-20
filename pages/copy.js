@@ -9,7 +9,7 @@ import { BANNED_PHRASES } from '../data/banned-phrases.js';
 import { stepperHTML, bindStepper } from '../components/stepper.js';
 import { getState, setState, navigate, draftKeyOf } from '../store.js';
 import { findBanned, TONE_LABEL, HEAD_MARK, bodyLength } from '../lib/copywriter.js';
-import { generateWithAI, promptKeyOf } from '../lib/copyai.js';
+import { generateWithAI, promptKeyOf, derivePosts } from '../lib/copyai.js';
 import { coreWithOutline, outlineKeyOf } from '../lib/outline.js';
 import {
   MODELS, getModel, setModel, hasKey, maskedKey, setKey,
@@ -961,14 +961,23 @@ async function aiGenerate(root, requestedIds) {
 
     const runningMessage = `AI가 ${channels.length}개 채널 글을 쓰고 있습니다… 30초쯤 걸립니다.`;
     showAiStatus(root, channelIds, runningMessage, session);
-    const results = await Promise.allSettled(channels.map(async (c) => {
-      const value = await generateWithAI(
-        c.id,
-        aiCtx(0, rounds[c.id], core),
-        { signal: session.signal, waitIfPaused: session.waitIfPaused },
-      );
-
-      // 다른 채널을 기다리지 않는다. AI 하나가 완성되는 순간 작업 상태와 보관함에 먼저 남긴다.
+    /**
+     * ⚠️ **호출 순서를 바꿨다 — 블로그 먼저, 나머지는 그 글에서 파생한다** (2026-08-20).
+     *
+     * 예전에는 세 채널을 아웃라인 위에서 **나란히** 불렀다. 그래서 인스타·쓰레드가
+     * 완성된 블로그를 못 보고 뼈대만 보고 썼고, 카드뉴스는 소제목을 앞에서부터 잘라 왔다.
+     * 요청자 지적: "인스타는 카드뉴스만 올리는데 장수를 줄이면 내용이 끊긴다."
+     *
+     * 지금은 블로그를 원문으로 삼아 **인스타·쓰레드·카드를 한 번에** 뽑는다(`derivePosts`).
+     * 셋 다 같은 일(완성된 글 요약)이라 따로 부를 이유가 없다.
+     *
+     *   예전 5회: 아웃라인 · 블로그 · 고쳐쓰기 · 인스타 · 쓰레드
+     *   지금 4회: 아웃라인 · 블로그 · 고쳐쓰기 · 파생(인스타+쓰레드+카드)
+     *
+     * ⚠️ **파생은 최적화지 필수 경로가 아니다.** 실패하거나 검수에 떨어진 채널은
+     *    예전처럼 개별 생성으로 채운다. 파생이 죽어도 결과물은 나온다.
+     */
+    const persist = async (c, value) => {
       const current = getState();
       setState({
         drafts: { ...current.drafts, [c.id]: value },
@@ -979,8 +988,57 @@ async function aiGenerate(root, requestedIds) {
       });
       const saved = await saveToLibrary(getState());
       if (!saved.ok) toast(`자동 저장 실패 · ${saved.error}`, 6000);
+    };
+    const runOne = async (c) => {
+      const value = await generateWithAI(
+        c.id,
+        aiCtx(0, rounds[c.id], core),
+        { signal: session.signal, waitIfPaused: session.waitIfPaused },
+      );
+      await persist(c, value);
       return value;
-    }));
+    };
+
+    const settled = new Map();
+    const blogChannel = channels.find((c) => c.id === 'blog');
+    if (blogChannel) {
+      try {
+        settled.set('blog', { status: 'fulfilled', value: await runOne(blogChannel) });
+      } catch (error) {
+        settled.set('blog', { status: 'rejected', reason: error });
+      }
+    }
+
+    const others = channels.filter((c) => c.id !== 'blog');
+    const blogText = settled.get('blog')?.value || getState().drafts?.blog || '';
+    if (others.length && blogText.trim()) {
+      showAiStatus(root, others.map((c) => c.id), 'AI가 블로그에서 인스타·쓰레드·카드를 뽑고 있습니다…', session);
+      let derived = null;
+      try {
+        derived = await derivePosts(blogText, aiCtx(0, 0, core), {
+          signal: session.signal, waitIfPaused: session.waitIfPaused,
+        });
+      } catch (error) {
+        if (error?.name === 'AbortError') throw error;
+        derived = null;   // 파생 실패는 치명적이지 않다 — 아래에서 개별 생성으로 채운다
+      }
+      for (const c of others) {
+        if (!derived?.[c.id]) continue;
+        await persist(c, derived[c.id]);
+        settled.set(c.id, { status: 'fulfilled', value: derived[c.id] });
+      }
+      // 카드 문구는 블로그를 통째로 보고 만든 것이라 '앞에서 자른' 덱보다 낫다.
+      if (derived?.cards?.length) {
+        setState({ cardCopy: { key: draftKeyOf(getState()), cards: derived.cards } });
+      }
+    }
+
+    const missing = others.filter((c) => !settled.has(c.id));
+    const rest = await Promise.allSettled(missing.map(runOne));
+    missing.forEach((c, i) => settled.set(c.id, rest[i]));
+
+    const results = channels.map((c) => settled.get(c.id)
+      || { status: 'rejected', reason: new Error('생성되지 않았습니다.') });
 
     // 새 벌은 지금 화면 값에서 시작해, 성공한 채널만 AI 글로 바꾼다.
     const base = getState();
