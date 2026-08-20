@@ -26,7 +26,7 @@ import { getImage, putImage, deleteImage, imageKey } from '../lib/imagestore.js'
 import { renderCard, loadImage, cardAlt, downloadCanvas, ensureFonts, lastClipped, lastBoxes, lastSizes, W, H } from '../lib/cardrender.js';
 import { buildPrompt } from '../lib/imageprompt.js';
 import {
-  buildAdPrompts, AD_COUNTS, DEFAULT_AD_COUNT, AD_CONCEPTS, getAdConcept, roleLabel, capacityOf,
+  buildAdPrompts, AD_CONCEPTS, getAdConcept, roleLabel,
 } from '../lib/adprompt.js';
 import { imagePanelHTML, bindImagePanel } from '../components/imagepanel.js';
 import { toast } from '../components/toast.js';
@@ -1918,11 +1918,6 @@ const AD_TOOLS = [
   { name: 'Gemini', url: 'https://gemini.google.com/app' },
 ];
 
-const adCountOf = (s) => {
-  const n = Number(s.adCount);
-  return AD_COUNTS.includes(n) ? n : DEFAULT_AD_COUNT;
-};
-
 /**
  * 직관형 화면.
  *
@@ -1930,12 +1925,10 @@ const adCountOf = (s) => {
  * 템플릿 선택 줄은 그대로 둔다 — 여기서 A·B·C 로 되돌아갈 수 있어야 한다.
  */
 function renderAdPage(root, product, s) {
-  const count = adCountOf(s);
+  // 장수는 1단계 「카드뉴스 장수」가 정한다 — 덱 길이가 곧 장수다
   const concept = getAdConcept(s.adConcept);
-  const capacity = capacityOf(deck);
-  adPrompts = buildAdPrompts({
-    product, topic: s.topic.trim(), deck, count, conceptId: concept.id,
-  });
+  adPrompts = buildAdPrompts({ product, topic: s.topic.trim(), deck, conceptId: concept.id });
+  const count = adPrompts.length;
   currentRoot = root;
 
   root.innerHTML = `
@@ -1978,32 +1971,36 @@ function renderAdPage(root, product, s) {
                장마다 돌리지 말 것 — 처음에 그렇게 만들었다가 6장이 6개의 다른 광고가 됐다.
           -->
           <fieldset class="field">
-            <legend class="field__label">컨셉</legend>
-            <div class="pickrow" role="radiogroup" aria-label="이미지 컨셉 선택">
+            <legend class="field__label">컨셉 — 어떤 그림으로 만들까요</legend>
+            <div class="adconcepts" role="radiogroup" aria-label="이미지 컨셉 선택">
               ${AD_CONCEPTS.map((c) => `
-                <input class="sr-only pick__input" type="radio" name="adconcept" id="ac-${c.id}" value="${c.id}"
-                       autocomplete="off" aria-label="${esc(c.name)} — ${esc(c.desc)}"
+                <input class="sr-only adconcept__input" type="radio" name="adconcept" id="ac-${c.id}" value="${c.id}"
+                       autocomplete="off" aria-label="${esc(c.name)} — ${esc(c.who)}. ${esc(c.when)}"
                        ${concept.id === c.id ? 'checked' : ''} />
-                <label class="pick" for="ac-${c.id}">${esc(c.name)}</label>`).join('')}
-            </div>
-            <p class="field__hint">${esc(concept.desc)} <strong>전 장이 같은 인물·색·화풍을 씁니다.</strong></p>
-          </fieldset>
-
-          <fieldset class="field">
-            <legend class="field__label">만들 장수</legend>
-            <div class="pickrow" role="radiogroup" aria-label="이미지 프롬프트 장수 선택">
-              ${AD_COUNTS.map((n) => `
-                <input class="sr-only pick__input" type="radio" name="adcount" id="ad-${n}" value="${n}"
-                       autocomplete="off" aria-label="프롬프트 ${n}장" ${count === n ? 'checked' : ''} />
-                <label class="pick" for="ad-${n}">${n}장</label>`).join('')}
+                <label class="adconcept card card--hover" for="ac-${c.id}">
+                  <span class="adconcept__swatch" aria-hidden="true">
+                    ${c.swatch.map((hex) => `<i style="background:${hex}"></i>`).join('')}
+                  </span>
+                  <span class="adconcept__name">${esc(c.name)}</span>
+                  <span class="adconcept__who">${esc(c.who)}</span>
+                  <span class="adconcept__when">${esc(c.when)}</span>
+                </label>`).join('')}
             </div>
             <p class="field__hint">
-              표지 · 본문 · 마무리로 역할이 나뉘고, 장마다 <strong>그 카드가 말하는 것</strong>이 그림에 들어갑니다.
-              ${count > capacity
-                ? `이 주제로 내용이 서로 다른 카드는 <strong>${capacity}장</strong>까지입니다 — ${count}장을 뽑으면 본문 장면이 반복됩니다.`
-                : `이 주제는 ${capacity}장까지 내용이 다릅니다.`}
+              고른 컨셉으로 <strong>${count}장 전부</strong>를 만듭니다 — 같은 사람, 같은 색, 같은 그림체라
+              한 벌로 이어 보입니다.
             </p>
           </fieldset>
+
+          <!--
+            ⚠️ **장수 선택지를 여기에 다시 만들지 말 것** (2026-08-20, 요청자 지시:
+               "직관형은 왜 8장이야? 상품 주제에서 선택되도록 해줘").
+               장수는 1단계 「카드뉴스 장수」 하나가 정한다. 두 곳에 두면 어긋난다.
+          -->
+          <p class="adbar__count">
+            <strong>${count}장</strong>을 만듭니다 — 1단계에서 정한 카드 장수를 그대로 씁니다.
+            <a href="#/">장수 바꾸기</a>
+          </p>
 
           <div class="adbar__actions">
             <button type="button" class="btn btn--ghost btn--sm" id="ad-copy-all"
@@ -2088,13 +2085,6 @@ function bindAdPage(root) {
       setState({ adConcept: el.value });
       render(root);
       toast(`${getAdConcept(el.value).name} 컨셉으로 전 장을 다시 만들었습니다.`);
-    });
-  });
-
-  root.querySelectorAll('input[name="adcount"]').forEach((el) => {
-    el.addEventListener('change', () => {
-      setState({ adCount: Number(el.value) });
-      render(root);
     });
   });
 
