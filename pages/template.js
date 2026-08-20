@@ -1971,41 +1971,32 @@ function renderAdPage(root, product, s) {
                장마다 돌리지 말 것 — 처음에 그렇게 만들었다가 6장이 6개의 다른 광고가 됐다.
           -->
           <fieldset class="field">
-            <legend class="field__label">컨셉 — 어떤 그림으로 만들까요</legend>
-            <div class="adconcepts" role="radiogroup" aria-label="이미지 컨셉 선택">
+            <legend class="field__label">컨셉</legend>
+            <div class="pickrow" role="radiogroup" aria-label="이미지 컨셉 선택">
               ${AD_CONCEPTS.map((c) => `
-                <input class="sr-only adconcept__input" type="radio" name="adconcept" id="ac-${c.id}" value="${c.id}"
+                <input class="sr-only pick__input" type="radio" name="adconcept" id="ac-${c.id}" value="${c.id}"
                        autocomplete="off" aria-label="${esc(c.name)} — ${esc(c.who)}. ${esc(c.when)}"
                        ${concept.id === c.id ? 'checked' : ''} />
-                <label class="adconcept card card--hover" for="ac-${c.id}">
-                  <span class="adconcept__swatch" aria-hidden="true">
+                <label class="pick" for="ac-${c.id}">
+                  <span class="pick__dots" aria-hidden="true">
                     ${c.swatch.map((hex) => `<i style="background:${hex}"></i>`).join('')}
-                  </span>
-                  <span class="adconcept__name">${esc(c.name)}</span>
-                  <span class="adconcept__who">${esc(c.who)}</span>
-                  <span class="adconcept__when">${esc(c.when)}</span>
-                </label>`).join('')}
+                  </span>${esc(c.name)}</label>`).join('')}
             </div>
+            <!--
+              ⚠️ 고른 것 **하나만** 풀어 쓴다 (2026-08-20). 다섯 개를 다 펼치면 화면이 다시 난잡해진다 —
+                 강조 색상·우상단 마크와 같은 방식이다.
+            -->
             <p class="field__hint">
-              고른 컨셉으로 <strong>${count}장 전부</strong>를 만듭니다 — 같은 사람, 같은 색, 같은 그림체라
-              한 벌로 이어 보입니다.
+              ${esc(concept.who)} · ${esc(concept.when)}<br />
+              <strong>${count}장</strong>을 같은 사람·색·그림체로 만듭니다.
+              장수는 1단계에서 정합니다. <a href="#/">바꾸기</a>
             </p>
           </fieldset>
 
-          <!--
-            ⚠️ **장수 선택지를 여기에 다시 만들지 말 것** (2026-08-20, 요청자 지시:
-               "직관형은 왜 8장이야? 상품 주제에서 선택되도록 해줘").
-               장수는 1단계 「카드뉴스 장수」 하나가 정한다. 두 곳에 두면 어긋난다.
-          -->
-          <p class="adbar__count">
-            <strong>${count}장</strong>을 만듭니다 — 1단계에서 정한 카드 장수를 그대로 씁니다.
-            <a href="#/">장수 바꾸기</a>
-          </p>
-
           <div class="adbar__actions">
             <button type="button" class="btn btn--ghost btn--sm" id="ad-copy-all"
-                    aria-label="프롬프트 ${adPrompts.length}장 모두 복사하기">
-              ${icon('copy', 'icon--sm')} ${adPrompts.length}장 모두 복사
+                    aria-label="프롬프트 ${count}장 모두 복사하기">
+              ${icon('copy', 'icon--sm')} ${count}장 모두 복사
             </button>
             ${AD_TOOLS.map((t) => `
               <a class="btn btn--text btn--sm" href="${t.url}" target="_blank" rel="noopener noreferrer"
@@ -2013,18 +2004,15 @@ function renderAdPage(root, product, s) {
                 ${icon('external', 'icon--sm')} ${esc(t.name)}
               </a>`).join('')}
           </div>
-        </div>
 
-        <div class="notice notice--warn" role="note">
-          <span class="notice__icon" aria-hidden="true">${icon('alert', 'icon--sm')}</span>
-          <div>
-            <strong>한글이 찍히는 프롬프트입니다</strong>
-            <ul>
-              <li>한글을 제대로 그리는 모델에서 쓰세요. 글자가 깨지면 같은 프롬프트로 다시 뽑는 편이 빠릅니다.</li>
-              <li>문구는 이 게시물의 글과 상품 자료에서 가져왔습니다. 숫자는 상품 자료에 있는 것만 넣고, 없으면 그 줄을 비웁니다.</li>
-              <li>뽑은 이미지는 이 화면에 담기지 않습니다 — 파일로 받아 그대로 쓰세요.</li>
-            </ul>
-          </div>
+          <!--
+            ⚠️ 안내를 다시 박스(notice)로 만들지 말 것 (8-10 ② · 2026-08-20 요청자 지적 "UI 가 난잡하다").
+               세 줄짜리 경고 박스가 따로 서 있었는데, 이 화면은 이미 카드가 여럿이라 박스를 더하면 그것만 눈에 띈다.
+          -->
+          <p class="adbar__note">
+            글자까지 그림 안에 들어갑니다 — <strong>한글을 그리는 모델</strong>에서 쓰세요.
+            뽑은 이미지는 이 화면에 담기지 않습니다.
+          </p>
         </div>
 
         <div class="adlist">${adPrompts.map(adCardHTML).join('')}</div>
@@ -2053,26 +2041,26 @@ function adCardHTML(item) {
   const row = (label, value) => (value
     ? `<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`
     : '');
+  const headline = [c.line1, c.line2].filter(Boolean).join(' ');
   return `
     <article class="card adcard">
       <div class="adcard__head">
-        <span class="badge">${item.n}번</span>
-        <h3 class="adcard__name">${esc(roleLabel(item.role))}</h3>
+        <span class="badge">${item.n}번 · ${esc(roleLabel(item.role))}</span>
         <button type="button" class="btn btn--ghost btn--sm" data-ad-copy="${item.n}"
                 aria-label="${item.n}번 프롬프트 복사하기">
           ${icon('copy', 'icon--sm')} 복사
         </button>
       </div>
-      <dl class="adcard__copy">
-        ${row('말풍선', c.hook)}
-        ${row('헤드라인', [c.line1, c.line2].filter(Boolean).join(' / '))}
-        ${row('보조 문구', c.sub)}
-        ${row('숫자 강조', c.number)}
-        ${row('체크 리스트', c.bullets.join(' · '))}
-        ${row('하단 CTA', c.cta)}
-      </dl>
+      <p class="adcard__line">${esc(headline)}</p>
       <details class="adcard__raw">
-        <summary>프롬프트 전문 보기</summary>
+        <summary>자세히</summary>
+        <dl class="adcard__copy">
+          ${row('말풍선', c.hook)}
+          ${row('보조 문구', c.sub)}
+          ${row('숫자 강조', c.number)}
+          ${row('체크 리스트', c.bullets.join(' · '))}
+          ${row('하단 CTA', c.cta)}
+        </dl>
         <pre class="adcard__pre">${esc(item.prompt)}</pre>
       </details>
     </article>`;
