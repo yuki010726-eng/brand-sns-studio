@@ -1147,8 +1147,10 @@ function ctx(variant) {
 function aiCtx(variant, round = 0, coreOverride = null) {
   const s = getState();
   const core = coreOverride || (s.outline?.key === outlineKeyOf(s) ? s.outline.core : null);
+  const researchKey = `${s.productId}|${s.topic.trim()}`;
+  const researchStyle = s.researchStyle?.key === researchKey ? s.researchStyle.guide : '';
   // round 는 채널 프롬프트의 '진입 방식'을 바꾼다 (lib/copyai.js 의 ROUND_OPENING)
-  return { ...ctx(variant), core, round };
+  return { ...ctx(variant), core, round, researchStyle };
 }
 
 /**

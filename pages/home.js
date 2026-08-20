@@ -27,12 +27,12 @@ export function render(root) {
 
   root.innerHTML = `
     <div class="container">
+      ${stepperHTML('/')}
+
       <section class="hero">
         <h1>어떤 상품을 알리고 싶으세요?</h1>
         
       </section>
-
-      ${stepperHTML('/')}
 
       <section class="section" aria-labelledby="sec-product">
         <div class="section__head">
@@ -184,8 +184,8 @@ function briefHTML() {
 
         <div class="brief__actions">
           <button type="button" class="btn btn--lg" id="go-copy"
-                  aria-label="아이디어 문서화 단계로 이동">
-            아이디어 문서화 시작 ${icon('arrowRight', 'icon--sm')}
+                  aria-label="스타일 수집 단계로 이동">
+            스타일 수집으로 계속 ${icon('arrowRight', 'icon--sm')}
           </button>
           <button type="button" class="btn btn--text" id="clear-topic" aria-label="입력한 주제 지우기">
             초기화
@@ -288,7 +288,7 @@ function bindBrief(root) {
       clearLibraryEdit();
       setState({
         drafts: {}, generated: {}, variants: {}, sources: {},
-        draftKey: '', aiKey: {}, outline: null,
+        draftKey: '', aiKey: {}, outline: null, researchStyle: null,
         aiRuns: { key: '', list: [] }, activeAiRun: null,
         image: null, images: {}, card: null,
       });
@@ -330,12 +330,12 @@ function bindBrief(root) {
         || TONES.some(({ id }) => current.aiRuns?.key === `${runsKey}|${id}`);
       setState({
         drafts: {}, generated: {}, variants: {}, sources: {},
-        draftKey: '', aiKey: {}, outline: null,
+        draftKey: '', aiKey: {}, outline: null, researchStyle: null,
         aiRuns: sameTopicRuns ? current.aiRuns : { key: '', list: [] }, activeAiRun: null,
         image: null, images: {}, card: null,
       });
     }
-    navigate('/copy');
+    navigate('/research');
   });
 
   syncCta(root);

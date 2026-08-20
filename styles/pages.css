@@ -1162,6 +1162,10 @@ body.is-login-page .site-footer { display: none; }
 .research-search { padding: 22px; display: flex; flex-direction: column; gap: 16px; }
 .research-search__form { display: flex; gap: 10px; }
 .research-search__form .input { flex: 1; min-width: 0; }
+.research-direct { padding-top: 18px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 12px; }
+.research-direct h3 { margin: 0 0 4px; font-size: 16px; }
+.research-direct__form { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 10px; }
+.research-direct__form .textarea { min-width: 0; resize: vertical; }
 .research-status { min-height: 1.5em; margin: 0; color: var(--sub-strong); font-size: 14px; }
 .research-status.is-error { color: var(--danger); font-weight: 700; }
 .research-section-head { display: flex; justify-content: space-between; align-items: end; gap: 16px; }
@@ -1179,9 +1183,11 @@ body.is-login-page .site-footer { display: none; }
 .research-item--error { border-color: #F3C9C9; }
 .research-item__links { display: flex; gap: 12px; flex-wrap: wrap; }
 .research-analysis { padding: 24px; white-space: pre-wrap; line-height: 1.8; color: var(--text); }
+.research-next { display: flex; justify-content: flex-end; margin-top: var(--section-gap); }
 @media (max-width: 720px) {
   .research-results { grid-template-columns: 1fr; }
   .research-search__form, .research-section-head { align-items: stretch; flex-direction: column; }
+  .research-direct__form { grid-template-columns: 1fr; }
 }
 
 /* ---------- 임시(스텁) 화면 ---------- */

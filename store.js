@@ -53,6 +53,8 @@ const INITIAL = {
    * @type {{key:string, data:object}|null}
    */
   outline: null,
+  /** 블로그 연구에서 추출한 스타일. key가 현재 상품·주제와 같을 때만 AI 생성에 쓴다. */
+  researchStyle: null, // { key, guide, at }
   /**
    * 「AI 생성」을 누를 때마다 제한 없이 쌓이는 결과물 (AI 1 · AI 2 · AI 3…).
    * `key` 는 `outlineKeyOf()`(상품·주제·톤)와 같은 지문이다. 주제가 바뀌면
@@ -90,8 +92,9 @@ export const draftKeyOf = (s) => `${s.productId}|${s.topic.trim()}|${s.tone}|${s
  */
 export const STEPS = [
   { n: 1, path: '/',         label: '상품·주제 선택',  icon: 'sparkles' },
-  { n: 2, path: '/copy',     label: '아이디어 문서화', icon: 'fileText' },
-  { n: 3, path: '/template', label: '카드뉴스 템플릿', icon: 'layout' },
+  { n: 2, path: '/research', label: '스타일 수집',     icon: 'search' },
+  { n: 3, path: '/copy',     label: '아이디어 문서화', icon: 'fileText' },
+  { n: 4, path: '/template', label: '카드뉴스 템플릿', icon: 'layout' },
 ];
 
 function load() {
@@ -167,7 +170,8 @@ export function subscribe(fn) {
 export function resetFlow() {
   setState({
     productId: null, topic: '', libraryTitle: '', drafts: {}, generated: {}, variants: {}, sources: {},
-    draftKey: '', aiKey: {}, outline: null, aiRuns: { key: '', list: [] }, activeAiRun: null,
+    draftKey: '', aiKey: {}, outline: null, researchStyle: null,
+    aiRuns: { key: '', list: [] }, activeAiRun: null,
     image: null, images: {}, card: null,
   });
 }
@@ -182,7 +186,8 @@ export function navigate(path) {
 export function reachedStep() {
   // 이미지는 선택 사항이다 — 없으면 템플릿 기본 배경으로 그리므로
   // 글귀만 있으면 템플릿까지 진행할 수 있다.
-  if (Object.keys(state.drafts).length) return 3;
-  if (state.productId && state.topic.trim()) return 2;
+  if (Object.keys(state.drafts).length) return 4;
+  // 연구는 참고 단계이므로 상품·주제를 정하면 문서화까지 이동할 수 있다.
+  if (state.productId && state.topic.trim()) return 3;
   return 1;
 }
