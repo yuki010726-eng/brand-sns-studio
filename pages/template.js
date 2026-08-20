@@ -25,6 +25,7 @@ import { outlineKeyOf } from '../lib/outline.js';
 import { getImage, putImage, deleteImage, imageKey } from '../lib/imagestore.js';
 import { renderCard, loadImage, cardAlt, downloadCanvas, ensureFonts, lastClipped, lastBoxes, lastSizes, W, H } from '../lib/cardrender.js';
 import { buildPrompt } from '../lib/imageprompt.js';
+import { buildAdPrompts, AD_COUNTS, DEFAULT_AD_COUNT } from '../lib/adprompt.js';
 import { imagePanelHTML, bindImagePanel } from '../components/imagepanel.js';
 import { toast } from '../components/toast.js';
 import { saveToLibrary, hasLibraryChanges } from '../lib/librarystore.js';
@@ -57,6 +58,8 @@ let currentRoot = null;
 let archiveTimer = null;
 let unsubscribeArchive = null;
 let archiveSaving = false;
+/** 직관형(D)에서 만든 프롬프트 묶음 — 화면을 벗어나면 사라져도 되는 값이다 */
+let adPrompts = [];
 
 const refreshArchiveButton = (root) => {
   const btn = root?.querySelector('#save-library');
@@ -341,6 +344,15 @@ export function render(root) {
   // 카드 문구의 최종 출처는 **완성된 블로그**다. 뼈대(outline)는 카드 개수·역할만 잡고,
   // 실제 제목·본문은 블로그의 소제목과 문단에서 가져온다 (blogCardSource 주석 참고).
   deck = deckFromBlog(deck, s);
+
+  /**
+   * ⚠️ **직관형(D)은 여기서 갈라진다.** 카드를 그리지 않고 이미지 프롬프트만 만든다
+   *    (`lib/concepts.js` 의 `promptOnly` 주석 참고). 아래 캔버스 준비를 타면 안 된다 —
+   *    직관형에는 슬롯 정의(`lib/templates.js`)가 없어서 `ensureTexts()` 가 매거진형 슬롯으로
+   *    카드를 세운다. 그러면 A 로 돌아갔을 때 편집본이 어긋난다.
+   */
+  if (concept.promptOnly) { renderAdPage(root, p, s); return; }
+
   ensureTexts(p);
   if (active >= deck.length) active = 0;
   resetHistory();   // 이 화면에 새로 들어오거나(마운트) 템플릿을 바꿀 때 이력을 지금 상태로 다시 시작한다
@@ -1891,6 +1903,185 @@ async function saveToArchive(root, { automatic = false } = {}) {
     if (btn) btn.removeAttribute('aria-busy');
     refreshArchiveButton(root);
   }
+}
+
+/* ---------------- 직관형(D) — 이미지 프롬프트 ---------------- */
+
+/**
+ * 프롬프트를 들고 갈 곳. `components/imagepanel.js` 의 TOOLS 와 같은 목적이다.
+ * ⚠️ **한글을 그릴 수 있는 도구여야 한다.** 직관형은 글자가 그림의 절반이다.
+ */
+const AD_TOOLS = [
+  { name: 'ChatGPT', url: 'https://chatgpt.com/' },
+  { name: 'Gemini', url: 'https://gemini.google.com/app' },
+];
+
+const adCountOf = (s) => {
+  const n = Number(s.adCount);
+  return AD_COUNTS.includes(n) ? n : DEFAULT_AD_COUNT;
+};
+
+/**
+ * 직관형 화면.
+ *
+ * 캔버스 편집기가 없다. 대신 **장수를 고르고 프롬프트 묶음을 받는다.**
+ * 템플릿 선택 줄은 그대로 둔다 — 여기서 A·B·C 로 되돌아갈 수 있어야 한다.
+ */
+function renderAdPage(root, product, s) {
+  const count = adCountOf(s);
+  adPrompts = buildAdPrompts({ product, topic: s.topic.trim(), deck, count });
+  currentRoot = root;
+
+  root.innerHTML = `
+    <div class="container">
+      ${stepperHTML('/template')}
+
+      <section class="section">
+        <div class="section__head">
+          <h1>직관형 — 이미지 프롬프트를 만듭니다</h1>
+          <p class="section__desc">
+            직관형은 카드를 그리지 않습니다. <strong>글자까지 이미지 안에 들어가는 광고 배너</strong>라
+            나중에 문구를 얹을 자리가 없기 때문입니다. 대신 원하는 장수만큼 프롬프트를 만들어 드리니,
+            복사해서 이미지 생성 도구에서 뽑으면 됩니다.
+          </p>
+        </div>
+
+        <div class="ctxbar card">
+          <dl class="ctxbar__list">
+            <div><dt>상품</dt><dd>${esc(product.name)}</dd></div>
+            <div><dt>주제</dt><dd>${esc(s.topic)}</dd></div>
+            <div><dt>톤</dt><dd>${esc(TONE_LABEL[s.tone] || s.tone)}</dd></div>
+          </dl>
+          <div class="ctxbar__actions">
+            <a class="btn btn--ghost btn--sm" href="#/copy" aria-label="글귀 단계로 돌아가기">
+              ${icon('arrowLeft', 'icon--sm')} 글귀 수정
+            </a>
+          </div>
+        </div>
+
+        <h2 class="sub-head">템플릿 선택</h2>
+        <fieldset class="concept-grid" id="tpl-concepts">
+          <legend class="sr-only">카드뉴스 템플릿을 선택하세요</legend>
+          ${CONCEPTS.map((c) => conceptCardHTML(c, c.id === s.concept)).join('')}
+        </fieldset>
+
+        <div class="card adbar">
+          <fieldset class="field">
+            <legend class="field__label">만들 장수</legend>
+            <div class="pickrow" role="radiogroup" aria-label="이미지 프롬프트 장수 선택">
+              ${AD_COUNTS.map((n) => `
+                <input class="sr-only pick__input" type="radio" name="adcount" id="ad-${n}" value="${n}"
+                       autocomplete="off" aria-label="프롬프트 ${n}장" ${count === n ? 'checked' : ''} />
+                <label class="pick" for="ad-${n}">${n}장</label>`).join('')}
+            </div>
+            <p class="field__hint">
+              장마다 배치와 색 조합이 다르게 돌아갑니다 — 같은 주제로 여러 장을 뽑아도 한 벌로 보이지 않습니다.
+            </p>
+          </fieldset>
+
+          <div class="adbar__actions">
+            <button type="button" class="btn btn--ghost btn--sm" id="ad-copy-all"
+                    aria-label="프롬프트 ${adPrompts.length}장 모두 복사하기">
+              ${icon('copy', 'icon--sm')} ${adPrompts.length}장 모두 복사
+            </button>
+            ${AD_TOOLS.map((t) => `
+              <a class="btn btn--text btn--sm" href="${t.url}" target="_blank" rel="noopener noreferrer"
+                 aria-label="${esc(t.name)} 를 새 탭에서 열기">
+                ${icon('external', 'icon--sm')} ${esc(t.name)}
+              </a>`).join('')}
+          </div>
+        </div>
+
+        <div class="notice notice--warn" role="note">
+          <span class="notice__icon" aria-hidden="true">${icon('alert', 'icon--sm')}</span>
+          <div>
+            <strong>한글이 찍히는 프롬프트입니다</strong>
+            <ul>
+              <li>한글을 제대로 그리는 모델에서 쓰세요. 글자가 깨지면 같은 프롬프트로 다시 뽑는 편이 빠릅니다.</li>
+              <li>문구는 이 게시물의 글과 상품 자료에서 가져왔습니다. 숫자는 상품 자료에 있는 것만 넣고, 없으면 그 줄을 비웁니다.</li>
+              <li>뽑은 이미지는 이 화면에 담기지 않습니다 — 파일로 받아 그대로 쓰세요.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="adlist">${adPrompts.map(adCardHTML).join('')}</div>
+
+        <div class="flow-actions">
+          <button type="button" class="btn btn--ghost" id="go-copy"
+                  aria-label="아이디어 문서화 단계로 돌아가기">
+            ${icon('arrowLeft', 'icon--sm')} 글귀 단계로
+          </button>
+          <button type="button" class="btn" id="save-library" aria-label="지금 게시물 저장하기">
+            ${icon('archive', 'icon--sm')} 저장
+          </button>
+        </div>
+      </section>
+    </div>`;
+
+  bindStepper(root);
+  bindConcepts(root);
+  bindAdPage(root);
+  bindArchiveAutosave(root);
+}
+
+/** 프롬프트 한 장 — 무엇이 찍히는지 먼저 보이고, 전문은 접어 둔다 */
+function adCardHTML(item) {
+  const c = item.copy;
+  const row = (label, value) => (value
+    ? `<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`
+    : '');
+  return `
+    <article class="card adcard">
+      <div class="adcard__head">
+        <span class="badge">${item.n}번</span>
+        <h3 class="adcard__name">${esc(item.layout.name)}</h3>
+        <span class="badge badge--neutral">${esc(item.palette.name)}</span>
+        <button type="button" class="btn btn--ghost btn--sm" data-ad-copy="${item.n}"
+                aria-label="${item.n}번 프롬프트 복사하기">
+          ${icon('copy', 'icon--sm')} 복사
+        </button>
+      </div>
+      <p class="adcard__desc">${esc(item.layout.desc)}</p>
+      <dl class="adcard__copy">
+        ${row('말풍선', c.hook)}
+        ${row('헤드라인', [c.line1, c.line2].filter(Boolean).join(' / '))}
+        ${row('보조 문구', c.sub)}
+        ${row('숫자 강조', c.number)}
+        ${row('체크 리스트', c.bullets.join(' · '))}
+        ${row('하단 CTA', c.cta)}
+      </dl>
+      <details class="adcard__raw">
+        <summary>프롬프트 전문 보기</summary>
+        <pre class="adcard__pre">${esc(item.prompt)}</pre>
+      </details>
+    </article>`;
+}
+
+function bindAdPage(root) {
+  root.querySelectorAll('input[name="adcount"]').forEach((el) => {
+    el.addEventListener('change', () => {
+      setState({ adCount: Number(el.value) });
+      render(root);
+    });
+  });
+
+  root.querySelectorAll('[data-ad-copy]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const item = adPrompts.find((x) => x.n === Number(btn.dataset.adCopy));
+      if (item) copyText(item.prompt, `${item.n}번 프롬프트를 복사했습니다.`);
+    });
+  });
+
+  root.querySelector('#ad-copy-all')?.addEventListener('click', () => {
+    // 붙여 놓으면 어느 장인지 못 가리므로 번호와 배치 이름을 함께 붙인다
+    const all = adPrompts
+      .map((x) => `[${x.n}번 · ${x.layout.name} · ${x.palette.name}]\n${x.prompt}`)
+      .join('\n\n────────\n\n');
+    copyText(all, `${adPrompts.length}장을 모두 복사했습니다.`);
+  });
+
+  root.querySelector('#go-copy')?.addEventListener('click', () => navigate('/copy'));
+  root.querySelector('#save-library')?.addEventListener('click', () => saveToArchive(root));
 }
 
 /* ---------------- 유틸 ---------------- */

@@ -183,9 +183,15 @@ function briefHTML() {
         </fieldset>
 
         <div class="brief__actions">
+          <!--
+            ⚠️ **여기서 「블로그 스타일」로 보내지 말 것** (2026-08-20, 요청자 지시).
+               8-20 에 스타일 수집을 단계에서 뺐는데(store.js STEPS 주석) 이 버튼만 그대로
+               /research 로 가고 있었다 — 상품·주제를 고르면 매번 수집 화면이 열렸다.
+               스타일은 설정이고, 다음 단계는 2단계 「아이디어 문서화」다. 거기서 골라 쓴다.
+          -->
           <button type="button" class="btn btn--lg" id="go-copy"
-                  aria-label="스타일 수집 단계로 이동">
-            스타일 수집으로 계속 ${icon('arrowRight', 'icon--sm')}
+                  aria-label="아이디어 문서화 단계로 이동">
+            아이디어 문서화로 계속 ${icon('arrowRight', 'icon--sm')}
           </button>
           <button type="button" class="btn btn--text" id="clear-topic" aria-label="입력한 주제 지우기">
             초기화
@@ -335,7 +341,7 @@ function bindBrief(root) {
         image: null, images: {}, card: null,
       });
     }
-    navigate('/research');
+    navigate('/copy');
   });
 
   syncCta(root);

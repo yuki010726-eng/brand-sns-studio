@@ -17,6 +17,7 @@ import {
 } from '../lib/llm.js';
 import { keyFieldHTML } from '../components/keyfield.js';
 import { toast } from '../components/toast.js';
+import { typeLabel, sectionsOf, summaryOf } from '../lib/blogstyles.js';
 import { recordCopySelection } from '../lib/copypreferences.js';
 import { saveToLibrary } from '../lib/librarystore.js';
 
@@ -629,13 +630,15 @@ function aiAllLabel(s) {
 
 /** AI 생성 결과를 오가는 버튼 — 만든 적이 없으면(0벌) 아무것도 그리지 않는다 */
 /**
- * 문체 스타일 고르기 (2026-08-20 신설).
+ * 블로그 스타일 고르기 (2026-08-20 신설 · 같은 날 이름 변경).
  *
  * 예전에는 게시물마다 「스타일 수집」 단계를 거쳐야 했고, 주제가 바뀌면 수집분이 날아갔다.
  * 요청자 지적: "할 때마다 스타일 수집이 너무 번거롭다."
- * 이제 스타일은 **헤더의 「문체 스타일」에서 모아 두고 여기서 고른다.**
+ * 이제 스타일은 **헤더의 「블로그 스타일」에서 모아 두고 여기서 고른다.**
  *
- * ⚠️ 고른 스타일은 **문체만** 프롬프트에 들어간다. 사실·주제는 상품 자료와 담당자 주제가 이긴다
+ * ⚠️ 칩 이름은 `A타입 · 이름` 이다. 이름만 적어 두면 목록에서 무엇이 무엇인지 안 들어온다는
+ *    지적(2026-08-20)이 있었다. 글자는 `lib/blogstyles.js` 가 정하고 설정 화면과 **같은 값**이다.
+ * ⚠️ 고른 스타일은 **글 스타일만** 프롬프트에 들어간다. 사실·주제는 상품 자료와 담당자 주제가 이긴다
  *    (`lib/copyai.js` 의 researchStyle 블록).
  */
 function stylePickHTML() {
@@ -644,20 +647,61 @@ function stylePickHTML() {
   if (!list.length) {
     return `
       <p class="field__hint style-pick style-pick--empty">
-        문체 스타일을 모아 두면 여기서 골라 쓸 수 있습니다.
-        <a href="#/research">문체 스타일 모으러 가기</a>
+        블로그 스타일을 모아 두면 여기서 A타입 · B타입으로 골라 쓸 수 있습니다.
+        <a href="#/research">블로그 스타일 모으러 가기</a>
       </p>`;
   }
-  const chip = (id, label) => `
-    <button type="button" class="chip style-pick__chip${(s.styleId || null) === id ? ' chip--on' : ''}"
-            data-style-pick="${id ?? ''}" aria-pressed="${(s.styleId || null) === id}">${esc(label)}</button>`;
+  const current = s.styleId || null;
+  const chip = (id, label, sub) => `
+    <button type="button" class="chip style-pick__chip${current === id ? ' chip--on' : ''}"
+            data-style-pick="${id ?? ''}" aria-pressed="${current === id}">
+      <span class="style-pick__chip-type">${esc(label)}</span>${sub ? `<span class="style-pick__chip-name">${esc(sub)}</span>` : ''}
+    </button>`;
   return `
     <div class="style-pick card">
-      <span class="style-pick__label">문체 스타일</span>
-      ${chip(null, '사용 안 함')}
-      ${list.map((st) => chip(st.id, st.name)).join('')}
-      <a class="style-pick__more" href="#/research">관리</a>
+      <div class="style-pick__head">
+        <span class="style-pick__label">블로그 스타일</span>
+        <a class="style-pick__more" href="#/research">스타일 관리</a>
+      </div>
+      <div class="style-pick__chips" role="group" aria-label="이 글에 쓸 블로그 스타일 고르기">
+        ${chip(null, '사용 안 함', '')}
+        ${list.map((st, i) => chip(st.id, typeLabel(i), st.name)).join('')}
+      </div>
+      ${stylePeekHTML()}
     </div>`;
+}
+
+/**
+ * 「어떤 느낌인지」 미리 보기 (2026-08-20, 요청자 요구).
+ *
+ * 칩 이름만 보고는 그 스타일로 쓰면 글이 어떻게 나오는지 알 수 없다는 지적이었다.
+ * 그래서 칩 **바로 아래**에 접힌 칸을 두고, 누르면 분석 항목을 펴서 보여준다.
+ * 기본은 접어 둔다 — 이 화면은 이미 박스가 많다(ctxbar · AI 벌 · 채널 탭).
+ */
+function stylePeekHTML() {
+  const s = getState();
+  const list = s.styles || [];
+  const index = list.findIndex((x) => x.id === s.styleId);
+  if (index < 0) {
+    return `
+      <p class="style-pick__none">
+        스타일 없이 씁니다. 위에서 하나 고르면 그 글의 리듬·구성만 따라갑니다 —
+        사실과 주제는 상품 자료와 지금 주제를 그대로 씁니다.
+      </p>`;
+  }
+  const picked = list[index];
+  const line = summaryOf(picked.guide);
+  return `
+    <details class="style-pick__peek">
+      <summary>
+        <strong>${esc(typeLabel(index))} · ${esc(picked.name)}</strong>
+        <span>${line ? esc(line) : '어떤 느낌인지 보기'}</span>
+      </summary>
+      <dl class="styleguide">
+        ${sectionsOf(picked.guide).map((sec) => `
+          <div><dt>${esc(sec.label)}</dt><dd>${esc(sec.body) || '—'}</dd></div>`).join('')}
+      </dl>
+    </details>`;
 }
 
 function aiRunsHTML() {
@@ -681,7 +725,11 @@ function bindStylePick(root) {
     setState({ styleId: id });
     const slot = root.querySelector('#style-slot');
     if (slot) { slot.innerHTML = stylePickHTML(); bindStylePick(root); }
-    toast(id ? '이 스타일로 다음 글을 씁니다.' : '스타일 없이 씁니다.');
+    const cur = getState();
+    const index = (cur.styles || []).findIndex((x) => x.id === id);
+    toast(index >= 0
+      ? `${typeLabel(index)} 「${cur.styles[index].name}」로 다음 글을 씁니다.`
+      : '스타일 없이 씁니다.');
   }));
 }
 
@@ -1255,7 +1303,7 @@ function aiCtx(variant, round = 0, coreOverride = null) {
   /**
    * ⚠️ **주제에 묶인 옛 방식(`researchStyle`)을 버리고 고른 스타일을 쓴다** (2026-08-20).
    *    예전에는 `상품|주제` 가 같을 때만 살아 있어서 주제를 바꾸면 매번 다시 수집해야 했다.
-   *    지금은 헤더의 「문체 스타일」에 모아 두고 여기서 고른 것을 쓴다. 주제와 무관하다.
+   *    지금은 헤더의 「블로그 스타일」에 모아 두고 여기서 고른 것을 쓴다. 주제와 무관하다.
    *    ⚠️ 옛 저장분도 계속 읽는다 — 고른 스타일이 없을 때의 폴백이다.
    */
   const picked = (s.styles || []).find((x) => x.id === s.styleId);

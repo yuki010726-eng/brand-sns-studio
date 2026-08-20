@@ -575,9 +575,11 @@ body.is-login-page .site-footer { display: none; }
 .sub-head { margin: var(--gap-xl) 0 var(--gap) 0; font-size: 18px; }
 
 /* ---- 컨셉 선택 ---- */
+/* ⚠️ 템플릿이 3종이던 시절엔 `repeat(3, 1fr)` 이었다. 직관형(D)을 넣으면서 4열이 됐다 —
+   템플릿을 더 넣으면 여기와 아래 반응형 두 줄을 함께 봐야 한다. */
 .concept-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: var(--gap);
   border: 0; padding: 0; margin: 0; min-width: 0;
 }
@@ -703,6 +705,7 @@ body.is-login-page .site-footer { display: none; }
 
 @media (max-width: 900px) {
   .concept-grid, .shots { grid-template-columns: repeat(2, 1fr); }
+  .adlist { grid-template-columns: 1fr; }
 }
 @media (max-width: 560px) {
   .concept-grid, .shots { grid-template-columns: 1fr; }
@@ -1394,7 +1397,7 @@ body.is-login-page .site-footer { display: none; }
 /* 브랜드 로고 칸(.logobar)은 뺐다 — 로고 파일이 준비되면 다시 붙인다.
    이유는 pages/profile.js 의 imageHTML() 주석 참고. */
 
-/* ── 문체 스타일 (2026-08-20) ─────────────────────────────────
+/* ── 블로그 스타일 (2026-08-20) ─────────────────────────────────
    스타일 수집은 단계가 아니라 설정이다(store.js STEPS 주석).
    여기 클래스는 「/research 설정 화면」과 「2단계 스타일 고르기」 양쪽에서 쓴다. */
 .research-suggest { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
@@ -1405,7 +1408,81 @@ body.is-login-page .site-footer { display: none; }
 .research-saved--empty h2 { font-size: 16px; margin: 0 0 4px; }
 .research-saved__peek { margin: 6px 0 0; font-size: 13px; line-height: 1.6; color: var(--sub-strong); }
 
-.style-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 14px 16px; }
-.style-pick__label { font-size: 13px; font-weight: 700; color: var(--text); margin-right: 2px; }
+/* 설정 화면의 저장 목록 — A타입 카드 */
+.stylelist { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--gap); }
+.stylecard { display: flex; flex-direction: column; gap: 8px; padding: 18px 20px; }
+.stylecard__head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.stylecard__type { flex: none; }
+.stylecard__name { margin: 0; font-size: 16px; font-weight: 700; color: #191F28; }
+/* 이름 바꾸기는 카드 안에서 끝난다 — 입력칸이 카드 폭을 다 먹지 않게 잡아 둔다 */
+.stylecard__rename { display: flex; align-items: center; gap: 6px; flex: 1 1 220px; min-width: 0; }
+.stylecard__rename .input { flex: 1 1 auto; min-width: 0; }
+.stylecard__head .btn--text { margin-left: auto; }
+.stylecard__rename .btn--text { margin-left: 0; }
+.stylecard__summary { margin: 0; font-size: 13.5px; line-height: 1.6; color: var(--text); }
+.stylecard__meta { margin: 0; font-size: 12.5px; color: var(--sub-strong); }
+.stylecard__actions { display: flex; justify-content: flex-end; }
+.stylecard__detail > summary,
+.style-pick__peek > summary { cursor: pointer; font-size: 13px; color: var(--sub-strong); }
+
+/* 분석 항목 펼치기 — 설정 화면과 2단계 고르기가 같은 표를 쓴다 */
+.styleguide { margin: 10px 0 0; display: grid; gap: 8px; }
+.styleguide > div { display: grid; grid-template-columns: 96px 1fr; gap: 10px; align-items: start; }
+.styleguide dt { font-size: 12.5px; font-weight: 700; color: var(--sub-strong); }
+.styleguide dd { margin: 0; font-size: 13px; line-height: 1.65; color: var(--text); }
+
+/* 2단계 고르기 */
+.style-pick { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; }
+.style-pick__head { display: flex; align-items: center; gap: 8px; }
+.style-pick__label { font-size: 13px; font-weight: 700; color: var(--text); }
 .style-pick__more { margin-left: auto; font-size: 13px; color: var(--sub-strong); }
+.style-pick__chips { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+/* 칩 안에서 이름표(A타입)와 이름을 갈라 둔다 — 이름표가 먼저 읽혀야 목록과 이어진다 */
+.style-pick__chip { display: inline-flex; align-items: baseline; gap: 6px; }
+.style-pick__chip-type { font-weight: 700; }
+.style-pick__chip-name { font-weight: 500; opacity: 0.85; }
+.style-pick__none { margin: 0; font-size: 13px; line-height: 1.6; color: var(--sub-strong); }
+.style-pick__peek > summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+.style-pick__peek > summary strong { font-size: 13px; color: var(--text); }
 .style-pick--empty { margin: 0 0 12px; }
+
+@media (max-width: 860px) {
+  .stylelist { grid-template-columns: 1fr; }
+  .styleguide > div { grid-template-columns: 1fr; gap: 2px; }
+}
+
+
+/* ── 직관형(D) 이미지 프롬프트 (2026-08-20) ───────────────────
+   카드를 그리지 않는 유일한 템플릿이라 편집기(.tpl-editor) 대신 이 목록을 쓴다.
+   자세한 이유는 lib/adprompt.js 머리말 참고. */
+.adbar { margin-top: var(--gap); padding: 18px 20px; display: grid; gap: 14px; }
+.adbar .field { margin: 0; }
+.adbar__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+
+.adlist { margin-top: var(--gap); display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--gap); }
+.adcard { display: flex; flex-direction: column; gap: 10px; padding: 18px 20px; }
+.adcard__head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.adcard__name { margin: 0; font-size: 16px; font-weight: 700; color: #191F28; }
+/* 복사 버튼은 항상 오른쪽 끝 — 카드마다 자리가 다르면 연달아 누를 때 눈이 따라다닌다 */
+.adcard__head .btn { margin-left: auto; }
+.adcard__desc { margin: 0; font-size: 13.5px; line-height: 1.6; color: var(--text); }
+
+/* 무엇이 그림에 찍히는지 — 전문을 열기 전에 이것만 보고도 고를 수 있어야 한다 */
+.adcard__copy { margin: 0; display: grid; gap: 6px; }
+.adcard__copy > div { display: grid; grid-template-columns: 72px 1fr; gap: 10px; align-items: start; }
+.adcard__copy dt { font-size: 12.5px; font-weight: 700; color: var(--sub-strong); }
+.adcard__copy dd { margin: 0; font-size: 13px; line-height: 1.6; color: var(--text); }
+
+.adcard__raw > summary { cursor: pointer; font-size: 13px; color: var(--sub-strong); }
+/* 프롬프트 전문은 영문 한 덩어리라 줄바꿈을 살리되 가로 스크롤은 만들지 않는다 */
+.adcard__pre {
+  margin: 10px 0 0; padding: 12px 14px;
+  background: var(--fill); border-radius: var(--radius-md);
+  font-size: 12px; line-height: 1.65; color: var(--text);
+  white-space: pre-wrap; word-break: break-word;
+  max-height: 320px; overflow-y: auto;
+}
+
+@media (max-width: 1080px) {
+  .adlist { grid-template-columns: 1fr; }
+}

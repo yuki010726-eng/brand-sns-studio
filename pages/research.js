@@ -4,13 +4,16 @@ import { accessToken } from '../lib/auth.js';
 import { icon } from '../assets/icons.js';
 import { getState, setState, navigate } from '../store.js';
 import { getProduct } from '../lib/products.js';
+import { typeLabel, sectionsOf, summaryOf, NAME_MAX } from '../lib/blogstyles.js';
 
-export const title = '블로그 스타일 연구';
+export const title = '블로그 스타일';
 let candidates = [];
 let selectedCandidateUrls = new Set();
 let collected = [];
 let analysis = '';
 let researchContextKey = '';
+/** 지금 이름을 고치고 있는 스타일 id — 화면을 벗어나면 사라져도 되는 값이라 스토어에 넣지 않는다 */
+let renamingId = null;
 
 /**
  * ⚠️ **막지 않는다** (2026-08-20). 예전에는 상품·주제가 있어야 들어올 수 있었다 —
@@ -30,37 +33,90 @@ const SUGGESTED = [
 
 const newId = () => `st_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
-/** 저장된 스타일 목록 — 이 화면의 본체다. 수집은 이 목록을 채우는 수단이다. */
+/**
+ * 저장된 목록 — 이 화면의 본체다. 수집은 이 목록을 채우는 수단이다.
+ *
+ * ⚠️ **A타입 · B타입으로 부른다** (2026-08-20, 요청자 지시). 이름만으로는 목록에서 무엇이
+ *    무엇인지 한눈에 안 들어온다는 지적이었다. 글자는 `lib/blogstyles.js` 가 정한다 —
+ *    2단계 고르기 칩과 **같은 글자**여야 고를 때 헷갈리지 않는다.
+ */
 function savedStylesHTML() {
   const list = getState().styles || [];
   if (!list.length) {
     return `
       <section class="card research-saved research-saved--empty">
-        <h2>저장된 스타일이 없습니다</h2>
-        <p class="section__desc">아래에서 글을 검색해 수집하면 문체 스타일로 저장할 수 있습니다.</p>
+        <h2>저장된 블로그 스타일이 없습니다</h2>
+        <p class="section__desc">
+          아래에서 글을 검색해 수집하면 블로그 스타일로 저장됩니다.
+          저장한 순서대로 A타입 · B타입으로 쌓이고, 이름은 나중에 언제든 고칠 수 있습니다.
+        </p>
       </section>`;
   }
   return `
     <section class="section" aria-labelledby="saved-title">
       <div class="section__head">
-        <h2 id="saved-title">저장된 스타일 ${list.length}개</h2>
-        <p class="section__desc">게시물을 만들 때 2단계에서 골라 씁니다.</p>
+        <h2 id="saved-title">저장된 블로그 스타일 ${list.length}개</h2>
+        <p class="section__desc">게시물을 만들 때 2단계 「아이디어 문서화」에서 골라 씁니다.</p>
       </div>
-      <div class="research-results">
-        ${list.map((st) => `
-          <article class="card research-item research-item--collected">
-            <div class="research-item__body">
-              <strong>${esc(st.name)}</strong>
-              <span>${new Date(st.at).toLocaleDateString('ko-KR')} · ${st.sources?.length || 0}개 글에서 분석</span>
-              <p class="research-saved__peek">${esc(String(st.guide).replace(/\s+/g, ' ').slice(0, 90))}…</p>
-              <div class="research-item__links">
-                <button class="btn btn--text btn--sm" type="button" data-style-del="${st.id}"
-                        aria-label="${esc(st.name)} 스타일 삭제">삭제</button>
-              </div>
-            </div>
-          </article>`).join('')}
+      <div class="stylelist">
+        ${list.map((st, i) => styleCardHTML(st, i)).join('')}
       </div>
     </section>`;
+}
+
+/** 카드 한 장 — 이름표(A타입) · 이름 · 한 줄 요약 · 펼쳐 보는 상세 */
+function styleCardHTML(st, i) {
+  const renaming = renamingId === st.id;
+  const summary = summaryOf(st.guide);
+  return `
+    <article class="card stylecard">
+      <div class="stylecard__head">
+        <span class="badge stylecard__type">${esc(typeLabel(i))}</span>
+        ${renaming ? `
+          <form class="stylecard__rename" data-rename-form="${st.id}">
+            <label class="sr-only" for="rename-${st.id}">${esc(typeLabel(i))} 이름</label>
+            <input class="input" id="rename-${st.id}" name="name" value="${esc(st.name)}"
+                   maxlength="${NAME_MAX}" autocomplete="off" required />
+            <button class="btn btn--sm" type="submit">저장</button>
+            <button class="btn btn--text btn--sm" type="button" data-rename-cancel>취소</button>
+          </form>`
+        : `
+          <h3 class="stylecard__name">${esc(st.name)}</h3>
+          <button class="btn btn--text btn--sm" type="button" data-style-rename="${st.id}"
+                  aria-label="${esc(st.name)} 이름 바꾸기">이름 바꾸기</button>`}
+      </div>
+
+      <p class="stylecard__summary">${summary ? esc(summary) : '한 줄 요약이 없습니다. 아래에서 전체 분석을 볼 수 있어요.'}</p>
+
+      <details class="stylecard__detail">
+        <summary>어떤 느낌인지 보기</summary>
+        ${guideHTML(st.guide)}
+      </details>
+
+      <p class="stylecard__meta">
+        ${new Date(st.at).toLocaleDateString('ko-KR')} 저장 · ${st.sources?.length || 0}개 글에서 분석
+      </p>
+      <div class="stylecard__actions">
+        <button class="btn btn--text btn--sm" type="button" data-style-del="${st.id}"
+                aria-label="${esc(st.name)} 스타일 삭제">삭제</button>
+      </div>
+    </article>`;
+}
+
+/**
+ * 분석 결과를 항목별로 편다.
+ * 통째로 보여 주면 일곱 항목이 한 덩어리 글이라 「어떤 느낌인지」가 안 읽힌다.
+ */
+function guideHTML(guide) {
+  const rows = sectionsOf(guide);
+  return `
+    <dl class="styleguide">
+      ${rows.map((sec) => `
+        <div>
+          <dt>${esc(sec.label)}</dt>
+          <dd>${esc(sec.body) || '—'}</dd>
+        </div>`).join('')}
+    </dl>`;
 }
 
 export function render(root) {
@@ -77,10 +133,10 @@ export function render(root) {
   root.innerHTML = `
     <div class="container page research-page">
       <section class="hero">
-        <h1>문체 스타일을 모아 둡니다</h1>
+        <h1>블로그 스타일을 모아 둡니다</h1>
         <p class="hero__sub">
-          잘 쓴 블로그를 찾아 문체만 뽑아 저장해 두면, 게시물을 만들 때 <strong>골라서 쓸 수 있습니다.</strong>
-          게시물마다 다시 수집하지 않아도 됩니다.
+          잘 쓴 블로그를 찾아 글 스타일만 뽑아 저장해 두면, 게시물을 만들 때 <strong>골라서 쓸 수 있습니다.</strong>
+          저장한 순서대로 <strong>A타입 · B타입</strong>이 붙고, 이름은 언제든 고칠 수 있습니다.
         </p>
       </section>
 
@@ -120,13 +176,13 @@ export function render(root) {
       <section class="section" id="collection-section" hidden aria-labelledby="collection-title">
         <div class="section__head research-section-head"><div><h2 id="collection-title">3. 수집 결과</h2><p class="section__desc">PDF는 research-output 폴더에도 보관됩니다.</p></div><div class="research-savebar">
           <label class="sr-only" for="style-name">저장할 스타일 이름</label>
-          <input class="input" id="style-name" placeholder="스타일 이름 (비우면 검색어로)" autocomplete="off" maxlength="20" />
+          <input class="input" id="style-name" placeholder="블로그 스타일 이름 (비우면 검색어로)" autocomplete="off" maxlength="20" />
           <button class="btn btn--primary" id="analyze-button" type="button" aria-label="수집한 글 스타일 분석 후 저장">분석해서 저장</button>
         </div></div>
         <div class="research-results" id="collection-list"></div>
       </section>
       <section class="section" id="analysis-section" hidden aria-labelledby="analysis-title">
-        <div class="section__head"><h2 id="analysis-title">4. 스타일 분석</h2><p class="section__desc">고유 문장을 복제하지 않고 재사용 가능한 특징만 정리한 결과입니다.</p></div>
+        <div class="section__head"><h2 id="analysis-title">4. 블로그 스타일 분석</h2><p class="section__desc">고유 문장을 복제하지 않고 재사용 가능한 특징만 정리한 결과입니다.</p></div>
         <article class="card research-analysis" id="analysis-result"></article>
       </section>
       <div class="research-next">
@@ -151,13 +207,44 @@ function bind(root) {
   root.querySelectorAll('[data-style-del]').forEach((b) => b.addEventListener('click', () => {
     const id = b.dataset.styleDel;
     const cur = getState();
+    /**
+     * ⚠️ 지우면 **뒤 순서가 한 칸씩 당겨진다** — C타입이 B타입이 된다.
+     *    이름표는 목록 순서에서 나오는 값이라 그렇다(`lib/blogstyles.js`). 그래서 안내에
+     *    이름을 함께 적는다. 「B타입을 지웠다」고만 하면 남은 B타입과 헷갈린다.
+     */
+    const gone = (cur.styles || []).find((x) => x.id === id);
     setState({
       styles: (cur.styles || []).filter((x) => x.id !== id),
       styleId: cur.styleId === id ? null : cur.styleId,
     });
-    toast('스타일을 지웠습니다.');
+    if (renamingId === id) renamingId = null;
+    toast(`「${gone?.name || '스타일'}」을 지웠습니다.`);
     render(root);
   }));
+
+  /* 이름 바꾸기 — 카드 안에서 바로 고친다. 목록을 벗어나지 않아야 무엇을 고치는지 안 헷갈린다. */
+  root.querySelectorAll('[data-style-rename]').forEach((b) => b.addEventListener('click', () => {
+    renamingId = b.dataset.styleRename;
+    render(root);
+    const input = root.querySelector(`#rename-${renamingId}`);
+    input?.focus();
+    input?.select();
+  }));
+  root.querySelector('[data-rename-cancel]')?.addEventListener('click', () => {
+    renamingId = null;
+    render(root);
+  });
+  root.querySelector('[data-rename-form]')?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const id = event.currentTarget.dataset.renameForm;
+    const name = String(new FormData(event.currentTarget).get('name') || '').trim().slice(0, NAME_MAX);
+    if (!name) { toast('이름을 입력해 주세요.'); return; }
+    const cur = getState();
+    setState({ styles: (cur.styles || []).map((x) => (x.id === id ? { ...x, name } : x)) });
+    renamingId = null;
+    toast(`이름을 「${name}」로 바꿨습니다.`);
+    render(root);
+  });
   root.querySelector('#research-form').addEventListener('submit', async (event) => {
     event.preventDefault();
     const keyword = root.querySelector('#research-keyword').value.trim();
@@ -238,7 +325,7 @@ function showCollected(root) {
 async function analyze(root) {
   const sources = collected.filter((item) => item.text); if (!sources.length) return;
   if (!hasKey()) { toast('OpenAI API 키가 없습니다. 게시물 제작 화면의 AI 설정에서 먼저 입력해 주세요.', 6000); return; }
-  const button = root.querySelector('#analyze-button'); setBusy(button, true, '분석 중…'); status(root, '선택한 글에서 공통적인 문체와 구성 특징을 분석하고 있습니다.');
+  const button = root.querySelector('#analyze-button'); setBusy(button, true, '분석 중…'); status(root, '선택한 글에서 공통적인 글 스타일과 구성 특징을 분석하고 있습니다.');
   const state = getState();
   const product = getProduct(state.productId);
   const fixedTopic = String(state.topic || '').trim();
@@ -258,7 +345,7 @@ async function analyze(root) {
     const entry = { id: newId(), name, guide, at: Date.now(), sources: sources.map((x) => x.title) };
     setState({ styles: [entry, ...(cur.styles || [])].slice(0, 12), styleId: entry.id });
     analysis = guide;
-    status(root, `「${name}」로 저장했습니다. 2단계에서 골라 쓸 수 있습니다.`);
+    status(root, `「${name}」로 저장했습니다. 2단계 「아이디어 문서화」에서 골라 쓸 수 있습니다.`);
     render(root);   // 저장 목록을 다시 그린다
   }
   catch (error) { status(root, error.message, true); }

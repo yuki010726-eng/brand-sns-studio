@@ -11,7 +11,8 @@ import { toast } from './toast.js';
 const NAV = [
   { path: '/profile',  label: '프로필',   iconName: 'user' },
   // 스타일 수집은 단계가 아니라 설정이다 — 프로필과 같은 자리에 둔다 (store.js STEPS 주석 참고)
-  { path: '/research', label: '문체 스타일', iconName: 'search' },
+  // 이름은 2026-08-20 에 「문체 스타일」에서 「블로그 스타일」로 바꿨다 (요청자 지시).
+  { path: '/research', label: '블로그 스타일', iconName: 'search' },
   { path: '/',        label: '새 게시물', iconName: 'sparkles' },
   { path: '/library', label: '보관함',   iconName: 'archive' },
 ];

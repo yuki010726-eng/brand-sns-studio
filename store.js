@@ -35,6 +35,11 @@ const INITIAL = {
   tone: 'trust',
   channels: ['blog', 'instagram', 'threads'],
   cardCount: 6,        // 카드뉴스 장수 1~6 — API 비용을 줄이려고 요청자가 고르게 했다
+  /**
+   * 직관형(D) 이미지 프롬프트를 몇 장 만들지 (2026-08-20). `cardCount` 와 **따로 둔다** —
+   * 카드뉴스 장수는 글의 기승전결에 묶여 있지만(1~6), 광고 배너는 몇 장을 뽑든 각각 완결이다.
+   */
+  adCount: 4,
   drafts: {},
   generated: {},
   variants: {},        // 채널별 재생성 횟수 — 누를 때마다 다른 후킹·근거 조합이 나온다
@@ -60,7 +65,8 @@ const INITIAL = {
    */
   cardCopy: null,
   /**
-   * 모아 둔 문체 스타일 (2026-08-20). 프로필처럼 **한 번 모아 두고 게시물마다 골라 쓴다.**
+   * 모아 둔 블로그 스타일 (2026-08-20). 프로필처럼 **한 번 모아 두고 게시물마다 골라 쓴다.**
+   * 목록 순서가 그대로 A타입 · B타입이 된다 (`lib/blogstyles.js`) — 순서를 함부로 섞지 말 것.
    * @type {Array<{id:string, name:string, guide:string, at:number, sources:string[]}>}
    */
   styles: [],
