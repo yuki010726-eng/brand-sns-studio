@@ -14,8 +14,8 @@ import { icon } from '../assets/icons.js';
 import { getProduct } from '../lib/products.js';
 import { BANNED_PHRASES } from '../data/banned-phrases.js';
 import {
-  CONCEPTS, ACCENTS, MARKS, CARD_THEMES, NOTE_SYMBOLS, NOTE_PAPERS, DEFAULT_NOTE_GRAIN,
-  getConcept, getCardTheme, getMark, isHex, contrastWithWhite,
+  CONCEPTS, ACCENTS, MARKS, CARD_THEMES, NOTE_SYMBOLS, NOTE_PAPERS, NOTE_INKS, DEFAULT_NOTE_GRAIN,
+  getConcept, getCardTheme, getMark, getNoteInk, getNotePaper, isHex, contrastWithWhite, contrastOn,
 } from '../lib/concepts.js';
 import { slotsFor, defaultsFor, roleOf, objectsFor } from '../lib/templates.js';
 import { stepperHTML, bindStepper } from '../components/stepper.js';
@@ -91,7 +91,7 @@ function bindArchiveAutosave(root) {
 let history = [];
 let historyIndex = -1;
 let historyTimer = null;
-const HISTORY_KEYS = ['card', 'accent', 'cardTheme', 'mark', 'noteSymbol', 'notePaper', 'noteGrain'];
+const HISTORY_KEYS = ['card', 'accent', 'cardTheme', 'mark', 'noteSymbol', 'notePaper', 'noteGrain', 'noteInk'];
 
 function historySnapshot() {
   const s = getState();
@@ -647,6 +647,7 @@ function notePaperHTML(paper, grain) {
   return `
     <h3 class="tpl-form__legend">종이 색</h3>
     ${swatch('종이 색', NOTE_PAPERS, paper || 'white', 'paper')}
+    ${noteInkHTML(getState().noteInk, paper)}
     <h3 class="tpl-form__legend">종이 결</h3>
     <div class="grain">
       <input class="grain__range" type="range" id="grain-range" min="0" max="100" step="5"
@@ -657,6 +658,56 @@ function notePaperHTML(paper, grain) {
     <p class="field__hint" id="grain-hint">
       0이면 매끈한 단색, 올릴수록 섬유가 살아나 바스락거리는 종이가 됩니다. 모든 장에 함께 적용됩니다.
     </p>`;
+}
+
+/**
+ * 노트형 **글씨 색**(2026-08-20 신설, 요청자 요구).
+ *
+ * ⚠️ 고르는 건 잉크 하나뿐이다. 제목·본문·부제·강조 박스 색은 `noteLayout()` 이 파생시킨다 —
+ *    넷을 따로 고르게 하면 조합이 금방 무너진다.
+ * ⚠️ 대비 기준이 **흰색이 아니라 지금 고른 종이 색**이다. 카드형(흰 글씨 고정)과 다르다.
+ */
+function noteInkHTML(current, paper) {
+  const ink = getNoteInk(current);
+  const paperHex = getNotePaper(paper).hex;
+  const custom = isHex(ink.id) ? ink.hex : '';
+  return `
+    <h3 class="tpl-form__legend">글씨 색</h3>
+    <fieldset class="accent__swatches" id="ink-swatches">
+      <legend class="sr-only">노트형 글씨 색을 선택하세요</legend>
+      ${NOTE_INKS.map((c) => `
+        <div class="accent__item">
+          <input class="sr-only accent__input" type="radio" name="noteink" id="ink-${c.id}"
+                 value="${c.id}" autocomplete="off" ${c.id === ink.id ? 'checked' : ''}
+                 aria-label="글씨 색 ${c.name}" />
+          <label class="accent__chip" for="ink-${c.id}">
+            <span class="accent__dot" style="background:${c.hex}"></span>${c.name}
+          </label>
+        </div>`).join('')}
+      <label class="color-custom" title="원하는 글씨 색 선택">
+        <input class="color-custom__input" type="color" id="ink-custom"
+               value="${esc(custom || ink.hex)}" autocomplete="off"
+               aria-label="원하는 글씨 색 선택" />
+        <span class="color-custom__rainbow" aria-hidden="true"></span>
+        <span>직접 선택</span>
+      </label>
+    </fieldset>
+    <p class="field__hint" id="ink-hint">${inkHintHTML(ink, paperHex)}</p>`;
+}
+
+function inkHintHTML(ink, paperHex) {
+  const base = '제목·본문·강조 박스에 함께 적용됩니다.';
+  if (!isHex(ink.id)) return `${base} 종이 색 대비를 지키는 색만 넣어 뒀습니다.`;
+  const ratio = contrastOn(ink.hex, paperHex);
+  return ratio >= 4.5
+    ? `${base} 종이 대비 ${ratio.toFixed(2)}:1 — 기준(4.5:1)을 넘깁니다.`
+    : `⚠️ ${base} 종이 대비가 ${ratio.toFixed(2)}:1 로 기준(4.5:1)에 못 미칩니다. 글이 잘 안 보일 수 있어요.`;
+}
+
+function refreshInkHint(root) {
+  const s = getState();
+  const hint = root.querySelector('#ink-hint');
+  if (hint) hint.innerHTML = inkHintHTML(getNoteInk(s.noteInk), getNotePaper(s.notePaper).hex);
 }
 
 /**
@@ -1007,8 +1058,29 @@ function bindForm(root) {
   root.querySelector('#paper-swatches')?.addEventListener('change', (e) => {
     if (e.target.name !== 'paper') return;
     setState({ notePaper: e.target.value });
+    refreshInkHint(root);   // 대비 기준이 종이 색이라 종이를 바꾸면 안내도 다시 계산한다
     paint(root);
     markDirty(root);
+  });
+
+  // 글씨 색 — 카드형 테마 색과 같은 규칙(견본 선택 / 직접 선택 / 막지 않고 경고만)
+  root.querySelector('#ink-swatches')?.addEventListener('change', (e) => {
+    if (e.target.name !== 'noteink') return;
+    setState({ noteInk: e.target.value });
+    refreshInkHint(root);
+    paint(root);
+    markDirty(root);
+    refreshForm(root);   // 직접 선택 칩의 활성 표시를 견본 기준으로 되돌린다
+  });
+  root.querySelector('#ink-custom')?.addEventListener('input', (e) => {
+    setState({ noteInk: e.target.value });
+    root.querySelectorAll('[name="noteink"]').forEach((r) => { r.checked = false; });
+    refreshInkHint(root);
+    schedulePaint(root);
+  });
+  root.querySelector('#ink-custom')?.addEventListener('change', () => {
+    markDirty(root);
+    refreshForm(root);
   });
 
   // 슬라이더는 끄는 동안 계속 그리면 무거워서 캔버스만 모아 그린다
@@ -1200,30 +1272,62 @@ function blogCardSource(s) {
   const draft = String(s.drafts?.blog || '');
   if (!draft.trim()) return {};
   const lines = draft.split(/\r?\n/);
+  const isHead = (t) => t.startsWith(HEAD_MARK);
+  const isShot = (t) => /^📷/.test(t);
+  /**
+   * 본문이 아닌 줄 — 캡션·개요표·해시태그·구분선·인용 요약·목차.
+   *
+   * ⚠️ **소제목을 먼저 걸러낸다.** `HEAD_MARK` 는 `■` 가 아니라 **`##`** 이고(화면에서만 ■ 로 보인다),
+   *    해시태그를 잡으려고 넣은 `#` 가 소제목까지 함께 삼켰다. 그러면 카드 제목이 영영 안 잡힌다.
+   */
+  const noise = (t) => !isHead(t)
+    && (/^[⤷🔔─>#]/.test(t) || /^\[테이블/.test(t) || /^\d+\.\s/.test(t) || t === '목차');
+
+  /** from 부터 step 방향으로 훑어 문단 하나를 모은다. */
+  const paragraphAt = (from, step) => {
+    const got = [];
+    for (let j = from; j >= 0 && j < lines.length; j += step) {
+      const t = lines[j].trim();
+      if (!t) { if (got.length) break; continue; }   // 문단 사이 빈 줄에서 끊는다
+      if (isHead(t) || isShot(t)) break;             // 다른 대목으로 넘어갔다
+      if (noise(t)) continue;
+      got.push(t);
+    }
+    return (step > 0 ? got : got.reverse()).join(' ').trim();
+  };
+
   const out = {};
-  let head = '';
-  let para = [];       // 지금 쌓고 있는 문단
-  let lastPara = '';   // 직전에 끝난 문단
+  let above = '';   // 이 이미지보다 위에 있던 마지막 소제목 (옛 배치 폴백용)
   lines.forEach((line, i) => {
     const t = line.trim();
-    // ⚠️ 빈 줄에서 문단을 **버리면 안 된다.** 📷 줄 앞에는 빈 줄이 하나 들어가므로
-    //    버리면 카드가 늘 빈 문단을 집는다(실제로 그렇게 났다). 끝난 문단은 따로 들고 있는다.
-    if (!t) { if (para.length) { lastPara = para.join(' '); para = []; } return; }
-    if (t.startsWith(HEAD_MARK)) {                                   // ■ 소제목
-      head = t.slice(HEAD_MARK.length).trim();
-      para = [];
-      lastPara = '';
-      return;
-    }
+    if (!t) return;
+    if (isHead(t)) { above = t.slice(HEAD_MARK.length).trim(); return; }
     const no = t.match(/^📷\s*\[이미지\s*(\d+)/)?.[1];
-    if (no) {
-      const caption = String(lines[i + 1] || '').match(/^\s*⤷\s*(.+?)\s*$/)?.[1] || '';
-      out[Number(no) - 1] = { head, caption, para: (para.length ? para.join(' ') : lastPara).trim() };
-      return;
+    if (!no) return;
+    const caption = String(lines[i + 1] || '').match(/^\s*⤷\s*(.+?)\s*$/)?.[1] || '';
+
+    /**
+     * 배치는 `📷 -> 캡션 -> 소제목 -> 본문 문단` 이다 (요청자 지시 2026-08-20).
+     * 이미지는 그 대목을 **여는** 그림이므로, 이 카드의 제목은 **아래에 있는 소제목**이고
+     * 본문은 그 소제목의 첫 문단이다.
+     *
+     * 아래에서 소제목을 못 찾으면 **위 소제목으로 떨어진다.** 옛 글·보관본은 이미지가
+     * 문단 뒤에 있어서 그때는 위가 맞다. 두 배치 모두 살아 있어야 예전 게시물이 안 깨진다.
+     */
+    let head = '';
+    let para = '';
+    for (let j = i + 1; j < lines.length; j++) {
+      const u = lines[j].trim();
+      if (isHead(u)) { head = u.slice(HEAD_MARK.length).trim(); para = paragraphAt(j + 1, 1); break; }
+      if (!u || noise(u)) continue;
+      if (isShot(u)) break;              // 다음 카드까지 왔다 - 아래에 소제목이 없다
+      break;                             // 소제목 없이 본문이 먼저 나왔다 (옛 배치)
     }
-    // 본문이 아닌 줄은 문단에 넣지 않는다 — 캡션·개요표·해시태그·구분선·인용 요약·목차
-    if (/^[⤷🔔─>#]/.test(t) || /^\[테이블/.test(t) || /^\d+\.\s/.test(t) || t === '목차') return;
-    para.push(t);
+    if (!head) {
+      head = above;
+      para = paragraphAt(i + 1, 1) || paragraphAt(i - 1, -1);
+    }
+    out[Number(no) - 1] = { head, caption, para };
   });
   return out;
 }
@@ -1269,6 +1373,7 @@ function blogFingerprint(s) {
 const promptFor = (i) => {
   const s = getState();
   return buildPrompt(deck[i], s.concept, {
+    index: i,   // 카드마다 프레이밍을 다르게 돌린다 (lib/imageprompt.js 의 FRAMING)
     title: s.card?.texts?.[i]?.title || deck[i].title,
     subject: imageCaptionFor(s, i),
   });
@@ -1286,7 +1391,7 @@ function opts(s, i) {
   return {
     conceptId: s.concept, kind: deck[i].kind, image: bitmaps[i] || null,
     accent: s.accent, cardTheme: s.cardTheme, mark: s.mark,
-    noteSymbol: s.noteSymbol, notePaper: s.notePaper, noteGrain: s.noteGrain,
+    noteSymbol: s.noteSymbol, notePaper: s.notePaper, noteGrain: s.noteGrain, noteInk: s.noteInk,
     layout, extraTexts: s.card.extraTexts?.[i] || [],
   };
 }
