@@ -25,7 +25,9 @@ import { outlineKeyOf } from '../lib/outline.js';
 import { getImage, putImage, deleteImage, imageKey } from '../lib/imagestore.js';
 import { renderCard, loadImage, cardAlt, downloadCanvas, ensureFonts, lastClipped, lastBoxes, lastSizes, W, H } from '../lib/cardrender.js';
 import { buildPrompt } from '../lib/imageprompt.js';
-import { buildAdPrompts, AD_COUNTS, DEFAULT_AD_COUNT } from '../lib/adprompt.js';
+import {
+  buildAdPrompts, AD_COUNTS, DEFAULT_AD_COUNT, AD_CONCEPTS, getAdConcept, roleLabel, capacityOf,
+} from '../lib/adprompt.js';
 import { imagePanelHTML, bindImagePanel } from '../components/imagepanel.js';
 import { toast } from '../components/toast.js';
 import { saveToLibrary, hasLibraryChanges } from '../lib/librarystore.js';
@@ -1924,12 +1926,16 @@ const adCountOf = (s) => {
 /**
  * 직관형 화면.
  *
- * 캔버스 편집기가 없다. 대신 **장수를 고르고 프롬프트 묶음을 받는다.**
+ * 캔버스 편집기가 없다. 대신 **컨셉과 장수를 고르고 프롬프트 묶음을 받는다.**
  * 템플릿 선택 줄은 그대로 둔다 — 여기서 A·B·C 로 되돌아갈 수 있어야 한다.
  */
 function renderAdPage(root, product, s) {
   const count = adCountOf(s);
-  adPrompts = buildAdPrompts({ product, topic: s.topic.trim(), deck, count });
+  const concept = getAdConcept(s.adConcept);
+  const capacity = capacityOf(deck);
+  adPrompts = buildAdPrompts({
+    product, topic: s.topic.trim(), deck, count, conceptId: concept.id,
+  });
   currentRoot = root;
 
   root.innerHTML = `
@@ -1966,6 +1972,23 @@ function renderAdPage(root, product, s) {
         </fieldset>
 
         <div class="card adbar">
+          <!--
+            ⚠️ **컨셉은 주제 하나에 하나다** (2026-08-20, 요청자 지시:
+               "하나의 컨셉으로 만들면 그 주제에서 생성되는 카드뉴스의 컨셉은 통일 시켜줘").
+               장마다 돌리지 말 것 — 처음에 그렇게 만들었다가 6장이 6개의 다른 광고가 됐다.
+          -->
+          <fieldset class="field">
+            <legend class="field__label">컨셉</legend>
+            <div class="pickrow" role="radiogroup" aria-label="이미지 컨셉 선택">
+              ${AD_CONCEPTS.map((c) => `
+                <input class="sr-only pick__input" type="radio" name="adconcept" id="ac-${c.id}" value="${c.id}"
+                       autocomplete="off" aria-label="${esc(c.name)} — ${esc(c.desc)}"
+                       ${concept.id === c.id ? 'checked' : ''} />
+                <label class="pick" for="ac-${c.id}">${esc(c.name)}</label>`).join('')}
+            </div>
+            <p class="field__hint">${esc(concept.desc)} <strong>전 장이 같은 인물·색·화풍을 씁니다.</strong></p>
+          </fieldset>
+
           <fieldset class="field">
             <legend class="field__label">만들 장수</legend>
             <div class="pickrow" role="radiogroup" aria-label="이미지 프롬프트 장수 선택">
@@ -1975,7 +1998,10 @@ function renderAdPage(root, product, s) {
                 <label class="pick" for="ad-${n}">${n}장</label>`).join('')}
             </div>
             <p class="field__hint">
-              장마다 배치와 색 조합이 다르게 돌아갑니다 — 같은 주제로 여러 장을 뽑아도 한 벌로 보이지 않습니다.
+              표지 · 본문 · 마무리로 역할이 나뉘고, 장마다 <strong>그 카드가 말하는 것</strong>이 그림에 들어갑니다.
+              ${count > capacity
+                ? `이 주제로 내용이 서로 다른 카드는 <strong>${capacity}장</strong>까지입니다 — ${count}장을 뽑으면 본문 장면이 반복됩니다.`
+                : `이 주제는 ${capacity}장까지 내용이 다릅니다.`}
             </p>
           </fieldset>
 
@@ -2034,14 +2060,12 @@ function adCardHTML(item) {
     <article class="card adcard">
       <div class="adcard__head">
         <span class="badge">${item.n}번</span>
-        <h3 class="adcard__name">${esc(item.layout.name)}</h3>
-        <span class="badge badge--neutral">${esc(item.palette.name)}</span>
+        <h3 class="adcard__name">${esc(roleLabel(item.role))}</h3>
         <button type="button" class="btn btn--ghost btn--sm" data-ad-copy="${item.n}"
                 aria-label="${item.n}번 프롬프트 복사하기">
           ${icon('copy', 'icon--sm')} 복사
         </button>
       </div>
-      <p class="adcard__desc">${esc(item.layout.desc)}</p>
       <dl class="adcard__copy">
         ${row('말풍선', c.hook)}
         ${row('헤드라인', [c.line1, c.line2].filter(Boolean).join(' / '))}
@@ -2058,6 +2082,15 @@ function adCardHTML(item) {
 }
 
 function bindAdPage(root) {
+  // 컨셉을 바꾸면 전 장을 다시 만든다 — 한 벌이 통째로 갈리는 값이라 부분 갱신이 없다
+  root.querySelectorAll('input[name="adconcept"]').forEach((el) => {
+    el.addEventListener('change', () => {
+      setState({ adConcept: el.value });
+      render(root);
+      toast(`${getAdConcept(el.value).name} 컨셉으로 전 장을 다시 만들었습니다.`);
+    });
+  });
+
   root.querySelectorAll('input[name="adcount"]').forEach((el) => {
     el.addEventListener('change', () => {
       setState({ adCount: Number(el.value) });
@@ -2073,9 +2106,9 @@ function bindAdPage(root) {
   });
 
   root.querySelector('#ad-copy-all')?.addEventListener('click', () => {
-    // 붙여 놓으면 어느 장인지 못 가리므로 번호와 배치 이름을 함께 붙인다
+    // 붙여 놓으면 어느 장인지 못 가리므로 번호와 역할을 함께 붙인다
     const all = adPrompts
-      .map((x) => `[${x.n}번 · ${x.layout.name} · ${x.palette.name}]\n${x.prompt}`)
+      .map((x) => `[${x.n}번 · ${roleLabel(x.role)}]\n${x.prompt}`)
       .join('\n\n────────\n\n');
     copyText(all, `${adPrompts.length}장을 모두 복사했습니다.`);
   });
