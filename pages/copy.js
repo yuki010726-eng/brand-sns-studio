@@ -110,6 +110,8 @@ export function render(root) {
           예전엔 누를 때마다 이전 AI 글을 덮어썼는데, 처음 뽑은 글과 비교해 보고 싶다는
           요구가 있어 각 결과를 남기고 버튼으로 오가며 볼 수 있게 했다.
         -->
+        <div id="style-slot">${stylePickHTML()}</div>
+
         <div id="ai-runs-slot">${aiRunsHTML()}</div>
 
         <!--
@@ -149,6 +151,7 @@ export function render(root) {
     </div>`;
 
   bindStepper(root);
+  bindStylePick(root);
   bindTabs(root);
   bindPanel(root);
   bindAibar(root);
@@ -625,6 +628,38 @@ function aiAllLabel(s) {
 }
 
 /** AI 생성 결과를 오가는 버튼 — 만든 적이 없으면(0벌) 아무것도 그리지 않는다 */
+/**
+ * 문체 스타일 고르기 (2026-08-20 신설).
+ *
+ * 예전에는 게시물마다 「스타일 수집」 단계를 거쳐야 했고, 주제가 바뀌면 수집분이 날아갔다.
+ * 요청자 지적: "할 때마다 스타일 수집이 너무 번거롭다."
+ * 이제 스타일은 **헤더의 「문체 스타일」에서 모아 두고 여기서 고른다.**
+ *
+ * ⚠️ 고른 스타일은 **문체만** 프롬프트에 들어간다. 사실·주제는 상품 자료와 담당자 주제가 이긴다
+ *    (`lib/copyai.js` 의 researchStyle 블록).
+ */
+function stylePickHTML() {
+  const s = getState();
+  const list = s.styles || [];
+  if (!list.length) {
+    return `
+      <p class="field__hint style-pick style-pick--empty">
+        문체 스타일을 모아 두면 여기서 골라 쓸 수 있습니다.
+        <a href="#/research">문체 스타일 모으러 가기</a>
+      </p>`;
+  }
+  const chip = (id, label) => `
+    <button type="button" class="chip style-pick__chip${(s.styleId || null) === id ? ' chip--on' : ''}"
+            data-style-pick="${id ?? ''}" aria-pressed="${(s.styleId || null) === id}">${esc(label)}</button>`;
+  return `
+    <div class="style-pick card">
+      <span class="style-pick__label">문체 스타일</span>
+      ${chip(null, '사용 안 함')}
+      ${list.map((st) => chip(st.id, st.name)).join('')}
+      <a class="style-pick__more" href="#/research">관리</a>
+    </div>`;
+}
+
 function aiRunsHTML() {
   const s = getState();
   const runs = aiRunsFor(s);
@@ -637,6 +672,17 @@ function aiRunsHTML() {
           AI ${i + 1}
         </button>`).join('')}
     </div>`;
+}
+
+/** 스타일 칩 — 고른 값만 상태에 남긴다. 글은 다시 생성할 때 반영된다. */
+function bindStylePick(root) {
+  root.querySelectorAll('[data-style-pick]').forEach((b) => b.addEventListener('click', () => {
+    const id = b.dataset.stylePick || null;
+    setState({ styleId: id });
+    const slot = root.querySelector('#style-slot');
+    if (slot) { slot.innerHTML = stylePickHTML(); bindStylePick(root); }
+    toast(id ? '이 스타일로 다음 글을 씁니다.' : '스타일 없이 씁니다.');
+  }));
 }
 
 function refreshAiRuns(root) {
@@ -1206,7 +1252,15 @@ function aiCtx(variant, round = 0, coreOverride = null) {
   const s = getState();
   const core = coreOverride || (s.outline?.key === outlineKeyOf(s) ? s.outline.core : null);
   const researchKey = `${s.productId}|${s.topic.trim()}`;
-  const researchStyle = s.researchStyle?.key === researchKey ? s.researchStyle.guide : '';
+  /**
+   * ⚠️ **주제에 묶인 옛 방식(`researchStyle`)을 버리고 고른 스타일을 쓴다** (2026-08-20).
+   *    예전에는 `상품|주제` 가 같을 때만 살아 있어서 주제를 바꾸면 매번 다시 수집해야 했다.
+   *    지금은 헤더의 「문체 스타일」에 모아 두고 여기서 고른 것을 쓴다. 주제와 무관하다.
+   *    ⚠️ 옛 저장분도 계속 읽는다 — 고른 스타일이 없을 때의 폴백이다.
+   */
+  const picked = (s.styles || []).find((x) => x.id === s.styleId);
+  const researchStyle = picked?.guide
+    || (s.researchStyle?.key === researchKey ? s.researchStyle.guide : '');
   // round 는 채널 프롬프트의 '진입 방식'을 바꾼다 (lib/copyai.js 의 ROUND_OPENING)
   return { ...ctx(variant), core, round, researchStyle };
 }

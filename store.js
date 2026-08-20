@@ -59,6 +59,13 @@ const INITIAL = {
    * @type {{key:string, cards:Array<{title:string, body:string}>}|null}
    */
   cardCopy: null,
+  /**
+   * 모아 둔 문체 스타일 (2026-08-20). 프로필처럼 **한 번 모아 두고 게시물마다 골라 쓴다.**
+   * @type {Array<{id:string, name:string, guide:string, at:number, sources:string[]}>}
+   */
+  styles: [],
+  /** 지금 고른 스타일 id. `null` 이면 스타일 없이 쓴다. */
+  styleId: null,
   /** 블로그 연구에서 추출한 스타일. key가 현재 상품·주제와 같을 때만 AI 생성에 쓴다. */
   researchStyle: null, // { key, guide, at }
   /**
@@ -97,12 +104,30 @@ export const draftKeyOf = (s) => `${s.productId}|${s.topic.trim()}|${s.tone}|${s
  * 프로필 세팅은 게시물마다 하는 일이 아니라 계정을 한 번 잡는 설정이라
  * 별도 상단 탭으로 분리한다. 따라서 이 목록에는 게시물 제작 단계만 둔다.
  */
+/**
+ * ⚠️ **스타일 수집은 단계가 아니다** (2026-08-20, 요청자 지시).
+ *    8-20 에 2단계로 넣었는데, 게시물을 만들 때마다 검색·수집·분석을 다시 하게 돼 번거로웠다.
+ *    프로필 세팅과 같은 성격이다 — **한 번 모아 두고 게시물마다 골라 쓰는 설정**이다.
+ *    그래서 `/research` 는 단계에서 빠지고 헤더 메뉴로 옮겼다.
+ */
 export const STEPS = [
   { n: 1, path: '/',         label: '상품·주제 선택',  icon: 'sparkles' },
-  { n: 2, path: '/research', label: '스타일 수집',     icon: 'search' },
-  { n: 3, path: '/copy',     label: '아이디어 문서화', icon: 'fileText' },
-  { n: 4, path: '/template', label: '카드뉴스 템플릿', icon: 'layout' },
+  { n: 2, path: '/copy',     label: '아이디어 문서화', icon: 'fileText' },
+  { n: 3, path: '/template', label: '카드뉴스 템플릿', icon: 'layout' },
 ];
+
+/**
+ * 옛 저장분(`researchStyle`)을 스타일 목록으로 옮긴다 (2026-08-20).
+ * 주제에 묶여 있던 값이라 그냥 두면 주제가 바뀌는 순간 못 쓰게 된다. 이름을 붙여 목록에 올린다.
+ */
+function migrateStyle(s) {
+  if (!s || !s.researchStyle?.guide) return s;
+  if (Array.isArray(s.styles) && s.styles.length) return s;
+  return {
+    ...s,
+    styles: [{ id: 'st_legacy', name: '이전에 수집한 스타일', guide: s.researchStyle.guide, at: s.researchStyle.at || Date.now(), sources: [] }],
+  };
+}
 
 function load() {
   try {
@@ -126,7 +151,7 @@ function load() {
       const short = s.aiKey.split('|').slice(0, 3).join('|');
       s.aiKey = s.aiKey ? { blog: s.aiKey, instagram: short, threads: short } : {};
     }
-    return s;
+    return migrateStyle(s);
   } catch {
     return { ...INITIAL };
   }

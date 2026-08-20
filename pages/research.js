@@ -2,7 +2,6 @@ import { generateText, hasKey } from '../lib/llm.js';
 import { toast } from '../components/toast.js';
 import { accessToken } from '../lib/auth.js';
 import { icon } from '../assets/icons.js';
-import { stepperHTML, bindStepper } from '../components/stepper.js';
 import { getState, setState, navigate } from '../store.js';
 import { getProduct } from '../lib/products.js';
 
@@ -13,9 +12,55 @@ let collected = [];
 let analysis = '';
 let researchContextKey = '';
 
-export function guard() {
-  const state = getState();
-  return state.productId && state.topic.trim() ? null : '/';
+/**
+ * ⚠️ **막지 않는다** (2026-08-20). 예전에는 상품·주제가 있어야 들어올 수 있었다 —
+ *    단계였기 때문이다. 이제는 프로필처럼 **언제든 들어와 모아 두는 설정**이다.
+ */
+export function guard() { return null; }
+
+/**
+ * 추천 키워드 (2026-08-20, 요청자 요구).
+ * 매번 뭘 검색할지 고민하는 게 번거롭다는 지적에서 나왔다. 4종 상품과 결이 맞는 검색어를 둔다.
+ * ⚠️ **상품명 자체를 넣지 않는다** — 우리 브랜드 글이 검색되면 우리 문체를 다시 배우는 셈이다.
+ */
+const SUGGESTED = [
+  '브랜드 어워즈', '기업 인증 대상', '소상공인 마케팅', '브랜드 신뢰도',
+  '매장 홍보 방법', '기업 홍보 전략', 'TV 광고 효과',
+];
+
+const newId = () => `st_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+
+/** 저장된 스타일 목록 — 이 화면의 본체다. 수집은 이 목록을 채우는 수단이다. */
+function savedStylesHTML() {
+  const list = getState().styles || [];
+  if (!list.length) {
+    return `
+      <section class="card research-saved research-saved--empty">
+        <h2>저장된 스타일이 없습니다</h2>
+        <p class="section__desc">아래에서 글을 검색해 수집하면 문체 스타일로 저장할 수 있습니다.</p>
+      </section>`;
+  }
+  return `
+    <section class="section" aria-labelledby="saved-title">
+      <div class="section__head">
+        <h2 id="saved-title">저장된 스타일 ${list.length}개</h2>
+        <p class="section__desc">게시물을 만들 때 2단계에서 골라 씁니다.</p>
+      </div>
+      <div class="research-results">
+        ${list.map((st) => `
+          <article class="card research-item research-item--collected">
+            <div class="research-item__body">
+              <strong>${esc(st.name)}</strong>
+              <span>${new Date(st.at).toLocaleDateString('ko-KR')} · ${st.sources?.length || 0}개 글에서 분석</span>
+              <p class="research-saved__peek">${esc(String(st.guide).replace(/\s+/g, ' ').slice(0, 90))}…</p>
+              <div class="research-item__links">
+                <button class="btn btn--text btn--sm" type="button" data-style-del="${st.id}"
+                        aria-label="${esc(st.name)} 스타일 삭제">삭제</button>
+              </div>
+            </div>
+          </article>`).join('')}
+      </div>
+    </section>`;
 }
 
 export function render(root) {
@@ -31,12 +76,15 @@ export function render(root) {
   researchContextKey = currentContextKey;
   root.innerHTML = `
     <div class="container page research-page">
-      ${stepperHTML('/research')}
-
       <section class="hero">
-        <h1>검색한 글의 스타일을 분석합니다</h1>
-        <p class="hero__sub">후보를 직접 고르면 본문과 PDF를 수집하고, 원문을 베끼지 않는 문체 가이드로 정리합니다.</p>
+        <h1>문체 스타일을 모아 둡니다</h1>
+        <p class="hero__sub">
+          잘 쓴 블로그를 찾아 문체만 뽑아 저장해 두면, 게시물을 만들 때 <strong>골라서 쓸 수 있습니다.</strong>
+          게시물마다 다시 수집하지 않아도 됩니다.
+        </p>
       </section>
+
+      ${savedStylesHTML()}
       <section class="card research-search" aria-labelledby="research-search-title">
         <div><h2 id="research-search-title">1. 키워드 검색</h2><p class="section__desc">네이버 블로그와 공개 카페 검색 결과에서 최대 12개를 가져옵니다.</p></div>
         <form id="research-form" class="research-search__form">
@@ -45,6 +93,12 @@ export function render(root) {
                  value="${esc(product?.name || '')}" required minlength="2" />
           <button class="btn btn--primary" type="submit" id="research-search-button" aria-label="네이버 블로그와 카페 검색">검색</button>
         </form>
+        <div class="research-suggest">
+          <span class="research-suggest__label">추천 키워드</span>
+          ${SUGGESTED.map((k) => `
+            <button type="button" class="chip chip--sm research-suggest__chip" data-keyword="${esc(k)}"
+                    aria-label="${esc(k)} 로 검색어 채우기">${esc(k)}</button>`).join('')}
+        </div>
         <div class="research-direct">
           <div>
             <h3>블로그·카페 URL 직접 입력</h3>
@@ -64,7 +118,11 @@ export function render(root) {
         <div class="research-results" id="candidate-list"></div>
       </section>
       <section class="section" id="collection-section" hidden aria-labelledby="collection-title">
-        <div class="section__head research-section-head"><div><h2 id="collection-title">3. 수집 결과</h2><p class="section__desc">PDF는 research-output 폴더에도 보관됩니다.</p></div><button class="btn btn--primary" id="analyze-button" type="button" aria-label="수집한 글 스타일 분석">스타일 분석</button></div>
+        <div class="section__head research-section-head"><div><h2 id="collection-title">3. 수집 결과</h2><p class="section__desc">PDF는 research-output 폴더에도 보관됩니다.</p></div><div class="research-savebar">
+          <label class="sr-only" for="style-name">저장할 스타일 이름</label>
+          <input class="input" id="style-name" placeholder="스타일 이름 (비우면 검색어로)" autocomplete="off" maxlength="20" />
+          <button class="btn btn--primary" id="analyze-button" type="button" aria-label="수집한 글 스타일 분석 후 저장">분석해서 저장</button>
+        </div></div>
         <div class="research-results" id="collection-list"></div>
       </section>
       <section class="section" id="analysis-section" hidden aria-labelledby="analysis-title">
@@ -72,12 +130,11 @@ export function render(root) {
         <article class="card research-analysis" id="analysis-result"></article>
       </section>
       <div class="research-next">
-        <button class="btn btn--lg" id="research-next" type="button" aria-label="아이디어 문서화 단계로 이동">
-          아이디어 문서화로 계속 ${icon('arrowRight', 'icon--sm')}
+        <button class="btn btn--lg" id="research-next" type="button" aria-label="게시물 만들기로 이동">
+          게시물 만들러 가기 ${icon('arrowRight', 'icon--sm')}
         </button>
       </div>
     </div>`;
-  bindStepper(root);
   bind(root);
   if (candidates.length) showCandidates(root);
   if (collected.length) showCollected(root);
@@ -85,7 +142,22 @@ export function render(root) {
 }
 
 function bind(root) {
-  root.querySelector('#research-next').addEventListener('click', () => navigate('/copy'));
+  root.querySelector('#research-next').addEventListener('click', () => navigate('/'));
+  root.querySelectorAll('[data-keyword]').forEach((b) => b.addEventListener('click', () => {
+    const input = root.querySelector('#research-keyword');
+    input.value = b.dataset.keyword;
+    input.focus();
+  }));
+  root.querySelectorAll('[data-style-del]').forEach((b) => b.addEventListener('click', () => {
+    const id = b.dataset.styleDel;
+    const cur = getState();
+    setState({
+      styles: (cur.styles || []).filter((x) => x.id !== id),
+      styleId: cur.styleId === id ? null : cur.styleId,
+    });
+    toast('스타일을 지웠습니다.');
+    render(root);
+  }));
   root.querySelector('#research-form').addEventListener('submit', async (event) => {
     event.preventDefault();
     const keyword = root.querySelector('#research-keyword').value.trim();
@@ -175,26 +247,22 @@ async function analyze(root) {
   try {
     const styleGuide = await generateText(prompt, { maxOutputTokens: 1500 });
     const guide = styleGuide.trim();
-    setState({ researchStyle: { key: `${state.productId}|${fixedTopic}`, guide, at: Date.now() } });
-    analysis = `${guide}\n\n${fixedWritingPrompt(product?.name || '', fixedTopic)}`;
-    showAnalysis(root, analysis); status(root, '스타일 분석을 완료했습니다.');
+    /**
+     * ⚠️ **주제에 묶지 않는다** (2026-08-20). 예전에는 `상품|주제` 를 키로 저장해서
+     *    주제가 바뀌면 스타일이 통째로 날아갔다 — 그래서 매번 다시 수집해야 했다.
+     *    문체는 주제와 무관하다. **이름을 붙여 목록에 쌓고**, 쓸 때 고른다.
+     */
+    const cur = getState();
+    const name = (root.querySelector('#style-name')?.value || '').trim()
+      || `${(root.querySelector('#research-keyword')?.value || '스타일').trim().slice(0, 12)} 스타일`;
+    const entry = { id: newId(), name, guide, at: Date.now(), sources: sources.map((x) => x.title) };
+    setState({ styles: [entry, ...(cur.styles || [])].slice(0, 12), styleId: entry.id });
+    analysis = guide;
+    status(root, `「${name}」로 저장했습니다. 2단계에서 골라 쓸 수 있습니다.`);
+    render(root);   // 저장 목록을 다시 그린다
   }
   catch (error) { status(root, error.message, true); }
   finally { setBusy(button, false, '스타일 분석'); }
-}
-
-function fixedWritingPrompt(productName, topic) {
-  return `## 8. 새 글 작성용 프롬프트
-\`\`\`text
-다음 상품과 주제로 네이버 블로그 글을 작성해 주세요.
-
-상품: ${productName}
-주제: ${topic}
-
-주제는 상품·주제 선택 단계에서 확정한 원문입니다. 다른 주제로 바꾸거나 범위를 넓히지 마세요.
-위 1~7번에서 분석한 문체, 문장 리듬, 소제목 구성, 가독성만 참고하세요.
-참고 글의 제품·주제·산업군·독자·사실 내용은 가져오지 마세요.
-\`\`\``;
 }
 
 function showAnalysis(root, text) { root.querySelector('#analysis-section').hidden = false; root.querySelector('#analysis-result').textContent = text; root.querySelector('#analysis-section').scrollIntoView({ behavior: 'smooth', block: 'start' }); }

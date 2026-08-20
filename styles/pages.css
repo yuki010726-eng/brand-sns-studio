@@ -1393,3 +1393,19 @@ body.is-login-page .site-footer { display: none; }
 
 /* 브랜드 로고 칸(.logobar)은 뺐다 — 로고 파일이 준비되면 다시 붙인다.
    이유는 pages/profile.js 의 imageHTML() 주석 참고. */
+
+/* ── 문체 스타일 (2026-08-20) ─────────────────────────────────
+   스타일 수집은 단계가 아니라 설정이다(store.js STEPS 주석).
+   여기 클래스는 「/research 설정 화면」과 「2단계 스타일 고르기」 양쪽에서 쓴다. */
+.research-suggest { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+.research-suggest__label { font-size: 13px; font-weight: 600; color: var(--sub-strong); margin-right: 2px; }
+.research-savebar { display: flex; gap: 8px; align-items: center; }
+.research-savebar .input { flex: 0 1 220px; }
+.research-saved--empty { padding: 20px 22px; }
+.research-saved--empty h2 { font-size: 16px; margin: 0 0 4px; }
+.research-saved__peek { margin: 6px 0 0; font-size: 13px; line-height: 1.6; color: var(--sub-strong); }
+
+.style-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 14px 16px; }
+.style-pick__label { font-size: 13px; font-weight: 700; color: var(--text); margin-right: 2px; }
+.style-pick__more { margin-left: auto; font-size: 13px; color: var(--sub-strong); }
+.style-pick--empty { margin: 0 0 12px; }
