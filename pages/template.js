@@ -20,7 +20,7 @@ import {
 import { slotsFor, defaultsFor, roleOf, objectsFor } from '../lib/templates.js';
 import { stepperHTML, bindStepper } from '../components/stepper.js';
 import { getState, setState, subscribe, navigate, draftKeyOf } from '../store.js';
-import { buildDeck, TONE_LABEL, findBanned } from '../lib/copywriter.js';
+import { buildDeck, TONE_LABEL, findBanned, HEAD_MARK } from '../lib/copywriter.js';
 import { outlineKeyOf } from '../lib/outline.js';
 import { getImage, putImage, deleteImage, imageKey } from '../lib/imagestore.js';
 import { renderCard, loadImage, cardAlt, downloadCanvas, ensureFonts, lastClipped, lastBoxes, lastSizes, W, H } from '../lib/cardrender.js';
@@ -255,11 +255,12 @@ const fitLayout = (layout) => deck.map((_, i) => ({ ...(layout?.[i] || {}) }));
 function ensureTexts(product) {
   const s = getState();
   const key = draftKeyOf(s);
+  const source = blogFingerprint(s);
   const base = baseOf(s.concept, product);
   const card = s.card;
 
   if (!card || !Array.isArray(card.texts) || card.texts.length !== deck.length) {
-    setState({ card: { key, concept: s.concept, texts: cloneTexts(base), base, layout: emptyLayout(), extraTexts: emptyExtraTexts() } });
+    setState({ card: { key, source, concept: s.concept, texts: cloneTexts(base), base, layout: emptyLayout(), extraTexts: emptyExtraTexts() } });
     return;
   }
 
@@ -278,6 +279,7 @@ function ensureTexts(product) {
     };
     setState({ card: {
       key: card.key,
+      source,
       concept: s.concept,
       texts: mergeTexts(card, base),
       base,
@@ -294,10 +296,17 @@ function ensureTexts(product) {
   const extraTexts = fitExtraTexts(card.extraTexts);
 
   if (card.key === key) {
-    setState({ card: { ...card, base, layout, extraTexts } });   // 되돌리기 기준을 최신으로
+    /**
+     * 상품·주제·톤·장수는 그대로인데 **글만 다시 뽑은 경우**(AI 2, 블로그 직접 수정).
+     * 예전에는 여기서 `base` 만 갈고 `texts` 를 그대로 뒀다 — 그래서 새 글을 뽑아도
+     * 카드에는 옛 문구가 남았다. 이제 지문이 다르면 `mergeTexts()` 로 다시 맞춘다:
+     * **직접 고친 칸은 지키고, 손대지 않은 칸만** 새 글의 문구로 바뀐다(템플릿 교체와 같은 규칙).
+     */
+    const texts = card.source === source ? card.texts : mergeTexts(card, base);
+    setState({ card: { ...card, source, base, texts, layout, extraTexts } });   // 되돌리기 기준을 최신으로
     return;
   }
-  setState({ card: { key, concept: s.concept, texts: cloneTexts(base), base, layout, extraTexts } });
+  setState({ card: { key, source, concept: s.concept, texts: cloneTexts(base), base, layout, extraTexts } });
 }
 
 /* ---------------- 렌더 ---------------- */
@@ -329,10 +338,9 @@ export function render(root) {
     core,
     allowRuleFallback: !core,
   });
-  // The captions embedded in the selected AI copy are the final card-to-copy
-  // mapping. Apply them even for legacy AI runs that did not save an outline
-  // snapshot, so AI 1 and AI 2 cannot render the same cached deck.
-  deck = deckWithDraftCaptions(deck, s);
+  // 카드 문구의 최종 출처는 **완성된 블로그**다. 뼈대(outline)는 카드 개수·역할만 잡고,
+  // 실제 제목·본문은 블로그의 소제목과 문단에서 가져온다 (blogCardSource 주석 참고).
+  deck = deckFromBlog(deck, s);
   ensureTexts(p);
   if (active >= deck.length) active = 0;
   resetHistory();   // 이 화면에 새로 들어오거나(마운트) 템플릿을 바꿀 때 이력을 지금 상태로 다시 시작한다
@@ -1172,21 +1180,90 @@ function imageCaptionFor(s, index) {
   return draftImageCaptions(s)[index] || '';
 }
 
-function replaceFirstSentence(body, caption) {
-  const text = String(body || '');
-  if (!text) return caption;
-  const match = text.match(/^.*?(?:[.!?](?=\s|$)|\n|$)/);
-  return `${caption}${text.slice(match?.[0]?.length || 0)}`;
+/**
+ * 블로그 원문에서 **카드별 재료**를 뽑는다 (2026-08-20 신설).
+ *
+ * ⚠️ 왜 바꿨나 — 요청자 지적: "템플릿에 들어가는 내용이 본문 요약이 아니라 다른 내용 같다."
+ *
+ * 예전에는 카드 제목이 **아웃라인 뼈대**(`core.points[].q`)에서 오고, 본문은
+ * 뼈대의 `a` 첫 문장만 블로그 캡션으로 바꿔 끼웠다. 그런데 블로그는 뼈대를 받아
+ * AI 가 **자기 문장으로 다시 쓴다.** 그래서 화면의 글과 카드의 글이 서로 다른 말을 했고,
+ * 섞인 자리(캡션 + 뼈대 나머지)는 앞뒤가 안 맞았다.
+ *
+ * 이제 **완성된 블로그에서 직접** 가져온다. 대응 규칙은 앱이 이미 정해 둔 그대로다 —
+ * 블로그 프롬프트가 `📷` 줄을 "그 카드가 대응하는 단락 **바로 뒤**"에 놓게 하므로,
+ * `📷 [이미지 N]` 기준으로 **바로 위 소제목**과 **바로 위 문단**이 곧 N번 카드의 재료다.
+ *
+ * @returns {Object<number, {head:string, para:string, caption:string}>} 0-based 카드 index 기준
+ */
+function blogCardSource(s) {
+  const draft = String(s.drafts?.blog || '');
+  if (!draft.trim()) return {};
+  const lines = draft.split(/\r?\n/);
+  const out = {};
+  let head = '';
+  let para = [];       // 지금 쌓고 있는 문단
+  let lastPara = '';   // 직전에 끝난 문단
+  lines.forEach((line, i) => {
+    const t = line.trim();
+    // ⚠️ 빈 줄에서 문단을 **버리면 안 된다.** 📷 줄 앞에는 빈 줄이 하나 들어가므로
+    //    버리면 카드가 늘 빈 문단을 집는다(실제로 그렇게 났다). 끝난 문단은 따로 들고 있는다.
+    if (!t) { if (para.length) { lastPara = para.join(' '); para = []; } return; }
+    if (t.startsWith(HEAD_MARK)) {                                   // ■ 소제목
+      head = t.slice(HEAD_MARK.length).trim();
+      para = [];
+      lastPara = '';
+      return;
+    }
+    const no = t.match(/^📷\s*\[이미지\s*(\d+)/)?.[1];
+    if (no) {
+      const caption = String(lines[i + 1] || '').match(/^\s*⤷\s*(.+?)\s*$/)?.[1] || '';
+      out[Number(no) - 1] = { head, caption, para: (para.length ? para.join(' ') : lastPara).trim() };
+      return;
+    }
+    // 본문이 아닌 줄은 문단에 넣지 않는다 — 캡션·개요표·해시태그·구분선·인용 요약·목차
+    if (/^[⤷🔔─>#]/.test(t) || /^\[테이블/.test(t) || /^\d+\.\s/.test(t) || t === '목차') return;
+    para.push(t);
+  });
+  return out;
 }
 
-function deckWithDraftCaptions(cards, s) {
-  const captions = draftImageCaptions(s);
+/**
+ * 카드 문구를 블로그 원문 기준으로 바꿔 끼운다.
+ *
+ * - **표지**: 제목은 첫 캡션(= 글 전체를 한 줄로 요약한 후킹)
+ * - **본문·반론**: 제목은 그 자리의 `■ 소제목`, 본문은 `📷` 바로 위 문단
+ * - **마무리**: 건드리지 않는다 — 승인된 마무리 문장이라 바꾸면 안 된다(사실성 원칙 4번)
+ *
+ * 블로그에 `📷` 줄이 없으면(규칙 기반 글·옛 보관본) 원래 카드를 그대로 둔다.
+ */
+function deckFromBlog(cards, s) {
+  const src = blogCardSource(s);
+  if (!Object.keys(src).length) return cards;
   return cards.map((card, i) => {
-    const caption = captions[i];
-    if (!caption) return card;
-    if (card.kind === 'cover') return { ...card, title: caption };
-    return { ...card, body: replaceFirstSentence(card.body, caption) };
+    const slot = src[i];
+    if (!slot) return card;
+    if (card.kind === 'cover') return { ...card, title: slot.caption || card.title };
+    if (card.kind === 'outro') return card;
+    return {
+      ...card,
+      title: slot.head || card.title,
+      body: slot.para || slot.caption || card.body,
+    };
   });
+}
+
+/**
+ * 지금 카드가 **어느 블로그에서 나왔는지** 나타내는 지문.
+ *
+ * ⚠️ `draftKeyOf()` 는 상품·주제·톤·장수만 본다. AI 를 다시 생성해도 그 넷은 그대로라
+ *    카드가 **옛 글의 문구를 계속 들고 있었다** — 요청자 지적("본문과 다른 내용")의 나머지 절반이다.
+ */
+function blogFingerprint(s) {
+  const t = String(s.drafts?.blog || '');
+  let h = 0;
+  for (let i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) | 0;
+  return `${t.length}:${h}`;
 }
 
 const promptFor = (i) => {

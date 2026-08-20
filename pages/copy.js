@@ -1183,14 +1183,25 @@ async function ensureOutline(root, { force = false, round = 0, session, channelI
   if (!force && outlineJobs.has(jobKey)) return outlineJobs.get(jobKey);
 
   // 직전 라운드의 소제목을 넘겨 **같은 구성을 다시 짜지 못하게** 한다.
-  const avoid = (s.outline?.core?.points || []).map((x) => x.q).filter(Boolean);
+  /**
+   * ⚠️ **직전 한 라운드만 피하면 안 된다** (2026-08-20).
+   * 예전에는 지금 들고 있는 뼈대의 소제목만 넘겼다. 그래서 AI 4 는 AI 3 만 피하면 됐고,
+   * AI 1 과 같은 구성으로 되돌아가도 막을 방법이 없었다 — "다시 눌렀는데 같은 글"의 절반이 여기서 나왔다.
+   * 이제 **그 주제로 만든 모든 라운드의 소제목**을 쌓아서 넘긴다.
+   */
+  const pastHeads = s.outline?.key === key ? (s.outline.pastHeads || []) : [];
+  const avoid = [...new Set([
+    ...pastHeads,
+    ...(s.outline?.key === key ? (s.outline.core?.points || []).map((x) => x.q) : []),
+  ])].filter(Boolean);
 
   showAiStatus(root, channelIds, '주제를 어떻게 풀지 뼈대를 짜는 중입니다…', session);
   const job = coreWithOutline({ ...ctx(0), round, avoid })
     .then(({ core, error }) => {
       const latest = getState();
       if (!error && (latest.outline?.key !== key || (latest.outline.round || 0) <= round)) {
-        setState({ outline: { key, round, core } });
+        // 다음 라운드가 피해야 할 소제목을 계속 쌓아 둔다 (같은 주제인 동안만).
+        setState({ outline: { key, round, core, pastHeads: avoid } });
       }
       return { core: error ? null : core, error };
     })
