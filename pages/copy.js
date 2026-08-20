@@ -17,7 +17,7 @@ import {
 } from '../lib/llm.js';
 import { keyFieldHTML } from '../components/keyfield.js';
 import { toast } from '../components/toast.js';
-import { typeLabel, sectionsOf, summaryOf } from '../lib/blogstyles.js';
+import { typeLabel, summaryOf } from '../lib/blogstyles.js';
 import { recordCopySelection } from '../lib/copypreferences.js';
 import { saveToLibrary } from '../lib/librarystore.js';
 
@@ -659,11 +659,8 @@ function stylePickHTML() {
     </button>`;
   return `
     <div class="style-pick card">
-      <div class="style-pick__head">
-        <span class="style-pick__label">블로그 스타일</span>
-        <a class="style-pick__more" href="#/research">스타일 관리</a>
-      </div>
       <div class="style-pick__chips" role="group" aria-label="이 글에 쓸 블로그 스타일 고르기">
+        <span class="style-pick__label">블로그 스타일</span>
         ${chip(null, '사용 안 함', '')}
         ${list.map((st, i) => chip(st.id, typeLabel(i), st.name)).join('')}
       </div>
@@ -672,36 +669,25 @@ function stylePickHTML() {
 }
 
 /**
- * 「어떤 느낌인지」 미리 보기 (2026-08-20, 요청자 요구).
+ * 고른 스타일이 「어떤 느낌인지」 — **접지 않고 한 줄로 보여준다.**
  *
- * 칩 이름만 보고는 그 스타일로 쓰면 글이 어떻게 나오는지 알 수 없다는 지적이었다.
- * 그래서 칩 **바로 아래**에 접힌 칸을 두고, 누르면 분석 항목을 펴서 보여준다.
- * 기본은 접어 둔다 — 이 화면은 이미 박스가 많다(ctxbar · AI 벌 · 채널 탭).
+ * ⚠️ 처음에는 접힌 칸(`<details>`) 안에 분석 7항목을 표로 폈다. 요청자 지적:
+ *    "간단히 보여주면 좋겠다." 고를 때 알아야 하는 건 분위기 한 줄이지 분석 전문이 아니다.
+ *    전문은 설정 화면(`/research`)의 「자세히」에 그대로 있다 — 여기서 두 번 보여주지 않는다.
  */
 function stylePeekHTML() {
   const s = getState();
   const list = s.styles || [];
   const index = list.findIndex((x) => x.id === s.styleId);
   if (index < 0) {
-    return `
-      <p class="style-pick__none">
-        스타일 없이 씁니다. 위에서 하나 고르면 그 글의 리듬·구성만 따라갑니다 —
-        사실과 주제는 상품 자료와 지금 주제를 그대로 씁니다.
-      </p>`;
+    return '<p class="style-pick__note">스타일 없이 씁니다. 사실과 주제는 그대로예요.</p>';
   }
-  const picked = list[index];
-  const line = summaryOf(picked.guide);
+  const line = summaryOf(list[index].guide);
   return `
-    <details class="style-pick__peek">
-      <summary>
-        <strong>${esc(typeLabel(index))} · ${esc(picked.name)}</strong>
-        <span>${line ? esc(line) : '어떤 느낌인지 보기'}</span>
-      </summary>
-      <dl class="styleguide">
-        ${sectionsOf(picked.guide).map((sec) => `
-          <div><dt>${esc(sec.label)}</dt><dd>${esc(sec.body) || '—'}</dd></div>`).join('')}
-      </dl>
-    </details>`;
+    <p class="style-pick__note">
+      ${line ? esc(line) : '이 스타일의 리듬·구성만 따라갑니다.'}
+      <a href="#/research">자세히</a>
+    </p>`;
 }
 
 function aiRunsHTML() {

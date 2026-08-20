@@ -19,7 +19,7 @@ body {
   margin: 0;
   font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif;
   font-weight: 400;
-  font-size: 15px;
+  font-size: var(--fs-base);
   line-height: 1.6;
   color: var(--text);
   background: var(--bg);
@@ -30,9 +30,9 @@ body {
 }
 
 h1, h2, h3, h4 { font-weight: 700; color: #191F28; margin: 0; line-height: 1.35; }
-h1 { font-size: 30px; letter-spacing: -.02em; }
-h2 { font-size: 22px; letter-spacing: -.01em; }
-h3 { font-size: 17px; }
+h1 { font-size: var(--fs-3xl); letter-spacing: -.02em; }
+h2 { font-size: var(--fs-2xl); letter-spacing: -.01em; }
+h3 { font-size: var(--fs-xl); }
 p  { margin: 0; }
 
 a { color: var(--link); text-decoration: none; }
@@ -92,7 +92,7 @@ main { flex: 1 0 auto; padding: 32px 0 64px; }
   border-top: 1px solid var(--border);
   background: var(--surface);
   padding: 20px 0;
-  font-size: 13px;
+  font-size: var(--fs-sm);
   color: var(--sub-strong);
 }
 
@@ -110,7 +110,7 @@ main { flex: 1 0 auto; padding: 32px 0 64px; }
 .icon--lg { width: 32px; height: 32px; }
 
 @media (max-width: 640px) {
-  h1 { font-size: 24px; }
-  h2 { font-size: 19px; }
+  h1 { font-size: var(--fs-2xl); }
+  h2 { font-size: var(--fs-xl); }
   main { padding: 20px 0 48px; }
 }

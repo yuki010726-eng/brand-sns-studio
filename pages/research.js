@@ -46,10 +46,7 @@ function savedStylesHTML() {
     return `
       <section class="card research-saved research-saved--empty">
         <h2>저장된 블로그 스타일이 없습니다</h2>
-        <p class="section__desc">
-          아래에서 글을 검색해 수집하면 블로그 스타일로 저장됩니다.
-          저장한 순서대로 A타입 · B타입으로 쌓이고, 이름은 나중에 언제든 고칠 수 있습니다.
-        </p>
+        <p class="section__desc">아래에서 글을 검색해 수집하면 A타입 · B타입으로 쌓입니다.</p>
       </section>`;
   }
   return `
@@ -64,7 +61,15 @@ function savedStylesHTML() {
     </section>`;
 }
 
-/** 카드 한 장 — 이름표(A타입) · 이름 · 한 줄 요약 · 펼쳐 보는 상세 */
+/**
+ * 카드 한 장.
+ *
+ * ⚠️ **줄을 늘리지 말 것** (2026-08-20, 요청자 지적: "UI 가 좀 더 간단해지면 좋겠다").
+ *    한때 이름표 · 이름 · 요약 · 접힌 상세 · 저장일 · 삭제까지 **여섯 줄**이었다.
+ *    스타일은 훑어보고 고르는 목록이지 읽는 문서가 아니다. 지금은 **두 줄**이다 —
+ *    ① 이름표 + 이름 + 동작  ② 어떤 느낌인지 한 줄.
+ *    저장일·출처 개수는 「자세히」 안으로 넣었다. 고를 때 쓰는 정보가 아니다.
+ */
 function styleCardHTML(st, i) {
   const renaming = renamingId === st.id;
   const summary = summaryOf(st.guide);
@@ -82,24 +87,24 @@ function styleCardHTML(st, i) {
           </form>`
         : `
           <h3 class="stylecard__name">${esc(st.name)}</h3>
-          <button class="btn btn--text btn--sm" type="button" data-style-rename="${st.id}"
-                  aria-label="${esc(st.name)} 이름 바꾸기">이름 바꾸기</button>`}
+          <span class="stylecard__tools">
+            <button class="btn btn--text btn--sm" type="button" data-style-rename="${st.id}"
+                    aria-label="${esc(st.name)} 이름 바꾸기">이름</button>
+            <button class="btn btn--text btn--sm" type="button" data-style-del="${st.id}"
+                    aria-label="${esc(st.name)} 스타일 삭제">삭제</button>
+          </span>`}
       </div>
 
-      <p class="stylecard__summary">${summary ? esc(summary) : '한 줄 요약이 없습니다. 아래에서 전체 분석을 볼 수 있어요.'}</p>
+      <!-- 「어떤 느낌인지」는 접지 않는다. 이 한 줄을 보고 고른다 (요청자 요구 2026-08-20). -->
+      <p class="stylecard__summary">${summary ? esc(summary) : '분석 요약이 없습니다.'}</p>
 
       <details class="stylecard__detail">
-        <summary>어떤 느낌인지 보기</summary>
+        <summary>자세히</summary>
         ${guideHTML(st.guide)}
+        <p class="stylecard__meta">
+          ${new Date(st.at).toLocaleDateString('ko-KR')} 저장 · ${st.sources?.length || 0}개 글에서 분석
+        </p>
       </details>
-
-      <p class="stylecard__meta">
-        ${new Date(st.at).toLocaleDateString('ko-KR')} 저장 · ${st.sources?.length || 0}개 글에서 분석
-      </p>
-      <div class="stylecard__actions">
-        <button class="btn btn--text btn--sm" type="button" data-style-del="${st.id}"
-                aria-label="${esc(st.name)} 스타일 삭제">삭제</button>
-      </div>
     </article>`;
 }
 
@@ -135,8 +140,7 @@ export function render(root) {
       <section class="hero">
         <h1>블로그 스타일을 모아 둡니다</h1>
         <p class="hero__sub">
-          잘 쓴 블로그를 찾아 글 스타일만 뽑아 저장해 두면, 게시물을 만들 때 <strong>골라서 쓸 수 있습니다.</strong>
-          저장한 순서대로 <strong>A타입 · B타입</strong>이 붙고, 이름은 언제든 고칠 수 있습니다.
+          잘 쓴 블로그의 글 스타일만 뽑아 두면, 게시물을 만들 때 <strong>골라서 쓸 수 있습니다.</strong>
         </p>
       </section>
 
