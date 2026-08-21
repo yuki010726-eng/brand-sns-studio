@@ -137,6 +137,7 @@ export function render(root) {
   researchContextKey = currentContextKey;
   root.innerHTML = `
     <div class="container page research-page">
+      <a class="btn btn--text btn--sm backlink" href="#/library" aria-label="마이페이지로 돌아가기">&larr; 마이페이지</a>
       <section class="hero">
         <h1>블로그 스타일을 모아 둡니다</h1>
         <p class="hero__sub">

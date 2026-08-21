@@ -20,7 +20,7 @@ import { getLibrary, getThumb, loadFromLibrary, removeFromLibrary, postKeyOf } f
 import { confirmModal } from '../components/modal.js';
 import { toast } from '../components/toast.js';
 
-export const title = '보관함';
+export const title = '마이페이지';
 
 const SORTS = [
   { id: 'recent', label: '최근 저장순' },
@@ -50,12 +50,16 @@ export function render(root) {
     <div class="container">
       <section class="section">
         <div class="section__head">
-          <h1>내 게시물 보관함</h1>
+          <h1>마이페이지</h1>
           <p class="section__desc">
-            AI로 생성한 게시물과 카드뉴스 편집본이 자동으로 모입니다.
-            불러오면 글귀·템플릿·카드 문구가 그대로 되살아납니다.
+            계정 설정과 저장해 둔 게시물을 한자리에서 봅니다.
+            게시물을 불러오면 글귀·템플릿·카드 문구가 그대로 되살아납니다.
           </p>
         </div>
+
+        ${settingsHTML()}
+
+        <h2 class="sub-head">저장한 게시물</h2>
         ${all.length ? toolbarHTML(all) : ''}
         <div id="lib-results">${resultsHTML(all)}</div>
       </section>
@@ -64,6 +68,45 @@ export function render(root) {
   if (all.length) bindToolbar(root);
   bindResults(root);
   loadThumbs(root);
+}
+
+/**
+ * 계정 설정으로 들어가는 자리 (2026-08-21, 요청자 지시).
+ *
+ * 프로필·블로그 스타일은 **게시물마다 하는 일이 아니라 계정을 한 번 잡는 설정**이다
+ * (store.js `STEPS` 주석 · 8-27). 그래서 헤더 메뉴에 나란히 떠 있었는데, 메뉴가 넷이 되면서
+ * 「지금 만드는 것」과 「한 번 정해 두는 것」이 섞여 보였다. 설정끼리 한자리에 모은다.
+ *
+ * ⚠️ **경로(`/profile`·`/research`)는 그대로다.** 화면을 옮긴 게 아니라 들어가는 문만 옮겼다.
+ *    북마크·옛 링크가 살아 있어야 한다.
+ */
+const SETTINGS = [
+  {
+    path: '/profile', iconName: 'user', label: '프로필',
+    desc: '인스타 계정 이름·소개·프로필 이미지 프롬프트를 만듭니다.',
+  },
+  {
+    path: '/research', iconName: 'search', label: '블로그 스타일',
+    desc: '잘 쓴 블로그의 문체를 모아 두고 글을 쓸 때 골라 씁니다.',
+  },
+];
+
+function settingsHTML() {
+  return `
+    <h2 class="sub-head">설정</h2>
+    <ul class="mypage-settings">
+      ${SETTINGS.map((x) => `
+        <li>
+          <a class="card mypage-setting" href="#${x.path}" aria-label="${esc(x.label)} 설정 열기">
+            <span class="mypage-setting__icon" aria-hidden="true">${icon(x.iconName)}</span>
+            <span class="mypage-setting__body">
+              <strong>${esc(x.label)}</strong>
+              <span>${esc(x.desc)}</span>
+            </span>
+            <span class="mypage-setting__go" aria-hidden="true">${icon('arrowRight', 'icon--sm')}</span>
+          </a>
+        </li>`).join('')}
+    </ul>`;
 }
 
 function toolbarHTML(all) {

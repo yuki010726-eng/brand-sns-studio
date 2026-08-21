@@ -44,6 +44,11 @@ const INITIAL = {
    * 장마다 돌리지 않는다 — 카드뉴스는 한 벌로 읽혀야 한다 (`lib/adprompt.js` 머리말 참고).
    */
   adConcept: 'woman-yellow',
+  /**
+   * `adConcept` 를 **직접 고른 시점의 톤** (2026-08-21). 지금 톤과 같을 때만 그 선택을 쓴다.
+   * 비어 있으면 톤이 컨셉을 정한다 (`adConceptForTone`, `lib/adprompt.js`).
+   */
+  adConceptTone: '',
   drafts: {},
   generated: {},
   variants: {},        // 채널별 재생성 횟수 — 누를 때마다 다른 후킹·근거 조합이 나온다

@@ -52,6 +52,7 @@ export function render(root) {
 
   root.innerHTML = `
     <div class="container">
+      <a class="btn btn--text btn--sm backlink" href="#/library" aria-label="마이페이지로 돌아가기">&larr; 마이페이지</a>
       <section class="hero">
         <div class="hero__title-row">
           <h1>계정 프로필을 설정해 보세요</h1>

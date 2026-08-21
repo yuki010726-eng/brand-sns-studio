@@ -26,7 +26,7 @@ import { getImage, putImage, deleteImage, imageKey } from '../lib/imagestore.js'
 import { renderCard, loadImage, cardAlt, downloadCanvas, ensureFonts, lastClipped, lastBoxes, lastSizes, W, H } from '../lib/cardrender.js';
 import { buildPrompt } from '../lib/imageprompt.js';
 import {
-  buildAdPrompts, AD_CONCEPTS, getAdConcept, roleLabel,
+  buildAdPrompts, AD_CONCEPTS, getAdConcept, roleLabel, adConceptForTone,
 } from '../lib/adprompt.js';
 import { imagePanelHTML, bindImagePanel } from '../components/imagepanel.js';
 import { toast } from '../components/toast.js';
@@ -42,7 +42,7 @@ export function guard() {
   return getProduct(s.productId) && s.topic.trim() ? null : '/';
 }
 
-const KIND_LABEL = { cover: '표지', body: '본문', note: '반론', outro: '마무리' };
+const KIND_LABEL = { cover: '표지', body: '본문', note: '반론', outro: '마무리', follow: '팔로우' };
 
 /** 노트형 아이콘처럼 배경이 아닌 자리에 이미지가 들어가는 경우가 있어 문구를 나눠 쓴다 */
 const IMAGE_ROLE = {
@@ -346,6 +346,7 @@ export function render(root) {
   // 카드 문구의 최종 출처는 **완성된 블로그**다. 뼈대(outline)는 카드 개수·역할만 잡고,
   // 실제 제목·본문은 블로그의 소제목과 문단에서 가져온다 (blogCardSource 주석 참고).
   deck = deckFromBlog(deck, s);
+  deck = withFollowCard(deck, concept.id, p);
 
   /**
    * ⚠️ **직관형(D)은 여기서 갈라진다.** 카드를 그리지 않고 이미지 프롬프트만 만든다
@@ -566,7 +567,7 @@ function formHTML() {
     <div id="tpl-layout-slot">${layoutPanelHTML()}</div>
 
     <h3 class="tpl-form__legend">문구</h3>
-    ${slots.map((f) => fieldHTML(f, t[f.id] ?? '', concept.id)).join('')}
+    ${slots.map((f) => fieldHTML(f, t[f.id] ?? '', concept.id, deck[active].kind)).join('')}
     ${extraTextsHTML(s.card.extraTexts?.[active] || [])}
 
     ${concept.accentPicker ? accentHTML(s.accent) : ''}
@@ -587,7 +588,7 @@ const INSERTS = [
   { label: '🔥', text: '🔥 ' }, { label: '💡', text: '💡 ' }, { label: '⚠️', text: '⚠️ ' },
 ];
 
-function insertToolsHTML(targetId, targetLabel) {
+function insertToolsHTML(targetId, targetLabel, conceptId = 'note') {
   return `<div class="tpl-inserts" aria-label="${esc(targetLabel)} 서식 도구">
     ${INSERTS.map((x, i) => `
       <button type="button" class="tpl-insert" data-insert="${i}" data-insert-target="${esc(targetId)}"
@@ -596,7 +597,7 @@ function insertToolsHTML(targetId, targetLabel) {
   </div>`;
 }
 
-function fieldHTML(f, value, conceptId) {
+function fieldHTML(f, value, conceptId, kind = 'body') {
   const control = f.tag === 'textarea'
     ? `<textarea class="textarea tpl-ta" id="f-${f.id}" data-f="${f.id}" rows="${f.rows || 3}"
                  spellcheck="false" autocomplete="off"
@@ -605,8 +606,16 @@ function fieldHTML(f, value, conceptId) {
               value="${esc(value)}" spellcheck="false" autocomplete="off"
               aria-describedby="h-${f.id}" />`;
 
-  const tools = conceptId === 'note' && f.id === 'body'
-    ? insertToolsHTML(`f-${f.id}`, f.label)
+  /**
+   * ⚠️ **카드형 본문도 서식을 지원한다** (2026-08-21, 요청자 지시).
+   *    렌더러는 처음부터 지원하고 있었다 — `renderCardPage()` 가 노트형과 **같은**
+   *    `parseBody → fitRich → drawRich` 를 탄다. 입력칸 안내(`CARD_BODY_HINT`)에도 적혀 있었다.
+   *    없던 것은 **버튼뿐**이라 손으로 `**` 를 쳐야만 쓸 수 있었다. 그래서 아무도 안 썼다.
+   *    ⚠️ 표지 칸에는 붙이지 않는다 — 표지 흰 박스는 서식을 그리지 않는다.
+   */
+  const rich = conceptId === 'note' || (conceptId === 'card' && roleOf('card', kind) !== 'outro');
+  const tools = rich && f.id === 'body'
+    ? insertToolsHTML(`f-${f.id}`, f.label, conceptId)
     : '';
 
   /**
@@ -1355,6 +1364,39 @@ function blogCardSource(s) {
  *
  * 블로그에 `📷` 줄이 없으면(규칙 기반 글·옛 보관본) 원래 카드를 그대로 둔다.
  */
+/**
+ * 카드형에만 **팔로우 카드를 한 장 더한다** (2026-08-21, 요청자 지시).
+ *
+ * 요청자: "카드형은 4장을 선택하더라도 마무리 한 장을 추가해 줘. 4장이면 5번째 장, 2장이면 3번째 장."
+ *
+ * 왜 카드형만인가 — 카드형의 마무리 장은 **테마색 단색 + 팔로우 문구**라 내용을 하나도 담지 않는다
+ * (8절 템플릿 표). 그래서 4장을 고르면 실제로 읽을 카드는 표지+본문 2장, 셋뿐이었다.
+ * 매거진형·노트형의 마무리 장은 승인된 마무리 문장을 본문으로 담으므로 이 문제가 없다.
+ *
+ * 고른 장수만큼은 전부 내용 카드가 되고, 팔로우 카드는 **덤으로 맨 뒤에** 붙는다.
+ *
+ * ⚠️ **`deckFromBlog()` 뒤에서 더한다.** 앞에서 더하면 카드 문구(`cardCopy`)와 길이가 어긋나
+ *    `copy.length === cards.length` 가 깨지고, 파생이 만든 문구가 통째로 버려진다.
+ * ⚠️ 팔로우 카드는 **이미지를 쓰지 않는다**(`usesImage`). 그래서 장을 더해도 만들 이미지는 안 는다.
+ * ⚠️ 기존 마무리 장은 이제 `roleOf()` 에서 **본문 역할**이 된다 — 승인된 마무리 문장과 CTA가
+ *    비로소 카드형에서도 읽힌다. 8-25 에서 노트형에 해 둔 것과 같은 취지다.
+ */
+function withFollowCard(cards, conceptId, product) {
+  if (conceptId !== 'card' || !cards.length) return cards;
+  const total = cards.length + 1;
+  const pad = (n) => String(n).padStart(2, '0');
+  const numbered = cards.map((card, i) => (card.eyebrow && card.eyebrow.includes('/')
+    ? { ...card, eyebrow: `${pad(i + 1)} / ${pad(total)}` }
+    : card));
+  return [...numbered, {
+    kind: 'follow',
+    eyebrow: `${pad(total)} / ${pad(total)}`,
+    title: '',
+    body: '',
+    footer: product.short,
+  }];
+}
+
 function deckFromBlog(cards, s) {
   /**
    * ⚠️ **파생 1회가 만든 카드 문구가 있으면 그것이 우선이다** (2026-08-20).
@@ -1376,7 +1418,13 @@ function deckFromBlog(cards, s) {
   return cards.map((card, i) => {
     const slot = src[i];
     if (!slot) return card;
-    if (card.kind === 'cover') return { ...card, title: slot.caption || card.title };
+    /**
+     * ⚠️ **표지는 뼈대의 후킹(`card.title`)이 먼저다** (2026-08-21, 요청자 지시).
+     *    예전에는 블로그 첫 캡션을 먼저 썼다. 캡션은 「그 대목의 핵심 한 줄」이라 **설명문**이고,
+     *    표지에 얹히면 「수상기사는 숨겨두지 말고 …하세요」처럼 나온다.
+     *    후킹은 `HOOK_RULE`(lib/outline.js)이 압축해서 만든 값이라 표지에는 그쪽이 맞다.
+     */
+    if (card.kind === 'cover') return { ...card, title: card.title || slot.caption };
     if (card.kind === 'outro') return card;
     return {
       ...card,
@@ -1924,9 +1972,25 @@ const AD_TOOLS = [
  * 캔버스 편집기가 없다. 대신 **컨셉과 장수를 고르고 프롬프트 묶음을 받는다.**
  * 템플릿 선택 줄은 그대로 둔다 — 여기서 A·B·C 로 되돌아갈 수 있어야 한다.
  */
+/**
+ * 직관형 컨셉 — **1단계 톤앤매너가 정한다** (2026-08-21, 요청자 지시).
+ *
+ * 톤을 고를 때 이미 「신뢰형이냐 후킹형이냐」를 정했는데 여기서 또 고르게 하면 같은 결정을
+ * 두 번 하는 것이고, 두 값이 어긋나면 톤과 그림이 따로 논다.
+ * (장수를 1단계로 넘긴 8-31 ② 와 같은 판단이다.)
+ *
+ * ⚠️ **직접 고른 것은 그 톤인 동안만 유지한다.** `adConceptTone` 이 지금 톤과 같을 때만
+ *    `adConcept` 를 믿는다. 톤을 바꾸면 새 톤에 맞는 컨셉으로 되돌아간다.
+ * ⚠️ **여기서 `setState()` 를 부르지 말 것.** 그리는 중에 상태를 바꾸면 다시 그리기가 겹친다.
+ *    고른 값은 화면에서 누를 때만 저장한다.
+ */
+function effectiveAdConcept(s) {
+  return s.adConceptTone === s.tone ? s.adConcept : adConceptForTone(s.tone);
+}
+
 function renderAdPage(root, product, s) {
   // 장수는 1단계 「카드뉴스 장수」가 정한다 — 덱 길이가 곧 장수다
-  const concept = getAdConcept(s.adConcept);
+  const concept = getAdConcept(effectiveAdConcept(s));
   adPrompts = buildAdPrompts({ product, topic: s.topic.trim(), deck, conceptId: concept.id });
   const count = adPrompts.length;
   currentRoot = root;
@@ -1989,7 +2053,10 @@ function renderAdPage(root, product, s) {
             <p class="field__hint">
               ${esc(concept.who)} · ${esc(concept.when)}<br />
               <strong>${count}장</strong>을 같은 사람·색·그림체로 만듭니다.
-              장수는 1단계에서 정합니다. <a href="#/">바꾸기</a>
+              ${s.adConceptTone === s.tone
+    ? '직접 고른 컨셉입니다.'
+    : `톤 「${esc(TONE_LABEL[s.tone] || s.tone)}」에 맞춰 골라 뒀습니다.`}
+              장수와 톤은 1단계에서 정합니다. <a href="#/">바꾸기</a>
             </p>
           </fieldset>
 
@@ -2070,7 +2137,8 @@ function bindAdPage(root) {
   // 컨셉을 바꾸면 전 장을 다시 만든다 — 한 벌이 통째로 갈리는 값이라 부분 갱신이 없다
   root.querySelectorAll('input[name="adconcept"]').forEach((el) => {
     el.addEventListener('change', () => {
-      setState({ adConcept: el.value });
+      // 톤과 함께 남긴다 — 톤이 바뀌면 이 선택은 버리고 새 톤의 컨셉으로 돌아간다
+      setState({ adConcept: el.value, adConceptTone: getState().tone });
       render(root);
       toast(`${getAdConcept(el.value).name} 컨셉으로 전 장을 다시 만들었습니다.`);
     });

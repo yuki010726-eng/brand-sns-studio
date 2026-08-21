@@ -1554,3 +1554,32 @@ body.is-login-page .site-footer { display: none; }
 @media (max-width: 640px) {
   .stylelist { max-height: 380px; }
 }
+
+/* ── 마이페이지 설정 카드 (2026-08-21) ──────────────────────────────
+   ⚠️ 새 카드 패턴을 만들지 않는다. `.card` 위에 아이콘·본문·화살표 3칸만 얹는다
+      (8-32 ② — 화면 어디서나 같은 그릇을 쓴다). */
+.mypage-settings {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--gap);
+  margin: 0;
+  padding: 0;
+}
+.mypage-setting {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--gap);
+  text-decoration: none;
+  color: inherit;
+}
+.mypage-setting__icon { display: inline-flex; color: var(--ink); }
+.mypage-setting__body { display: grid; gap: 4px; min-width: 0; }
+.mypage-setting__body strong { font-size: var(--fs-lg); }
+.mypage-setting__body span { font-size: var(--fs-sm); color: var(--sub-strong); }
+.mypage-setting__go { color: var(--sub-strong); }
+.mypage-setting:hover { border-color: var(--select-panel-border); }
+
+/* 설정 화면에서 마이페이지로 돌아가는 줄 — 헤더 메뉴에서 뺐으므로 화면 안에 길을 둔다 */
+.backlink { display: inline-flex; margin-bottom: var(--gap-sm); }

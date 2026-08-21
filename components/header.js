@@ -8,13 +8,16 @@ import {
 import { flushSync } from '../lib/sync.js';
 import { toast } from './toast.js';
 
+/**
+ * ⚠️ **프로필·블로그 스타일은 메뉴에서 뺐다** (2026-08-21, 요청자 지시).
+ *    둘 다 「한 번 정해 두는 설정」인데 「지금 만드는 것」(새 게시물)과 나란히 서 있으니
+ *    메뉴만 보고는 뭐가 흐름이고 뭐가 설정인지 알 수 없었다.
+ *    이제 **마이페이지 안**에서 들어간다 (`pages/library.js` 의 `SETTINGS`).
+ *    ⚠️ 경로(`/profile`·`/research`)는 그대로 살아 있다 — 문만 옮긴 것이다.
+ */
 const NAV = [
-  { path: '/profile',  label: '프로필',   iconName: 'user' },
-  // 스타일 수집은 단계가 아니라 설정이다 — 프로필과 같은 자리에 둔다 (store.js STEPS 주석 참고)
-  // 이름은 2026-08-20 에 「문체 스타일」에서 「블로그 스타일」로 바꿨다 (요청자 지시).
-  { path: '/research', label: '블로그 스타일', iconName: 'search' },
   { path: '/',        label: '새 게시물', iconName: 'sparkles' },
-  { path: '/library', label: '보관함',   iconName: 'archive' },
+  { path: '/library', label: '마이페이지', iconName: 'archive' },
 ];
 
 /** 로그인 상태가 바뀌면 헤더만 다시 그린다 — 페이지 전체를 건드리지 않는다 */
@@ -164,12 +167,13 @@ function bindAuth(root) {
 }
 
 /** 보관함에서 불러온 편집 흐름은 세부 단계에서도 '보관함' 탭으로 표시한다. */
+const MYPAGE_PATHS = ['/library', '/profile', '/research'];
+
 function isActive(navPath, current) {
-  const inLibrary = current === '/library' || Boolean(getLibraryEditId());
-  if (navPath === '/profile') return current === '/profile';
-  if (navPath === '/research') return current === '/research';
-  if (navPath === '/library') return inLibrary;
-  return !inLibrary && current !== '/profile';
+  // 설정 화면(프로필·블로그 스타일)도 마이페이지 안에 있으므로 같은 탭으로 표시한다
+  const inMypage = MYPAGE_PATHS.includes(current) || Boolean(getLibraryEditId());
+  if (navPath === '/library') return inMypage;
+  return !inMypage;
 }
 
 const esc = (str = '') =>
