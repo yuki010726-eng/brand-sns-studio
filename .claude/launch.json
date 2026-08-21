@@ -6,6 +6,13 @@
       "runtimeExecutable": "node",
       "runtimeArgs": ["server.mjs"],
       "port": 5610
+    },
+    {
+      "//": "Node 가 없는 기기용 정적 서버. /api/research/* 는 404 라 스타일 수집은 못 돈다 (README·CLAUDE.md 2절).",
+      "name": "brand-sns-studio (static)",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "5611"],
+      "port": 5611
     }
   ]
 }

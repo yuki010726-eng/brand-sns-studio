@@ -1279,24 +1279,34 @@ function ctx(variant) {
 }
 
 /**
+ * 지금 고른 블로그 스타일 — **아웃라인과 채널 글이 같은 값을 봐야 한다.**
+ *
+ * ⚠️ **주제에 묶인 옛 방식(`researchStyle`)을 버리고 고른 스타일을 쓴다** (2026-08-20).
+ *    예전에는 `상품|주제` 가 같을 때만 살아 있어서 주제를 바꾸면 매번 다시 수집해야 했다.
+ *    지금은 헤더의 「블로그 스타일」에 모아 두고 여기서 고른 것을 쓴다. 주제와 무관하다.
+ *    ⚠️ 옛 저장분도 계속 읽는다 — 고른 스타일이 없을 때의 폴백이다.
+ *
+ * ⚠️ **두 곳에서 따로 고르지 말 것** (2026-08-21). 아웃라인(`ensureOutline`)과
+ *    채널 글(`aiCtx`)이 다른 스타일을 보면 구성과 문체가 서로 다른 글에서 온 것이 된다.
+ * @returns {{id: string|null, guide: string}}
+ */
+function pickedStyle(s = getState()) {
+  const researchKey = `${s.productId}|${String(s.topic || '').trim()}`;
+  const hit = (s.styles || []).find((x) => x.id === s.styleId);
+  if (hit?.guide) return { id: hit.id, guide: hit.guide };
+  const legacy = s.researchStyle?.key === researchKey ? s.researchStyle.guide : '';
+  return { id: legacy ? 'legacy' : null, guide: legacy || '' };
+}
+
+/**
  * AI 로 쓸 때 쓰는 ctx — **주제 뼈대를 함께 넘긴다.**
  * AI로 만든 뼈대가 있을 때만 채널 글을 생성한다.
  */
 function aiCtx(variant, round = 0, coreOverride = null) {
   const s = getState();
   const core = coreOverride || (s.outline?.key === outlineKeyOf(s) ? s.outline.core : null);
-  const researchKey = `${s.productId}|${s.topic.trim()}`;
-  /**
-   * ⚠️ **주제에 묶인 옛 방식(`researchStyle`)을 버리고 고른 스타일을 쓴다** (2026-08-20).
-   *    예전에는 `상품|주제` 가 같을 때만 살아 있어서 주제를 바꾸면 매번 다시 수집해야 했다.
-   *    지금은 헤더의 「블로그 스타일」에 모아 두고 여기서 고른 것을 쓴다. 주제와 무관하다.
-   *    ⚠️ 옛 저장분도 계속 읽는다 — 고른 스타일이 없을 때의 폴백이다.
-   */
-  const picked = (s.styles || []).find((x) => x.id === s.styleId);
-  const researchStyle = picked?.guide
-    || (s.researchStyle?.key === researchKey ? s.researchStyle.guide : '');
   // round 는 채널 프롬프트의 '진입 방식'을 바꾼다 (lib/copyai.js 의 ROUND_OPENING)
-  return { ...ctx(variant), core, round, researchStyle };
+  return { ...ctx(variant), core, round, researchStyle: pickedStyle(s).guide };
 }
 
 /**
@@ -1316,16 +1326,24 @@ const outlineJobs = new Map();
 async function ensureOutline(root, { force = false, round = 0, session, channelIds = [] } = {}) {
   const s = getState();
   const key = outlineKeyOf(s);
+  const style = pickedStyle(s);
   /**
    * ⚠️ **지문만 보면 안 되고 라운드도 함께 봐야 한다.** AI 2 는 AI 1 과 상품·주제·톤이 같아
    *    지문이 똑같다. 지문만 비교하면 캐시된 뼈대를 그대로 돌려주고, 그러면 AI 2 가
    *    AI 1 과 같은 내용을 말한다 — 요청자가 지적한 바로 그 증상이다.
+   *
+   * ⚠️ **스타일도 함께 본다** (2026-08-21). 이제 뼈대가 스타일의 「소제목과 전체 구성」을
+   *    보고 만들어진다. 스타일을 바꾸고 다시 눌렀는데 캐시된 뼈대가 나오면 소제목이 그대로다 —
+   *    라운드를 안 봤을 때와 똑같은 증상이 스타일에서 다시 난다.
+   *    ⚠️ `outlineKeyOf()` 에는 넣지 않는다. 그 지문은 `aiRuns.key` 로도 쓰여서
+   *       스타일을 바꾸는 순간 AI 1·AI 2 목록이 통째로 사라진다(라운드를 뺀 것과 같은 이유).
    */
-  if (!force && s.outline?.key === key && (s.outline.round || 0) === round) {
+  if (!force && s.outline?.key === key && (s.outline.round || 0) === round
+    && (s.outline.styleId || null) === style.id) {
     return { core: s.outline.core, error: null };
   }
 
-  const jobKey = `${key}|r${round}`;
+  const jobKey = `${key}|r${round}|s${style.id || ''}`;
   if (!force && outlineJobs.has(jobKey)) return outlineJobs.get(jobKey);
 
   // 직전 라운드의 소제목을 넘겨 **같은 구성을 다시 짜지 못하게** 한다.
@@ -1342,12 +1360,12 @@ async function ensureOutline(root, { force = false, round = 0, session, channelI
   ])].filter(Boolean);
 
   showAiStatus(root, channelIds, '주제를 어떻게 풀지 뼈대를 짜는 중입니다…', session);
-  const job = coreWithOutline({ ...ctx(0), round, avoid })
+  const job = coreWithOutline({ ...ctx(0), round, avoid, researchStyle: style.guide })
     .then(({ core, error }) => {
       const latest = getState();
       if (!error && (latest.outline?.key !== key || (latest.outline.round || 0) <= round)) {
         // 다음 라운드가 피해야 할 소제목을 계속 쌓아 둔다 (같은 주제인 동안만).
-        setState({ outline: { key, round, core, pastHeads: avoid } });
+        setState({ outline: { key, round, core, pastHeads: avoid, styleId: style.id } });
       }
       return { core: error ? null : core, error };
     })
