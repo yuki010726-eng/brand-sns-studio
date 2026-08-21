@@ -26,7 +26,7 @@ import { getImage, putImage, deleteImage, imageKey } from '../lib/imagestore.js'
 import { renderCard, loadImage, cardAlt, downloadCanvas, ensureFonts, lastClipped, lastBoxes, lastSizes, W, H } from '../lib/cardrender.js';
 import { buildPrompt } from '../lib/imageprompt.js';
 import {
-  buildAdPrompts, AD_CONCEPTS, getAdConcept, roleLabel, adConceptForTone,
+  buildAdPrompts, AD_CONCEPTS, getAdConcept, roleLabel, adConceptForTone, adThumbSvg,
 } from '../lib/adprompt.js';
 import { imagePanelHTML, bindImagePanel } from '../components/imagepanel.js';
 import { toast } from '../components/toast.js';
@@ -1197,12 +1197,12 @@ function toggleBackgroundLock(root) {
 async function applyImage(root, i, blob, source) {
   const s = getState();
   if (blob) {
-    await putImage(imageKey(s.productId, s.concept, i), blob);
+    await putImage(imageKey(s.productId, s.concept, i, s.postId), blob);
     const previous = getState().images[i] || {};
     setState({ images: { ...getState().images, [i]: { ...previous, source, at: Date.now() } } });
     bitmaps[i] = await loadImage(blob).catch(() => null);
   } else {
-    await deleteImage(imageKey(s.productId, s.concept, i));
+    await deleteImage(imageKey(s.productId, s.concept, i, s.postId));
     const images = { ...s.images };
     delete images[i];
     setState({ images });
@@ -1242,7 +1242,7 @@ async function loadBitmaps() {
   const s = getState();
   bitmaps = new Array(deck.length).fill(null);
   for (let i = 0; i < deck.length; i++) {
-    const blob = await getImage(imageKey(s.productId, s.concept, i));
+    const blob = await getImage(imageKey(s.productId, s.concept, i, s.postId));
     if (blob) bitmaps[i] = await loadImage(blob).catch(() => null);
   }
 }
@@ -2041,16 +2041,22 @@ function renderAdPage(root, product, s) {
                 <input class="sr-only pick__input" type="radio" name="adconcept" id="ac-${c.id}" value="${c.id}"
                        autocomplete="off" aria-label="${esc(c.name)} — ${esc(c.who)}. ${esc(c.when)}"
                        ${concept.id === c.id ? 'checked' : ''} />
-                <label class="pick" for="ac-${c.id}">
-                  <span class="pick__dots" aria-hidden="true">
-                    ${c.swatch.map((hex) => `<i style="background:${hex}"></i>`).join('')}
-                  </span>${esc(c.name)}</label>`).join('')}
+                <label class="pick pick--thumb" for="ac-${c.id}">
+                  <span class="pick__thumb" aria-hidden="true">${adThumbSvg(c, { size: 28, id: `p-${c.id}` })}</span>
+                  ${esc(c.name)}</label>`).join('')}
             </div>
             <!--
               ⚠️ 고른 것 **하나만** 풀어 쓴다 (2026-08-20). 다섯 개를 다 펼치면 화면이 다시 난잡해진다 —
                  강조 색상·우상단 마크와 같은 방식이다.
             -->
-            <p class="field__hint">
+            <!--
+              ⚠️ 고른 컨셉 하나만 크게 보여 준다 (8-32 ② 와 같은 규칙).
+                 다섯 개를 다 크게 펼치면 카드 그리드가 되어 화면이 다시 난잡해진다.
+                 견본은 실제 생성 이미지가 아니라 배치·색이다 — adThumbSvg 주석 참고.
+            -->
+            <div class="adconcept">
+              <span class="adconcept__thumb">${adThumbSvg(concept, { size: 112, id: 'sel' })}</span>
+            <p class="field__hint adconcept__text">
               ${esc(concept.who)} · ${esc(concept.when)}<br />
               <strong>${count}장</strong>을 같은 사람·색·그림체로 만듭니다.
               ${s.adConceptTone === s.tone
@@ -2058,6 +2064,7 @@ function renderAdPage(root, product, s) {
     : `톤 「${esc(TONE_LABEL[s.tone] || s.tone)}」에 맞춰 골라 뒀습니다.`}
               장수와 톤은 1단계에서 정합니다. <a href="#/">바꾸기</a>
             </p>
+            </div>
           </fieldset>
 
           <div class="adbar__actions">
@@ -2078,6 +2085,7 @@ function renderAdPage(root, product, s) {
           -->
           <p class="adbar__note">
             글자까지 그림 안에 들어갑니다 — <strong>한글을 그리는 모델</strong>에서 쓰세요.
+            <strong>프롬프트는 한 장씩 따로 넣습니다</strong> — 한꺼번에 넣으면 한 장이 여러 칸으로 쪼개집니다.
             뽑은 이미지는 이 화면에 담기지 않습니다.
           </p>
         </div>
@@ -2152,11 +2160,23 @@ function bindAdPage(root) {
   });
 
   root.querySelector('#ad-copy-all')?.addEventListener('click', () => {
-    // 붙여 놓으면 어느 장인지 못 가리므로 번호와 역할을 함께 붙인다
-    const all = adPrompts
-      .map((x) => `[${x.n}번 · ${roleLabel(x.role)}]\n${x.prompt}`)
-      .join('\n\n────────\n\n');
-    copyText(all, `${adPrompts.length}장을 모두 복사했습니다.`);
+    /**
+     * ⚠️ **한 번에 다 붙여 넣으면 4분할 한 장이 나온다** (2026-08-21, 요청자 지적).
+     *    프롬프트 네 개를 한 입력칸에 넣으면 모델은 그걸 **한 장 안의 네 칸**으로 읽는다.
+     *    그래서 머리말에 「따로따로 생성」을 못박고 구분선도 눈에 띄게 바꿨다.
+     *    프롬프트 본문에도 같은 금지를 두 겹으로 넣었다 (`lib/adprompt.js` 의 SINGLE 줄).
+     */
+    const n = adPrompts.length;
+    const head = [
+      `⚠️ 아래는 서로 다른 프롬프트 ${n}개입니다. 한 번에 다 붙여 넣지 마세요.`,
+      `한 덩어리씩 따로 붙여 넣어 ${n}번 생성하면 ${n}장이 나옵니다.`,
+      '한꺼번에 넣으면 한 장이 여러 칸으로 쪼개져 나옵니다.',
+      '',
+    ].join('\n');
+    const all = head + adPrompts
+      .map((x) => `━━━━━━ ${x.n} / ${n} · ${roleLabel(x.role)} — 여기부터 한 장 ━━━━━━\n\n${x.prompt}`)
+      .join('\n\n');
+    copyText(all, `${n}장을 모두 복사했습니다. 한 덩어리씩 따로 생성하세요.`);
   });
 
   root.querySelector('#go-copy')?.addEventListener('click', () => navigate('/copy'));

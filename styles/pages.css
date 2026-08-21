@@ -1583,3 +1583,19 @@ body.is-login-page .site-footer { display: none; }
 
 /* 설정 화면에서 마이페이지로 돌아가는 줄 — 헤더 메뉴에서 뺐으므로 화면 안에 길을 둔다 */
 .backlink { display: inline-flex; margin-bottom: var(--gap-sm); }
+
+/* ── 직관형 컨셉 견본 (2026-08-21) ─────────────────────────────────
+   ⚠️ 알약(.pick) 패턴을 유지한 채 색 점만 견본으로 바꾼 것이다.
+      카드 그리드로 되돌리지 말 것 (8-32 ②). */
+.pick--thumb { gap: 8px; padding-left: 6px; }
+.pick__thumb { display: inline-flex; line-height: 0; border-radius: 5px; overflow: hidden; }
+.pick__thumb svg { display: block; }
+
+.adconcept { display: flex; align-items: center; gap: var(--gap); margin-top: var(--gap-sm); }
+.adconcept__thumb { flex: 0 0 auto; line-height: 0; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
+.adconcept__text { margin: 0; min-width: 0; }
+
+@media (max-width: 640px) {
+  .adconcept { align-items: flex-start; }
+  .adconcept__thumb svg { width: 84px; height: 84px; }
+}

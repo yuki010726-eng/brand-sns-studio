@@ -29,6 +29,15 @@ const INITIAL = {
   profile: null,       // { typeId, name, bio, slug, link, imagePrompt }
   profileSeed: 0,      // 「다시 뽑기」 횟수 — 누를 때마다 다른 조합이 나온다
   productId: null,
+  /**
+   * 지금 만들고 있는 **게시물의 신원** (2026-08-21). 카드 이미지 키에 들어간다
+   * (`lib/imagestore.js` 의 `imageKey`). 새 게시물을 시작할 때마다 새로 만든다.
+   *
+   * ⚠️ **비어 있는 상태를 유지해야 하는 경우가 있다.** 이 값이 생기기 전에 저장된 작업은
+   *    옛 키(`상품-템플릿-번호`)로 이미지를 갖고 있다. 여기서 값을 채워 버리면 그 이미지가
+   *    통째로 안 보인다. 그래서 `load()` 는 채우지 않고 **새 게시물을 시작할 때만** 만든다.
+   */
+  postId: '',
   topic: '',
   // "다른 이름으로 저장" 때 보관함에서만 쓰는 이름. 글 생성 주제와 분리한다.
   libraryTitle: '',
@@ -214,8 +223,15 @@ export function subscribe(fn) {
   return () => listeners.delete(fn);
 }
 
+/**
+ * 새 게시물의 id — 이미지 키가 게시물마다 갈리게 하는 값이다.
+ * ⚠️ 결정적일 필요가 없다. 겹치지만 않으면 된다.
+ */
+export const newPostId = () => `p${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+
 export function resetFlow() {
   setState({
+    postId: newPostId(),
     productId: null, topic: '', libraryTitle: '', drafts: {}, generated: {}, variants: {}, sources: {},
     draftKey: '', aiKey: {}, outline: null, researchStyle: null,
     aiRuns: { key: '', list: [] }, activeAiRun: null,

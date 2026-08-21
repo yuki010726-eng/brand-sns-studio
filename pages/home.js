@@ -7,7 +7,7 @@ import { PRODUCTS, getProduct } from '../lib/products.js';
 import { CHANNELS } from '../data/channels.js';
 import { productCardHTML } from '../components/product-card.js';
 import { stepperHTML, bindStepper } from '../components/stepper.js';
-import { getState, setState, navigate } from '../store.js';
+import { getState, setState, navigate, newPostId } from '../store.js';
 import { toast } from '../components/toast.js';
 import { choiceModal, confirmModal } from '../components/modal.js';
 import { clearLibraryEdit, getLibrary, getLibraryEditId, loadFromLibrary, postKeyOf } from '../lib/librarystore.js';
@@ -291,8 +291,11 @@ function bindBrief(root) {
       if (!makeNew) return;
 
       // 불러온 게시물의 결과물이 새 주제에 섞이지 않도록 입력 조건만 남기고 제작물을 비운다.
+      // ⚠️ `postId` 도 새로 만든다 — 안 그러면 IndexedDB 에 남아 있는 옛 이미지를
+      //    4단계가 같은 키로 다시 읽어 온다 (lib/imagestore.js 의 imageKey 주석 참고).
       clearLibraryEdit();
       setState({
+        postId: newPostId(),
         drafts: {}, generated: {}, variants: {}, sources: {},
         draftKey: '', aiKey: {}, outline: null, researchStyle: null,
         aiRuns: { key: '', list: [] }, activeAiRun: null,
@@ -335,6 +338,8 @@ function bindBrief(root) {
       const sameTopicRuns = current.aiRuns?.key === runsKey
         || TONES.some(({ id }) => current.aiRuns?.key === `${runsKey}|${id}`);
       setState({
+        // 주제가 바뀌면 이미지도 새 게시물 것이다 (imageKey 주석 참고)
+        postId: newPostId(),
         drafts: {}, generated: {}, variants: {}, sources: {},
         draftKey: '', aiKey: {}, outline: null, researchStyle: null,
         aiRuns: sameTopicRuns ? current.aiRuns : { key: '', list: [] }, activeAiRun: null,
