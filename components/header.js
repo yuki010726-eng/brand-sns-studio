@@ -36,14 +36,16 @@ export function renderHeader(root, currentPath) {
         <a class="brand" href="#/" aria-label="브랜드 SNS 스튜디오 홈으로 이동">
           <img class="brand__logo" src="assets/logos/logo.svg" alt="" />
         </a>
-        <nav class="nav" aria-label="주요 메뉴">
-          ${nav.map((item) => `
-            <a class="nav__link" href="#${item.path}" data-nav-path="${item.path}"
-               ${isActive(item.path, currentPath) ? 'aria-current="page"' : ''}>
-              ${item.label}
-            </a>`).join('')}
-        </nav>
-        <div class="authbox" id="authbox">${authHTML(getUser())}</div>
+        <div class="site-header__actions">
+          <nav class="nav" aria-label="주요 메뉴">
+            ${nav.map((item) => `
+              <a class="nav__link" href="#${item.path}" data-nav-path="${item.path}"
+                 ${isActive(item.path, currentPath) ? 'aria-current="page"' : ''}>
+                ${item.label}
+              </a>`).join('')}
+          </nav>
+          <div class="authbox" id="authbox">${authHTML(getUser())}</div>
+        </div>
       </div>
     </header>`;
 
@@ -77,8 +79,6 @@ function authHTML(user) {
         ? `<img class="authbox__avatar" src="${esc(user.avatar)}" alt="" referrerpolicy="no-referrer" />`
         : `<span class="authbox__avatar authbox__avatar--text" aria-hidden="true">${esc(initial)}</span>`}
       <span class="authbox__name" title="${esc(usernameOf(user.email))}">${esc(user.name)}</span>
-      <button type="button" class="btn btn--text btn--sm" id="auth-out"
-              aria-label="로그아웃">로그아웃</button>
     </div>`;
 }
 

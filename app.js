@@ -88,9 +88,9 @@ function route() {
     document.body.classList.remove('is-login-page');
     renderHeader(headerRoot, path);
   }
-  // 1단계(홈)는 Figma jRjBo4LUHkohSoPRqSaEAv node 8:3 을 반영한 다크 워크스페이스 화면이다
+  // 1·2단계는 Figma jRjBo4LUHkohSoPRqSaEAv node 8:3 을 반영한 다크 워크스페이스 화면이다
   // (styles/pages.css 의 `.workshop`). 로그인 화면이 body.is-login-page 를 쓰는 것과 같은 방식.
-  document.body.classList.toggle('is-home-page', path === '/');
+  document.body.classList.toggle('is-home-page', path === '/' || path === '/copy');
   mainRoot.innerHTML = '';
   page.render(mainRoot);
 

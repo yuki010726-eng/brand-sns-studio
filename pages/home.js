@@ -6,24 +6,30 @@
  * ⚠️ 이 다크 워크스페이스 껍데기(`.workshop`)는 **이 페이지 전용**이다. 2·3단계(copy.js·template.js)는
  *    아직 기존 밝은 배경 + 가로 스테퍼(`stepperHTML()`)를 그대로 쓴다 — 이번 반영 범위가 1단계 화면뿐이다.
  */
-import { icon } from '../assets/icons.js';
-import { PRODUCTS, getProduct } from '../lib/products.js';
-import { CHANNELS } from '../data/channels.js';
-import { productCardHTML } from '../components/product-card.js';
-import { stepperVerticalHTML, bindStepper } from '../components/stepper.js';
-import { getState, setState, navigate, newPostId } from '../store.js';
-import { toast } from '../components/toast.js';
-import { choiceModal, confirmModal } from '../components/modal.js';
-import { clearLibraryEdit, getLibrary, getLibraryEditId, loadFromLibrary, postKeyOf } from '../lib/librarystore.js';
+import { icon } from "../assets/icons.js";
+import { PRODUCTS, getProduct } from "../lib/products.js";
+import { CHANNELS } from "../data/channels.js";
+import { productCardHTML } from "../components/product-card.js";
+import { stepperVerticalHTML, bindStepper } from "../components/stepper.js";
+import { getState, setState, navigate, newPostId } from "../store.js";
+import { toast } from "../components/toast.js";
+import { choiceModal, confirmModal } from "../components/modal.js";
+import {
+  clearLibraryEdit,
+  getLibrary,
+  getLibraryEditId,
+  loadFromLibrary,
+  postKeyOf,
+} from "../lib/librarystore.js";
 
-export const title = '상품·주제 선택';
+export const title = "상품·주제 선택";
 
 /** 톤앤매너 프리셋 — 2단계 카피 생성의 입력값 */
 const TONES = [
-  { id: 'trust', label: '신뢰·정보형', desc: '사실 중심으로 차분하게' },
-  { id: 'hook', label: '후킹·공감형', desc: '첫 줄에서 시선을 잡고' },
-  { id: 'plain', label: '담백·실무형', desc: '군더더기 없이 핵심만' },
-  { id: 'celebrate', label: '축하·발표형', desc: '수상·소식 알림 톤' },
+  { id: "trust", label: "신뢰·정보형", desc: "사실 중심으로 차분하게" },
+  { id: "hook", label: "후킹·공감형", desc: "첫 줄에서 시선을 잡고" },
+  { id: "plain", label: "담백·실무형", desc: "군더더기 없이 핵심만" },
+  { id: "celebrate", label: "축하·발표형", desc: "수상·소식 알림 톤" },
 ];
 
 export function render(root) {
@@ -34,21 +40,22 @@ export function render(root) {
       <section class="workshop">
         <aside class="workshop__side">
           <p class="workshop__side-title">SNS 게시물 제작</p>
-          ${stepperVerticalHTML('/')}
+          ${stepperVerticalHTML("/")}
         </aside>
 
         <div class="workshop__main">
           <div class="workshop__block">
-            <div class="workshop__head">
+            <div class="workshop__head workshop__head--inline">
               <h1>1. 제작할 게시물의 상품을 선택해 주세요.</h1>
               <p class="workshop__desc">기준 정보는 사내 브랜드 자료(2026-07-23 기준)를 따릅니다.</p>
             </div>
             <div class="prodrow">
               <div class="card prodlist">
                 <h2 class="prodlist__title">상품 리스트</h2>
+                <div class="prodlist-title-border"></div>
                 <fieldset class="prodlist__items" id="product-grid">
                   <legend class="sr-only">광고할 상품을 선택하세요</legend>
-                  ${PRODUCTS.map((p) => productCardHTML(p, p.id === s.productId)).join('')}
+                  ${PRODUCTS.map((p) => productCardHTML(p, p.id === s.productId)).join("")}
                 </fieldset>
               </div>
               <div class="proddetail" id="detail-panel">${detailHTML()}</div>
@@ -77,62 +84,76 @@ function detailHTML() {
   if (!p) {
     return `
       <div class="proddetail__empty">
-        ${icon('award', 'icon--lg')}
+        ${icon("award", "icon--lg")}
         <p>왼쪽에서 상품을 선택하면 기준 정보가 열립니다.</p>
       </div>`;
   }
 
   return `
-    <!-- ⚠️ 요청자 지시: 아직 기능은 없다. 아이콘만 놓아 둔다. -->
-    <div class="proddetail__icons" aria-hidden="true">
-      ${icon('instagram', 'icon--sm')}
-      ${icon('download', 'icon--sm')}
-      ${icon('external', 'icon--sm')}
-    </div>
-
-    <h3 id="brief-title" class="proddetail__name">${p.name}</h3>
-    <p class="brief__summary">${p.summary}</p>
-
-    <h4 class="brief__label">기본 정보</h4>
-    <ul class="brief__list">
-      ${p.facts.map((f) => `<li>${icon('check', 'icon--sm')}<span>${f}</span></li>`).join('')}
-    </ul>
-
-    ${p.events.length ? `
-    <h4 class="brief__label">행사 일정</h4>
-    <ul class="brief__list brief__list--events">
-      ${p.events.map((e) => `
-        <li>
-          <span class="badge ${e.status === 'open' ? '' : 'badge--neutral'}">${e.status === 'open' ? '진행 예정' : '종료'}</span>
-          <span><strong>${e.name}</strong><br /><span class="brief__muted">${e.date} · ${e.desc}</span></span>
-        </li>`).join('')}
-    </ul>` : ''}
-
-    ${p.criteria.length ? `
-    <h4 class="brief__label">심사 기준</h4>
-    <ul class="brief__bars">
-      ${p.criteria.map((c) => `
-        <li>
-          <span class="brief__bar-label">${c.label}<b>${c.weight}%</b></span>
-          <span class="brief__bar" aria-hidden="true"><span style="width:${c.weight * 2}%"></span></span>
-        </li>`).join('')}
-    </ul>` : ''}
-
-    <h4 class="brief__label">기본 특전</h4>
-    <ul class="brief__tags">${p.benefits.map((b) => `<li>${b}</li>`).join('')}</ul>
-
-    ${p.packages.length ? `
-    <h4 class="brief__label">추가 패키지</h4>
-    <ul class="brief__list">
-      ${p.packages.map((k) => `<li>${icon('plus', 'icon--sm')}<span><strong>${k.name}</strong> · ${k.desc}</span></li>`).join('')}
-    </ul>` : ''}
-
-    <div class="notice notice--warn notice--dark" role="note">
-      <span class="notice__icon" aria-hidden="true">${icon('alert', 'icon--sm')}</span>
-      <div>
-        <strong>표현 주의</strong>
-        <ul>${p.cautions.map((c) => `<li>${c}</li>`).join('')}</ul>
+    <div class="proddetail__header">
+      <h2 class="prodlist__title">상품 정보</h2>
+      <div class="proddetail__icons" aria-hidden="true">
+        ${icon("instagram", "icon--sm")}
+        ${icon("download", "icon--sm")}
+        ${icon("external", "icon--sm")}
       </div>
+    </div>
+    <div class="proddetail__title-border"></div>
+    <div class="proddetail__col">
+      <h3 id="brief-title" class="proddetail__name">${p.name}</h3>
+      <div class="proddetail__summary-rule">
+        <div class="proddetail__summary-accent" aria-hidden="true"></div>
+        <p class="brief__summary">${p.summary}</p>
+      </div>
+      <h4 class="brief__label">기본 정보</h4>
+      <ul class="brief__list">
+        ${p.facts.map((f) => `<li>${icon("check", "icon--sm")}<span>${f}</span></li>`).join("")}
+      </ul>
+    </div>
+    <div class="proddetail__col proddetail__col--benefits">
+      ${
+        p.events.length
+          ? `
+      <h4 class="brief__label">행사 일정</h4>
+      <ul class="brief__list brief__list--events">
+        ${p.events
+          .map(
+            (e) => `
+          <li>
+            <span class="badge ${e.status === "open" ? "" : "badge--neutral"}">${e.status === "open" ? "진행 예정" : "종료"}</span>
+            <span><strong>${e.name}</strong><br /><span class="brief__muted">${e.date} · ${e.desc}</span></span>
+          </li>`,
+          )
+          .join("")}
+      </ul>`
+          : ""
+      }
+      ${
+        p.criteria.length
+          ? `
+      <h4 class="brief__label">심사 기준</h4>
+      <ul class="brief__bars">
+        ${p.criteria
+          .map(
+            (c) => `
+          <li>
+            <span class="brief__bar-label">${c.label}<b>${c.weight}%</b></span>
+            <span class="brief__bar" aria-hidden="true"><span style="width:${c.weight * 2}%"></span></span>
+          </li>`,
+          )
+          .join("")}
+      </ul>`
+          : ""
+      }
+      <h4 class="brief__label">기본 특전</h4>
+      <ul class="brief__tags">${p.benefits.map((b) => `<li>${b}</li>`).join("")}</ul>
+      ${
+        p.packages.length
+          ? `
+      <h4 class="brief__label">추가 패키지</h4>
+      <ul class="brief__list">${p.packages.map((k) => `<li>${icon("plus", "icon--sm")}<span><strong>${k.name}</strong> · ${k.desc}</span></li>`).join("")}</ul>`
+          : ""
+      }
     </div>`;
 }
 
@@ -141,7 +162,7 @@ function detailHTML() {
 function topicFormHTML() {
   const s = getState();
   const p = getProduct(s.productId);
-  if (!p) return '';
+  if (!p) return "";
 
   const tone = TONES.find((t) => t.id === s.tone) || TONES[0];
 
@@ -154,12 +175,16 @@ function topicFormHTML() {
           <div class="field">
             <span class="field__label" id="preset-label">추천 주제</span>
             <ul class="chip-row" id="preset-row" aria-labelledby="preset-label">
-              ${p.topicPresets.map((t) => `
+              ${p.topicPresets
+                .map(
+                  (t) => `
                 <li><button type="button" class="chip" data-preset="${escapeAttr(t)}"
-                            aria-label="추천 주제 적용: ${escapeAttr(t)}">${t}</button></li>`).join('')}
+                            aria-label="추천 주제 적용: ${escapeAttr(t)}">${t}</button></li>`,
+                )
+                .join("")}
               <li>
                 <button type="button" class="chip chip--icon" id="shuffle-presets"
-                        aria-label="추천 주제 다시 보기">${icon('refresh', 'icon--sm')}</button>
+                        aria-label="추천 주제 다시 보기">${icon("refresh", "icon--sm")}</button>
               </li>
             </ul>
           </div>
@@ -178,18 +203,22 @@ function topicFormHTML() {
             <label class="field__label" for="tone-select">글 스타일</label>
             <p class="topicform__style-desc" id="tone-desc">${tone.desc}</p>
             <select class="select" id="tone-select" aria-describedby="tone-desc">
-              ${TONES.map((t) => `<option value="${t.id}" ${t.id === s.tone ? 'selected' : ''}>${t.label} — ${t.desc}</option>`).join('')}
+              ${TONES.map((t) => `<option value="${t.id}" ${t.id === s.tone ? "selected" : ""}>${t.label} — ${t.desc}</option>`).join("")}
             </select>
           </div>
 
           <fieldset class="field">
             <legend class="field__label">이미지 · 카드뉴스 장수</legend>
             <div class="pickrow" role="radiogroup" aria-label="카드뉴스 장수 선택">
-              ${[1, 2, 3, 4, 5, 6].map((n) => `
+              ${[1, 2, 3, 4, 5, 6]
+                .map(
+                  (n) => `
                 <input class="sr-only pick__input" type="radio" name="cardcount" id="cc-${n}" value="${n}"
                        autocomplete="off" aria-label="카드 ${n}장"
-                       ${(s.cardCount || 6) === n ? 'checked' : ''} />
-                <label class="pick" for="cc-${n}">${n}장</label>`).join('')}
+                       ${(s.cardCount || 6) === n ? "checked" : ""} />
+                <label class="pick" for="cc-${n}">${n}장</label>`,
+                )
+                .join("")}
             </div>
             <p class="field__hint" id="cc-hint">${cardCountHint(s.cardCount || 6)}</p>
           </fieldset>
@@ -199,31 +228,33 @@ function topicFormHTML() {
           <fieldset class="field">
             <legend class="field__label">내보낼 채널</legend>
             <ul class="channel-row">
-              ${CHANNELS.map((c) => `
+              ${CHANNELS.map(
+                (c) => `
                 <li>
                   <input class="sr-only channel__input" type="checkbox" id="ch-${c.id}" value="${c.id}"
                          aria-label="${c.name} — ${c.hint}" autocomplete="off"
-                         ${s.channels.includes(c.id) ? 'checked' : ''} />
+                         ${s.channels.includes(c.id) ? "checked" : ""} />
                   <label class="channel" for="ch-${c.id}">
-                    ${icon(c.icon, 'icon--sm')}
+                    ${icon(c.icon, "icon--sm")}
                     <span>
                       <strong>${c.name}</strong>
                       <em>${c.hint}</em>
                     </span>
                   </label>
-                </li>`).join('')}
+                </li>`,
+              ).join("")}
             </ul>
           </fieldset>
         </div>
       </div>
 
       <div class="topicform__actions">
-        <button type="button" class="btn btn--lg" id="go-copy"
-                aria-label="아이디어 문서화 단계로 이동">
-          아이디어 문서화로 계속 ${icon('arrowRight', 'icon--sm')}
-        </button>
         <button type="button" class="btn btn--text" id="clear-topic" aria-label="입력한 주제 지우기">
           초기화
+        </button>
+        <button type="button" class="btn btn--lg" id="go-copy"
+                aria-label="게시물 생성 단계로 이동">
+          게시물 생성하기 ${icon("arrowRight", "icon--sm")}
         </button>
       </div>
     </div>`;
@@ -232,53 +263,56 @@ function topicFormHTML() {
 /* ---------------- 이벤트 바인딩 ---------------- */
 
 function bindProductGrid(root) {
-  root.querySelector('#product-grid')?.addEventListener('change', (e) => {
+  root.querySelector("#product-grid")?.addEventListener("change", (e) => {
     const input = e.target;
-    if (input.name !== 'product') return;
-    setState({ productId: input.value, libraryTitle: '' });
+    if (input.name !== "product") return;
+    setState({ productId: input.value, libraryTitle: "" });
     refreshDetail(root);
     // 상품을 바꾸면 곧바로 주제 입력으로 초점을 옮겨 흐름이 끊기지 않게 한다
-    root.querySelector('#topic-input')?.focus({ preventScroll: true });
+    root.querySelector("#topic-input")?.focus({ preventScroll: true });
   });
 }
 
 function refreshDetail(root) {
-  const detail = root.querySelector('#detail-panel');
+  const detail = root.querySelector("#detail-panel");
   if (detail) detail.innerHTML = detailHTML();
 
-  const panel = root.querySelector('#topic-panel');
+  const panel = root.querySelector("#topic-panel");
   if (!panel) return;
   panel.innerHTML = topicFormHTML();
   bindBrief(root);
 }
 
 function bindBrief(root) {
-  const topicEl = root.querySelector('#topic-input');
+  const topicEl = root.querySelector("#topic-input");
 
-  topicEl?.addEventListener('input', () => {
-    setState({ topic: topicEl.value, libraryTitle: '' });
+  topicEl?.addEventListener("input", () => {
+    setState({ topic: topicEl.value, libraryTitle: "" });
     syncCta(root);
   });
 
   root.querySelectorAll('input[name="cardcount"]').forEach((el) => {
-    el.addEventListener('change', () => {
+    el.addEventListener("change", () => {
       const n = Number(el.value);
       setState({ cardCount: n });
-      const hint = root.querySelector('#cc-hint');
+      const hint = root.querySelector("#cc-hint");
       if (hint) hint.textContent = cardCountHint(n);
     });
   });
 
-  root.querySelector('#tone-select')?.addEventListener('change', (e) => {
+  root.querySelector("#tone-select")?.addEventListener("change", (e) => {
     setState({ tone: e.target.value });
-    const desc = root.querySelector('#tone-desc');
-    if (desc) desc.textContent = (TONES.find((t) => t.id === e.target.value) || TONES[0]).desc;
+    const desc = root.querySelector("#tone-desc");
+    if (desc)
+      desc.textContent = (
+        TONES.find((t) => t.id === e.target.value) || TONES[0]
+      ).desc;
   });
 
-  root.querySelectorAll('[data-preset]').forEach((btn) => {
-    btn.addEventListener('click', () => {
+  root.querySelectorAll("[data-preset]").forEach((btn) => {
+    btn.addEventListener("click", () => {
       const value = btn.dataset.preset;
-      setState({ topic: value, libraryTitle: '' });
+      setState({ topic: value, libraryTitle: "" });
       if (topicEl) {
         topicEl.value = value;
         topicEl.focus();
@@ -287,10 +321,10 @@ function bindBrief(root) {
     });
   });
 
-  root.querySelector('#shuffle-presets')?.addEventListener('click', () => {
-    const row = root.querySelector('#preset-row');
+  root.querySelector("#shuffle-presets")?.addEventListener("click", () => {
+    const row = root.querySelector("#preset-row");
     if (!row) return;
-    const chips = [...row.querySelectorAll('[data-preset]')];
+    const chips = [...row.querySelectorAll("[data-preset]")];
     for (let i = chips.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       row.insertBefore(chips[j], chips[i].nextSibling);
@@ -298,40 +332,47 @@ function bindBrief(root) {
     }
   });
 
-  root.querySelectorAll('.channel__input').forEach((box) => {
-    box.addEventListener('change', () => {
-      const checked = [...root.querySelectorAll('.channel__input')]
-        .filter((b) => b.checked).map((b) => b.value);
+  root.querySelectorAll(".channel__input").forEach((box) => {
+    box.addEventListener("change", () => {
+      const checked = [...root.querySelectorAll(".channel__input")]
+        .filter((b) => b.checked)
+        .map((b) => b.value);
       if (!checked.length) {
-        box.checked = true;   // 최소 1개 채널은 유지
-        toast('채널은 최소 1개를 선택해야 합니다.');
+        box.checked = true; // 최소 1개 채널은 유지
+        toast("채널은 최소 1개를 선택해야 합니다.");
         return;
       }
       setState({ channels: checked });
     });
   });
 
-  root.querySelector('#clear-topic')?.addEventListener('click', () => {
-    setState({ topic: '', libraryTitle: '' });
-    if (topicEl) { topicEl.value = ''; topicEl.focus(); }
+  root.querySelector("#clear-topic")?.addEventListener("click", () => {
+    setState({ topic: "", libraryTitle: "" });
+    if (topicEl) {
+      topicEl.value = "";
+      topicEl.focus();
+    }
     syncCta(root);
-    toast('주제를 비웠습니다.');
+    toast("주제를 비웠습니다.");
   });
 
-  root.querySelector('#go-copy')?.addEventListener('click', async () => {
+  root.querySelector("#go-copy")?.addEventListener("click", async () => {
     if (!isReady()) {
-      toast('상품과 주제를 먼저 입력해 주세요.');
+      toast("상품과 주제를 먼저 입력해 주세요.");
       topicEl?.focus();
       return;
     }
     const s = getState();
     const editingId = getLibraryEditId();
-    const editingItem = editingId ? getLibrary().find((item) => item.id === editingId) : null;
+    const editingItem = editingId
+      ? getLibrary().find((item) => item.id === editingId)
+      : null;
     if (editingItem && editingItem.postKey !== postKeyOf(s)) {
-      const makeNew = await confirmModal(
-        '새 게시물을 만들까요?',
-        { title: '다른 주제를 선택했습니다', okLabel: '만들기', cancelLabel: '취소' },
-      );
+      const makeNew = await confirmModal("새 게시물을 만들까요?", {
+        title: "다른 주제를 선택했습니다",
+        okLabel: "만들기",
+        cancelLabel: "취소",
+      });
       if (!makeNew) return;
 
       // 불러온 게시물의 결과물이 새 주제에 섞이지 않도록 입력 조건만 남기고 제작물을 비운다.
@@ -340,34 +381,40 @@ function bindBrief(root) {
       clearLibraryEdit();
       setState({
         postId: newPostId(),
-        drafts: {}, generated: {}, variants: {}, sources: {},
-        draftKey: '', aiKey: {}, outline: null, researchStyle: null,
-        aiRuns: { key: '', list: [] }, activeAiRun: null,
-        image: null, images: {}, card: null,
+        drafts: {},
+        generated: {},
+        variants: {},
+        sources: {},
+        draftKey: "",
+        aiKey: {},
+        outline: null,
+        researchStyle: null,
+        aiRuns: { key: "", list: [] },
+        activeAiRun: null,
+        image: null,
+        images: {},
+        card: null,
       });
     }
 
     const nextState = getState();
-    const existing = getLibrary().find((item) => item.postKey === postKeyOf(nextState));
+    const existing = getLibrary().find(
+      (item) => item.postKey === postKeyOf(nextState),
+    );
     const isEditingExisting = existing?.id === getLibraryEditId();
     if (existing && !isEditingExisting) {
-      const choice = await choiceModal(
-        '보관함에 저장되어있는 주제입니다.',
-        {
-          title: '보관함에 저장된 주제',
-          choices: [
-            { value: 'load', label: '불러오기', primary: true },
-          ],
-        },
-      );
-      if (choice !== 'load') return;
+      const choice = await choiceModal("보관함에 저장되어있는 주제입니다.", {
+        title: "보관함에 저장된 주제",
+        choices: [{ value: "load", label: "불러오기", primary: true }],
+      });
+      if (choice !== "load") return;
 
       const result = await loadFromLibrary(existing.id);
       if (!result.ok) {
         toast(result.error);
         return;
       }
-      navigate('/copy');
+      navigate("/copy");
       return;
     }
 
@@ -378,38 +425,48 @@ function bindBrief(root) {
     if (!isEditingExisting) {
       clearLibraryEdit();
       const current = getState();
-      const runsKey = `${current.productId}|${String(current.topic || '').trim()}`;
-      const sameTopicRuns = current.aiRuns?.key === runsKey
-        || TONES.some(({ id }) => current.aiRuns?.key === `${runsKey}|${id}`);
+      const runsKey = `${current.productId}|${String(current.topic || "").trim()}`;
+      const sameTopicRuns =
+        current.aiRuns?.key === runsKey ||
+        TONES.some(({ id }) => current.aiRuns?.key === `${runsKey}|${id}`);
       setState({
         // 주제가 바뀌면 이미지도 새 게시물 것이다 (imageKey 주석 참고)
         postId: newPostId(),
-        drafts: {}, generated: {}, variants: {}, sources: {},
-        draftKey: '', aiKey: {}, outline: null, researchStyle: null,
-        aiRuns: sameTopicRuns ? current.aiRuns : { key: '', list: [] }, activeAiRun: null,
-        image: null, images: {}, card: null,
+        drafts: {},
+        generated: {},
+        variants: {},
+        sources: {},
+        draftKey: "",
+        aiKey: {},
+        outline: null,
+        researchStyle: null,
+        aiRuns: sameTopicRuns ? current.aiRuns : { key: "", list: [] },
+        activeAiRun: null,
+        image: null,
+        images: {},
+        card: null,
       });
     }
-    navigate('/copy');
+    navigate("/copy");
   });
 
   syncCta(root);
 }
-
 
 /**
  * 장수를 줄여도 글은 기승전결을 그대로 쓴다. 줄어드는 것은 이미지뿐이다.
  * 그래서 안내도 '무엇이 빠지는지'가 아니라 '카드가 무엇을 담는지'로 적는다.
  */
 function cardCountHint(n) {
-  const plan = {
-    1: '표지 한 장에 후킹과 마무리를 함께 얹습니다.',
-    2: '표지 · 마무리',
-    3: '표지 · 본문 1 · 마무리',
-    4: '표지 · 본문 2 · 마무리',
-    5: '표지 · 본문 2 · 반론 · 마무리',
-    6: '표지 · 본문 3 · 반론 · 마무리',
-  }[n] || '';
+  const plan =
+    {
+      1: "표지 한 장에 후킹과 마무리를 함께 얹습니다.",
+      2: "표지 · 마무리",
+      3: "표지 · 본문 1 · 마무리",
+      4: "표지 · 본문 2 · 마무리",
+      5: "표지 · 본문 2 · 반론 · 마무리",
+      6: "표지 · 본문 3 · 반론 · 마무리",
+    }[n] || "";
   return `${plan} 장수를 줄여도 블로그·인스타 글은 기승전결을 그대로 씁니다. 이미지만 줄어듭니다.`;
 }
 
@@ -419,13 +476,19 @@ function isReady() {
 }
 
 function syncCta(root) {
-  const btn = root.querySelector('#go-copy');
+  const btn = root.querySelector("#go-copy");
   if (btn) btn.disabled = !isReady();
 }
 
 /* ---------------- 유틸 ---------------- */
 
-const escapeHTML = (str = '') =>
-  str.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const escapeHTML = (str = "") =>
+  str.replace(
+    /[&<>"']/g,
+    (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
+        c
+      ],
+  );
 
-const escapeAttr = (str = '') => escapeHTML(str);
+const escapeAttr = (str = "") => escapeHTML(str);

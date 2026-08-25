@@ -6,7 +6,7 @@ import { icon } from '../assets/icons.js';
 import { getProduct } from '../lib/products.js';
 import { CHANNELS } from '../data/channels.js';
 import { BANNED_PHRASES } from '../data/banned-phrases.js';
-import { stepperHTML, bindStepper } from '../components/stepper.js';
+import { stepperVerticalHTML, bindStepper } from '../components/stepper.js';
 import { getState, setState, navigate, draftKeyOf } from '../store.js';
 import { findBanned, TONE_LABEL, HEAD_MARK, bodyLength } from '../lib/copywriter.js';
 import { generateWithAI, promptKeyOf, derivePosts } from '../lib/copyai.js';
@@ -69,13 +69,18 @@ export function render(root) {
 
   root.innerHTML = `
     <div class="container">
-      ${stepperHTML('/copy')}
+      <section class="workshop copy-workshop">
+        <aside class="workshop__side">
+          <p class="workshop__side-title">SNS 게시물 제작</p>
+          ${stepperVerticalHTML('/copy')}
+        </aside>
 
-      <section class="section">
-        <div class="section__head">
+        <div class="workshop__main copy-workshop__main">
+          <div class="workshop__block copy-workshop__block">
+            <div class="workshop__head">
           <h1>${hasAnyDraft ? '추천 글귀가 준비됐습니다' : '아래 조건으로 글귀를 만들어 보세요'}</h1>
           <p>AI 생성 결과는 주제 및 채널별로 계속 쌓입니다.</p>
-        </div>
+            </div>
 
         <!--
           어떤 조건으로 만든 글인지 항상 보이게.
@@ -147,6 +152,8 @@ export function render(root) {
                   aria-label="카드뉴스 템플릿 단계로 이동">
             카드뉴스 만들기 ${icon('arrowRight', 'icon--sm')}
           </button>
+        </div>
+          </div>
         </div>
       </section>
     </div>`;

@@ -3,17 +3,17 @@
    레시피에서 지정한 HEX 값을 그대로 사용한다.
    ============================================================ */
 /* 900(Black)은 카드뉴스 캔버스 전용 — 레퍼런스의 제목이 700으로는 너무 얇게 보인다 */
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap");
 
 :root {
   /* --- 레시피 지정 색상 (변경 금지) --- */
-  --primary: #3182F6;
-  --primary-dark: #1B64DA;
-  --text: #4E5968;
-  --sub: #8B95A1;
-  --bg: #F2F4F6;
-  --surface: #FFFFFF;
-  --border: #E5E8EB;
+  --primary: #3182f6;
+  --primary-dark: #1b64da;
+  --text: #4e5968;
+  --sub: #8b95a1;
+  --bg: #f2f4f6;
+  --surface: #ffffff;
+  --border: #e5e8eb;
 
   /* --- 접근성 보강 토큰 (내 메모: 명도 대비 4.5:1 이상) ---
      #8B95A1 은 흰 배경에서 3.08:1 → 작은 본문 텍스트에 쓸 수 없다.
@@ -21,18 +21,18 @@
      --sub 은 아이콘·구분선·placeholder·비활성 컨트롤에만 쓴다.
      흰 글자 기준 #3182F6 은 3.71:1, #1B64DA 은 5.41:1 → CTA 배경은 --primary-dark.
      원래 톤(#3182F6)으로 되돌리려면 --cta-bg 한 줄만 --primary 로 바꾸면 된다. */
-  --sub-strong: #5F6B7A;   /* 작은 보조 텍스트용 */
-  --link: var(--primary-dark);  /* 흰 배경 링크 (5.41:1) */
+  --sub-strong: #5f6b7a; /* 작은 보조 텍스트용 */
+  --link: var(--primary-dark); /* 흰 배경 링크 (5.41:1) */
   --cta-bg: var(--primary-dark);
-  --cta-bg-hover: #1957BC;
+  --cta-bg-hover: #1957bc;
 
   /* --- 상태 색 --- */
-  --primary-weak: #E8F2FE;   /* 선택 상태 배경 */
-  --danger: #D93A3A;
-  --success: #16A34A;
+  --primary-weak: #e8f2fe; /* 선택 상태 배경 */
+  --danger: #d93a3a;
+  --success: #16a34a;
   /* #16A34A 는 흰 배경 3.30:1 이라 작은 글자에 못 쓴다. 아이콘·배지 배경 전용.
      '연결됨' 같은 상태 텍스트에는 5.02:1 인 아래 값을 쓴다. */
-  --success-text: #15803D;
+  --success-text: #15803d;
 
   /* --- 중립 강조 (2026-08-12, 요청자 지시: "흰색 파란색이라 눈에 잘 안 보인다") ---
      ⚠️ **파랑은 세 곳에만 쓴다: 주 버튼(--cta-bg) · 포커스 링 · 입력 포커스 테두리.**
@@ -40,12 +40,14 @@
         화면 곳곳이 파랗게 물들면 정작 눌러야 할 버튼이 묻힌다.
      ⚠️ 파랑으로 되돌리고 싶으면 --select-bg 한 줄만 --primary-weak 로 바꾸면 된다.
         레시피 색(--primary 등)은 그대로 두었으므로 값 자체는 하나도 잃지 않았다. */
-  --ink: #191F28;          /* 제목 · 선택된 칩/탭 배경 (흰 글자 16.8:1) */
-  --ink-soft: #333D4B;     /* 라벨 · 보조 버튼 글자 (흰 배경 10.9:1) */
-  --fill: #F2F4F6;         /* 중립 강조 배경 (= --bg) */
-  --fill-hover: #E8EBED;
-  --border-hover: #D5DAE0;
-  --select-bg: var(--ink); /* 선택 상태 배경 — 칩·탭·스테퍼처럼 **작은** 컨트롤 */
+  --ink: #191f28; /* 제목 · 선택된 칩/탭 배경 (흰 글자 16.8:1) */
+  --ink-soft: #333d4b; /* 라벨 · 보조 버튼 글자 (흰 배경 10.9:1) */
+  --fill: #f2f4f6; /* 중립 강조 배경 (= --bg) */
+  --fill-hover: #e8ebed;
+  --border-hover: #d5dae0;
+  --select-bg: var(
+    --ink
+  ); /* 선택 상태 배경 — 칩·탭·스테퍼처럼 **작은** 컨트롤 */
 
   /* --- 큰 칸의 선택 상태 (2026-08-14, 요청자 지시) ---
      "선택된 칸은 외곽선만 검은색으로 하니 잘 안 보이는 것 같아.
@@ -59,37 +61,37 @@
      ⚠️ 이 값은 3절 "파랑은 세 곳에만" 규칙의 **요청자 승인 예외**다.
         중립 회색(--fill)으로 칠해 봤자 흰 배경과 거의 같아서 "잘 안 보인다"는 지적이 그대로 남는다.
         되돌리려면 아래 두 줄만 --fill / --ink 로 바꾸면 된다. */
-  --select-panel-bg: var(--primary-weak);      /* #E8F2FE — 검은 글자 15.1:1 */
-  --select-panel-border: var(--primary-dark);  /* #1B64DA */
+  --select-panel-bg: var(--primary-weak); /* #E8F2FE — 검은 글자 15.1:1 */
+  --select-panel-border: var(--primary-dark); /* #1B64DA */
 
   /* --- 헤더 (2026-08-25, Figma node 8:278 반영) ---
      실측 배경 #1A1A1A. 기존 --ink(#191F28)과 색조가 달라(파랑기 없는 순수 회색) 새 토큰으로 뒀다.
      헤더 전용이라 다른 곳에서 끌어다 쓰지 말 것 — 되돌리려면 이 토큰과 .site-header 배경만 지운다. */
-  --header-bg: #1A1A1A;
+  --header-bg: #1a1a1a;
 
   /* --- 글자 크기 (2026-08-20 신설) ---
      ⚠️ **여기 없는 크기를 새로 쓰지 말 것.** 정리 전에는 12.5 · 13.5 · 14.5 같은 반픽셀까지
         섞여 13종이었다. 요청자 지적: "전체적으로 UI 가 너무 중구난방이야."
         한 단계 차이는 눈에 안 띄고 어긋난 것만 눈에 띈다. */
-  --fs-xs: 12px;     /* 메타 · 표 머리 · 작은 라벨 */
-  --fs-sm: 13px;     /* 보조 설명 · 힌트 */
-  --fs-md: 14px;     /* 본문 · 폼 라벨 */
-  --fs-base: 15px;   /* 버튼 · 입력칸 · 읽기용 본문 */
-  --fs-lg: 16px;     /* 카드 제목 */
-  --fs-xl: 18px;     /* 섹션 제목 */
+  --fs-xs: 12px; /* 메타 · 표 머리 · 작은 라벨 */
+  --fs-sm: 13px; /* 보조 설명 · 힌트 */
+  --fs-md: 14px; /* 본문 · 폼 라벨 */
+  --fs-base: 15px; /* 버튼 · 입력칸 · 읽기용 본문 */
+  --fs-lg: 16px; /* 카드 제목 */
+  --fs-xl: 18px; /* 섹션 제목 */
   --fs-2xl: 22px;
-  --fs-3xl: 26px;
+  --fs-3xl: 25px;
 
   /* --- 카드 여백 (2026-08-20 신설) ---
      ⚠️ **카드처럼 보이는 것은 이 셋 중 하나만 쓴다.** 정리 전에는 같은 '카드'인데
         24px · 20px · 18px 20px · 16px 20px · 14px 16px · 26px 24px 로 여섯 가지였다.
         역할로 고른다 — 재는 게 아니라 고르는 것이다. */
-  --pad-card: 20px;            /* 기본 — 내용이 든 카드 */
-  --pad-card-sm: 14px 16px;    /* 좁은 바 · 안내 박스 */
-  --pad-card-lg: 24px;         /* 길게 읽는 면(미리보기) */
+  --pad-card: 20px; /* 기본 — 내용이 든 카드 */
+  --pad-card-sm: 14px 16px; /* 좁은 바 · 안내 박스 */
+  --pad-card-lg: 24px; /* 길게 읽는 면(미리보기) */
 
   /* --- 반경 --- */
-  --radius-pill: 999px;      /* 버튼: 둥근 알약 */
+  --radius-pill: 999px; /* 버튼: 둥근 알약 */
   --radius-lg: 16px;
   --radius-md: 12px;
   --radius-sm: 8px;
@@ -99,7 +101,7 @@
         그림자는 **실제로 떠 있는 것**(모달·토스트)에만 남긴다. */
   --shadow-sm: none;
   --shadow-md: none;
-  --shadow-lg: 0 12px 32px rgba(0, 23, 51, .12);
+  --shadow-lg: 0 12px 32px rgba(0, 23, 51, 0.12);
 
   /* --- 간격 --- */
   --gap-xs: 6px;
@@ -110,15 +112,20 @@
 
   /* --- 레이아웃 --- */
   --container: 1120px;
-  --header-h: 64px;
+  --header-h: 100px;
 
   /* --- 모션 --- */
-  --ease: cubic-bezier(.25, .8, .35, 1);
-  --dur: .15s;
+  --ease: cubic-bezier(0.25, 0.8, 0.35, 1);
+  --dur: 0.15s;
 }
 
 /* 모션 최소화 선호 사용자 존중 */
 @media (prefers-reduced-motion: reduce) {
-  :root { --dur: .001s; }
-  * { animation-duration: .001s !important; transition-duration: .001s !important; }
+  :root {
+    --dur: 0.001s;
+  }
+  * {
+    animation-duration: 0.001s !important;
+    transition-duration: 0.001s !important;
+  }
 }

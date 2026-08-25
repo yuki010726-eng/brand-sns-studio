@@ -372,51 +372,64 @@ body.is-login-page .site-footer {
 }
 
 /* ---------- 1단계 워크스페이스 셸 (Figma jRjBo4LUHkohSoPRqSaEAv, node 8:3) ----------
-   ⚠️ 이 페이지(home.js)만 다크 배경이다. body.is-home-page 토글은 app.js 가 담당한다
+   1·2단계(home.js, copy.js)는 같은 다크 배경을 쓴다. body.is-home-page 토글은 app.js 가 담당한다
    (로그인 화면이 body.is-login-page 를 쓰는 것과 같은 방식). */
 body.is-home-page {
   background: #1a1a1a;
 }
 
+body.is-home-page main > .container {
+  max-width: none;
+  padding: 0px clamp(20px, 3.85vw, 74px) 170px;
+}
+
 .workshop {
   display: flex;
-  align-items: flex-start;
-  gap: var(--gap-lg);
+  align-items: stretch;
+  min-height: 1170px;
+  overflow: hidden;
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.1);
 }
 .workshop__side {
-  flex: 0 0 190px;
-  align-self: stretch;
-  background: rgba(255, 255, 255, 0.06);
-  border-radius: var(--radius-lg);
-  padding: 18px 14px;
+  min-width: 174px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 15px;
+  padding: 8px 9px;
 }
 .workshop__side-title {
   text-align: center;
   color: #fff;
   font-weight: 700;
   font-size: var(--fs-xl);
-  padding-bottom: 14px;
+  padding: 8px 20px 20px 20px;
+  line-height: 22.4px;
 }
 .workshop__main {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--gap-xl);
+  gap: 48px;
+  padding: 61px 39px 80px 49px;
 }
 .workshop__block {
   display: flex;
   flex-direction: column;
-  gap: var(--gap);
+  gap: 28px;
+}
+.workshop__head--inline {
+  display: flex;
+  align-items: baseline;
+  gap: 24px;
 }
 .workshop__head h1,
 .workshop__block > h1 {
   color: #fff;
 }
 .workshop__desc {
-  margin-top: 5px;
-  font-size: var(--fs-md);
-  color: rgba(255, 255, 255, 0.6);
+  font-size: 15px;
+  color: #8e8e8e;
 }
 
 /* 세로 스테퍼 (components/stepper.js 의 stepperVerticalHTML) */
@@ -481,27 +494,64 @@ body.is-home-page {
 /* ---------- 상품 리스트 ---------- */
 .prodrow {
   display: grid;
-  grid-template-columns: minmax(280px, 1fr) minmax(0, 2.5fr);
-  gap: var(--gap-lg);
-  align-items: start;
+  grid-template-columns: 422px minmax(0, 1fr);
+  gap: 0;
+  align-items: stretch;
 }
 .prodlist {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   gap: 14px;
+  min-height: 337px;
+  height: auto;
+  padding: 24px 18px;
+  border: 0;
+  border-radius: 15px;
+  box-shadow: 8px 0 20px rgba(0, 0, 0, 0.18);
 }
 .prodlist__title {
-  text-align: center;
+  text-align: left;
   font-size: var(--fs-xl);
+  padding-left: 10px;
 }
 .prodlist__items {
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: 6px;
   border: 0;
   padding: 0;
   margin: 0;
   min-width: 0;
+  overflow-y: auto;
+  padding-right: 8px;
+  scrollbar-color: #050505 #f2f2f2;
+  scrollbar-width: auto;
+}
+.prodlist__items::-webkit-scrollbar {
+  width: 6px;
+}
+.prodlist__items::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+.prodlist__items::-webkit-scrollbar-track {
+  margin-block: 8px;
+  background: #f2f2f2;
+  border-radius: 999px;
+}
+.prodlist__items::-webkit-scrollbar-thumb {
+  min-height: 72px;
+  background: #050505;
+  border-radius: 999px;
+}
+@supports selector(::-webkit-scrollbar) {
+  .prodlist__items {
+    scrollbar-color: auto;
+  }
 }
 
 .prod-item__body {
@@ -520,6 +570,9 @@ body.is-home-page {
   background: var(--fill);
 }
 .prod-item__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
 }
 .prod-item__name {
@@ -542,7 +595,6 @@ body.is-home-page {
 }
 .prod-item__input:checked + .prod-item__body {
   border-color: var(--select-panel-border);
-  background: var(--select-panel-bg);
   color: var(--select-panel-border);
 }
 .prod-item__input:checked + .prod-item__body .prod-item__name {
@@ -562,15 +614,30 @@ body.is-home-page {
 /* ---------- 상품 상세 (다크 패널) ---------- */
 .proddetail {
   position: relative;
+  z-index: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: var(--pad-card-lg);
-  border-radius: var(--radius-lg);
-  background: rgba(255, 255, 255, 0.08);
+  display: grid;
+  grid-template-columns: minmax(340px, 1fr) minmax(430px, 1.2fr);
+  align-content: start;
+  column-gap: 56px;
+  row-gap: 10px;
+  min-height: 337px;
+  height: auto;
+  overflow: visible;
+  margin-left: -15px;
+  padding: 25px 14px 36px 40px;
+  border-radius: 0 15px 15px 0;
+  background: rgba(255, 255, 255, 0.2);
   color: #fff;
 }
+.proddetail:has(> .proddetail__empty) {
+  align-content: center;
+}
 .proddetail__empty {
+  grid-column: 1 / -1;
+  align-self: center;
+  justify-self: stretch;
   text-align: center;
   padding: 56px 20px;
   color: rgba(255, 255, 255, 0.6);
@@ -580,16 +647,70 @@ body.is-home-page {
   margin: 0 auto 12px;
 }
 .proddetail__icons {
-  position: absolute;
-  top: 20px;
-  right: 20px;
   display: flex;
-  gap: 12px;
+  align-items: center;
+  flex-direction: row;
+  gap: 20px;
+  flex-shrink: 0;
   color: rgba(255, 255, 255, 0.7);
+}
+.proddetail__header {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  margin: 0 -4px 0 -30px;
+  padding: 0 21px 0 42px;
+}
+.proddetail__header .prodlist__title {
+  padding-left: 0;
+  color: #fff;
+}
+.proddetail__title-border {
+  grid-column: 1 / -1;
+  width: auto;
+  height: 1px;
+  margin: -1px 4px 12px -6px;
+  background: rgba(255, 255, 255, 0.55);
 }
 .proddetail__name {
   color: #fff;
-  padding-right: 90px;
+}
+.proddetail__col {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 10px;
+  padding-left: 20px;
+}
+.proddetail__col--benefits {
+  padding-right: 42px;
+}
+.proddetail__summary-rule {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+  margin-left: 2px;
+}
+.proddetail__summary-accent {
+  width: 3px;
+  flex: 0 0 3px;
+  border-radius: 999px;
+  background: white;
+}
+.proddetail__summary-rule .brief__summary {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+
+.proddetail > .brief__summary,
+.proddetail > .brief__list,
+.proddetail > .brief__bars,
+.proddetail > .brief__tags,
+.proddetail > .notice {
+  min-width: 0;
 }
 
 /* 아래 브리프 항목(.brief__*)은 밝은 배경 기준 색이라 다크 패널 안에서 뒤집는다 */
@@ -639,6 +760,8 @@ body.is-home-page {
 .brief__summary {
   font-size: var(--fs-md);
   color: var(--sub-strong);
+  line-height: 130%;
+  font-weight: 500;
 }
 .brief__label {
   margin-top: 10px;
@@ -756,13 +879,22 @@ body.is-home-page {
 
 /* ---------- 게시물 주제 카드 ---------- */
 .topicform__title {
-  text-align: center;
+  text-align: left;
+}
+.topicform {
+  min-height: 504px;
+  padding: 23px 26px 32px;
+  border: 0;
+  border-radius: 15px;
 }
 .topicform__grid {
   display: grid;
-  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr) minmax(0, 2fr);
-  gap: var(--gap-lg);
-  margin-top: var(--gap);
+  grid-template-columns: minmax(390px, 1.35fr) minmax(330px, 1fr) minmax(
+      300px,
+      0.95fr
+    );
+  gap: 60px;
+  margin: 34px 26px 0;
 }
 .topicform__col {
   display: flex;
@@ -783,10 +915,16 @@ body.is-home-page {
 .topicform__actions {
   display: flex;
   align-items: center;
-  gap: var(--gap-sm);
-  margin-top: var(--gap-lg);
-  padding-top: 20px;
+  justify-content: flex-end;
+  gap: 16px;
+  margin-top: 30px;
+  padding: 30px 26px 0;
   border-top: 1px solid var(--border);
+}
+
+.topicform__actions .btn--lg {
+  padding: 14px 28px;
+  background: #287aff;
 }
 
 .chip-row {
@@ -939,6 +1077,60 @@ body.is-home-page {
    ============================================================ */
 
 /* 어떤 조건으로 만든 글인지 보여주는 상단 바 */
+.copy-workshop {
+  min-height: 980px;
+}
+.copy-workshop__main {
+  gap: 0;
+}
+.copy-workshop__block {
+  gap: 16px;
+}
+.copy-workshop .workshop__head {
+  margin-bottom: 4px;
+}
+.copy-workshop .workshop__head p {
+  margin-top: 6px;
+  color: #8e8e8e;
+  font-size: var(--fs-md);
+}
+.copy-workshop .ctxbar {
+  border: 0;
+  border-radius: 15px;
+}
+.copy-workshop .style-pick,
+.copy-workshop .aibar,
+.copy-workshop #ai-runs-slot,
+.copy-workshop .tabs,
+.copy-workshop #panel-slot {
+  margin-top: 8px;
+}
+.copy-workshop .tabs {
+  padding: 6px;
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.12);
+}
+.copy-workshop .tabs__tab {
+  color: rgba(255, 255, 255, 0.72);
+}
+.copy-workshop .tabs__tab:hover {
+  color: #fff;
+}
+.copy-workshop .tabs__tab[aria-selected="true"] {
+  border-color: #fff;
+  border-radius: 10px;
+  background: #fff;
+  color: var(--ink);
+}
+.copy-workshop .flow-actions {
+  padding-top: 24px;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+}
+.copy-workshop .flow-actions .btn--ghost {
+  border-color: rgba(255, 255, 255, 0.4);
+  color: #fff;
+}
+
 .ctxbar {
   display: flex;
   align-items: center;
@@ -2645,16 +2837,53 @@ body.is-home-page {
   .prodrow {
     grid-template-columns: 1fr;
   }
+  .prodlist {
+    width: 100%;
+    height: auto;
+    max-height: 360px;
+    border-radius: 15px 15px 0 0;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+  }
+  .proddetail {
+    grid-template-columns: 1fr;
+    height: auto;
+    max-height: none;
+    margin-top: -15px;
+    margin-left: 0;
+    padding: 43px 28px 28px;
+    border-radius: 0 0 15px 15px;
+  }
+  .proddetail__header,
+  .proddetail__title-border {
+    margin-left: -18px;
+    margin-right: -18px;
+  }
+  .proddetail__header {
+    padding-right: 18px;
+    padding-left: 18px;
+  }
+  .proddetail__col--benefits {
+    padding-right: 0;
+  }
+  .proddetail__col {
+    padding-left: 0;
+  }
   .topicform__grid {
     grid-template-columns: 1fr;
+    margin-inline: 0;
   }
 }
 @media (max-width: 860px) {
+  body.is-home-page main > .container {
+    padding-top: 18px;
+  }
   .workshop {
     flex-direction: column;
+    min-height: auto;
   }
   .workshop__side {
     align-self: stretch;
+    flex-basis: auto;
   }
   .workshop-steps {
     flex-direction: row;
@@ -2665,6 +2894,14 @@ body.is-home-page {
   }
   .workshop-steps__sep .icon {
     transform: rotate(0deg);
+  }
+  .workshop__main {
+    padding: 34px 24px 54px;
+  }
+  .workshop__head--inline {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
   }
 }
 @media (max-width: 560px) {
@@ -2698,9 +2935,7 @@ body.is-home-page {
     width: 100%;
   }
   .proddetail__icons {
-    position: static;
-    justify-content: flex-end;
-    margin-bottom: 4px;
+    gap: 14px;
   }
   .proddetail__name {
     padding-right: 0;
@@ -3490,4 +3725,10 @@ body.is-home-page {
     align-items: stretch;
     flex-direction: column;
   }
+}
+
+.prodlist-title-border {
+  width: 100%;
+  height: 1px;
+  background: #e5e8eb;
 }
