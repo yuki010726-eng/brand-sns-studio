@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 import { readFile, mkdir, access } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import { extname, join, normalize, resolve } from 'node:path';
+import { SUPABASE } from './lib/supabase.js';
 
 const ROOT = resolve('.');
 const OUTPUT = join(ROOT, 'research-output');
@@ -20,6 +21,7 @@ const server = createServer(async (req, res) => {
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
     if (req.method === 'POST' && url.pathname === '/api/research/search') return await search(req, res);
     if (req.method === 'POST' && url.pathname === '/api/research/collect') return await collect(req, res);
+    if (req.method === 'POST' && url.pathname === '/api/admin/product-update') return await updateProduct(req, res);
     return await staticFile(url.pathname, res);
   } catch (error) {
     send(res, 500, { error: error.message || '처리 중 오류가 발생했습니다.' });
@@ -89,6 +91,7 @@ async function collect(req, res) {
   if (!selected.length) return send(res, 400, { error: '수집할 네이버 블로그 글을 선택해 주세요.' });
 
   const items = [];
+  const importedProofs = [];
   for (const url of selected) {
     try {
       const source = articleSource(url);
@@ -110,6 +113,115 @@ async function collect(req, res) {
     }
   }
   send(res, 200, { items });
+}
+
+async function updateProduct(req, res) {
+  const auth = await localAdmin(req);
+  if (!auth.ok) return send(res, auth.status, { error: auth.error });
+  const { productId = '', urls = [], sources = [], action = 'preview' } = await jsonBody(req);
+  const id = String(productId).trim();
+  const selected = [...new Set((Array.isArray(urls) ? urls : []).map(canonicalNaverUrl).filter(Boolean))].slice(0, 10);
+  if (!id) return send(res, 400, { error: '상품을 선택해 주세요.' });
+  if (!selected.length) return send(res, 400, { error: '올바른 네이버 블로그 또는 카페 링크를 입력해 주세요.' });
+
+  const productCheck = await fetch(`${auth.url}/rest/v1/products?id=eq.${encodeURIComponent(id)}&select=id,product_proofs(content),product_sources(source_url,source_content)`, { headers: auth.headers });
+  const products = productCheck.ok ? await productCheck.json() : [];
+  if (!products.length) return send(res, 404, { error: '상품을 찾을 수 없습니다.' });
+
+  const proofRow = Array.isArray(products[0].product_proofs) ? products[0].product_proofs[0] : products[0].product_proofs;
+  const existingProofs = Array.isArray(proofRow?.content) ? proofRow.content : [];
+  const knownProofs = new Set(existingProofs.map((value) => String(value).replace(/\s+/g, ' ').trim().toLocaleLowerCase('ko-KR')));
+  const existingSources = new Map((Array.isArray(products[0].product_sources) ? products[0].product_sources : [])
+    .map((source) => [source.source_url, Array.isArray(source.source_content) ? source.source_content : []]));
+  const approvedSources = new Map((Array.isArray(sources) ? sources : []).map((source) => [
+    canonicalNaverUrl(source?.url),
+    [...new Set((Array.isArray(source?.content) ? source.content : []).map((line) => String(line).replace(/\s+/g, ' ').trim()).filter((line) => line.length >= 8 && line.length <= 500))].slice(0, 40),
+  ]));
+  const items = [];
+  const importedProofs = [];
+  for (const url of selected) {
+    try {
+      const source = articleSource(url);
+      const article = source.type === 'cafe' ? await fetchCafeArticle(source) : parseArticle(await fetchText(source.readUrl));
+      if (article.text.length < 100) throw new Error('본문을 충분히 읽지 못했습니다.');
+      const rawContent = [...new Set(article.text.slice(0, 18000).split(/\n+/).map((line) => line.trim()).filter(Boolean))];
+      const newContent = rawContent.filter((line) => !knownProofs.has(String(line).replace(/\s+/g, ' ').trim().toLocaleLowerCase('ko-KR')));
+      if (action !== 'apply') {
+        items.push({ url, type: source.type, title: article.title || `${source.owner}의 글`, chars: article.text.length, content: rawContent, newContent });
+        continue;
+      }
+      const approved = (approvedSources.get(url) || []).filter((line) => !existingProofs.some((known) => duplicateImportedContent(line, known)));
+      if (!approved.length) continue;
+      const content = [...new Set([...(existingSources.get(url) || []), ...approved])];
+      const saved = await fetch(`${auth.url}/rest/v1/product_sources?on_conflict=product_id,source_url`, {
+        method: 'POST', headers: { ...auth.headers, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
+        body: JSON.stringify({ product_id: id, source_url: url, source_content: content }),
+      });
+      if (!saved.ok) throw new Error('Supabase 출처 저장에 실패했습니다.');
+      importedProofs.push(...approved);
+      items.push({ url, type: source.type, title: article.title || `${source.owner}의 글`, chars: article.text.length });
+    } catch (error) { items.push({ url, error: error.message || '가져오지 못했습니다.' }); }
+  }
+  const updated = items.filter((item) => !item.error).length;
+  const newCount = items.reduce((sum, item) => sum + (Array.isArray(item.newContent) ? item.newContent.length : 0), 0);
+  if (action !== 'apply') {
+    return send(res, updated ? 200 : 422, { action: 'preview', items, newCount, ...(updated ? {} : { error: '확인할 수 있는 링크가 없습니다.' }) });
+  }
+  if (updated) {
+    const proofResponse = await fetch(`${auth.url}/rest/v1/product_proofs?product_id=eq.${encodeURIComponent(id)}&select=content`, { headers: auth.headers });
+    const [proof] = proofResponse.ok ? await proofResponse.json() : [];
+    const content = [...new Set([...(Array.isArray(proof?.content) ? proof.content : []), ...importedProofs])];
+    const proofSaved = await fetch(`${auth.url}/rest/v1/product_proofs?on_conflict=product_id`, {
+      method: 'POST', headers: { ...auth.headers, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify({ product_id: id, content }),
+    });
+    if (!proofSaved.ok) return send(res, 502, { items, updated: 0, error: '가져온 내용을 상품 근거에 반영하지 못했습니다.' });
+  }
+  return send(res, updated ? 200 : 422, { items, updated, ...(updated ? {} : { error: '저장된 링크가 없습니다.' }) });
+}
+
+async function localAdmin(req) {
+  // 배포에서는 환경변수를 우선하고, 로컬에서는 브라우저 로그인과 같은 공개 anon 설정을 쓴다.
+  const url = process.env.SUPABASE_URL || SUPABASE.url || '';
+  const key = process.env.SUPABASE_ANON_KEY || SUPABASE.anonKey || '';
+  if (!url || !key) return { ok: false, status: 500, error: '서버에 Supabase 설정이 없습니다.' };
+  const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+  if (!token) return { ok: false, status: 401, error: '로그인이 필요합니다.' };
+  const headers = { apikey: key, Authorization: `Bearer ${token}` };
+  try {
+    const who = await fetch(`${url}/auth/v1/user`, { headers });
+    if (!who.ok) return { ok: false, status: 401, error: '로그인이 만료되었습니다.' };
+    const user = await who.json();
+    const profile = await fetch(`${url}/rest/v1/users?id=eq.${encodeURIComponent(user.id)}&select=status,role`, { headers });
+    const [row] = profile.ok ? await profile.json() : [];
+    if (row?.status !== 'approved' || row?.role !== 'admin') return { ok: false, status: 403, error: '관리자 권한이 필요합니다.' };
+    return { ok: true, url, headers };
+  } catch { return { ok: false, status: 503, error: '관리자 권한 확인에 실패했습니다.' }; }
+}
+
+function duplicateImportedContent(left, right) {
+  const comparable = (value) => String(value).replace(/\s+/g, ' ').trim().toLocaleLowerCase('ko-KR')
+    .replace(/[^0-9a-z가-힣]/g, '')
+    .replace(/(?:열립니다|열린다|입니다|됩니다|합니다|습니다|이다|한다|된다)$/u, '');
+  const a = comparable(left);
+  const b = comparable(right);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const numbers = (value) => String(value).match(/\d+(?:[.,]\d+)*/g) || [];
+  const numberKey = (value) => [...new Set(numbers(value))].sort().join('|');
+  if (numberKey(a) !== numberKey(b)) return false;
+  const longer = a.length >= b.length ? a : b;
+  const shorter = a.length >= b.length ? b : a;
+  const row = Array.from({ length: shorter.length + 1 }, (_, index) => index);
+  for (let i = 1; i <= longer.length; i++) {
+    let previous = row[0]; row[0] = i;
+    for (let j = 1; j <= shorter.length; j++) {
+      const saved = row[j];
+      row[j] = Math.min(row[j] + 1, row[j - 1] + 1, previous + (longer[i - 1] === shorter[j - 1] ? 0 : 1));
+      previous = saved;
+    }
+  }
+  return 1 - row[shorter.length] / longer.length >= 0.82;
 }
 
 function parseSearch(html) {

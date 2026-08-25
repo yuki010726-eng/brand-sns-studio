@@ -1599,3 +1599,28 @@ body.is-login-page .site-footer { display: none; }
   .adconcept { align-items: flex-start; }
   .adconcept__thumb svg { width: 84px; height: 84px; }
 }
+
+/* ── 관리자 상품 자료 업데이트 ─────────────────────────────────── */
+.product-admin-form { display: grid; gap: var(--gap-lg); }
+.product-admin-form form { display: grid; gap: var(--gap); }
+.product-admin-form .select { width: 100%; }
+.product-update-results { list-style: none; display: grid; gap: var(--gap-sm); margin: 0; padding: 0; }
+.product-update-results li { display: grid; gap: 3px; padding: var(--pad-card-sm); background: var(--fill); border-radius: var(--radius-md); }
+.product-update-results li span { color: var(--success-text); font-size: var(--fs-sm); }
+.product-update-results li.is-error span { color: var(--danger); }
+.product-preview { display: grid; gap: var(--gap); }
+.product-preview__head { display: flex; align-items: center; justify-content: space-between; gap: var(--gap); }
+.product-preview__head h3 { margin: 0; }
+.product-preview__head > span { color: var(--sub-strong); font-weight: 700; }
+.product-new-content { display: grid; gap: 8px; margin: var(--gap-sm) 0 0; padding-left: 1.4rem; }
+.product-new-content li { display: list-item; padding: 0; background: transparent; border-radius: 0; line-height: 1.6; }
+.product-content-option { display: grid; grid-template-columns: auto 1fr; align-items: start; gap: 10px; cursor: pointer; }
+.product-content-option input { width: 18px; height: 18px; margin: 3px 0 0; accent-color: var(--primary); }
+.product-update-results li .product-content-option span { color: var(--text); font-size: inherit; }
+.product-content-option:has(input:not(:checked)) span { color: var(--muted); text-decoration: line-through; }
+.product-preview__empty { margin: var(--gap-sm) 0 0; color: var(--muted); font-size: var(--fs-sm); }
+.product-preview__actions { display: flex; align-items: center; justify-content: space-between; gap: var(--gap); padding-top: var(--gap-sm); border-top: 1px solid var(--border); }
+.product-preview__actions p { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
+@media (max-width: 640px) {
+  .product-preview__actions { align-items: stretch; flex-direction: column; }
+}

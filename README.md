@@ -4,17 +4,17 @@
 
 ## 실행
 
-빌드 도구 없이 동작하는 정적 사이트지만, ES 모듈을 쓰기 때문에 `file://` 로는 열리지 않는다. 로컬 서버로 실행할 것.
+빌드 도구 없이 동작하지만 블로그·카페 수집 등 서버 API를 사용하므로 Node 서버로 실행할 것.
 
 ```bash
-python -m http.server 5610 --directory brand-sns-studio
+npm start
 ```
 
-이후 http://localhost:5610 접속. (Claude Code 에서는 `.claude/launch.json` 의 `brand-sns-studio` 설정으로 자동 실행된다.)
+또는 `serve.cmd`를 더블클릭한 뒤 http://localhost:5610 에 접속한다. Python의 `http.server`는 POST API를 처리하지 못해 상품 자료 확인 시 501 오류가 발생한다.
 
 ## 새 컴퓨터에서 시작하기
 
-필요한 것은 **Claude Code + GitHub CLI + Python** 세 개다. 순서대로 하면 된다.
+필요한 것은 **Claude Code + GitHub CLI + Node.js**다. 순서대로 하면 된다.
 
 ### 1. 설치
 
@@ -47,13 +47,11 @@ gh repo clone yuki010726-eng/brand-sns-studio
 `serve.cmd`를 더블클릭하거나:
 
 ```bash
-python -m http.server 5610
+npm start
 ```
 
 http://localhost:5610 접속. Claude Code에서는 `.claude/launch.json`이 등록돼 있어
 `brand-sns-studio` 설정으로 바로 띄울 수 있다.
-`python`이 없고 `py`만 있으면 `launch.json`의 `runtimeExecutable`을 `py`로 바꾼다.
-
 ES 모듈을 쓰므로 `file://`로 직접 열면 동작하지 않는다. 반드시 서버로 띄운다.
 
 ### 5. Claude Code에게

@@ -28,6 +28,9 @@ let unsubscribe = null;
  * @param {string} currentPath 현재 라우트
  */
 export function renderHeader(root, currentPath) {
+  const nav = getUser()?.role === 'admin'
+    ? [...NAV, { path: '/products-admin', label: '상품 관리', iconName: 'settings' }]
+    : NAV;
   root.innerHTML = `
     <header class="site-header">
       <div class="container site-header__inner">
@@ -38,7 +41,7 @@ export function renderHeader(root, currentPath) {
           <span class="brand__text">브랜드 SNS 스튜디오</span>
         </a>
         <nav class="nav" aria-label="주요 메뉴">
-          ${NAV.map((item) => `
+          ${nav.map((item) => `
             <a class="nav__link" href="#${item.path}" data-nav-path="${item.path}"
                ${isActive(item.path, currentPath) ? 'aria-current="page"' : ''}>
               ${item.label}
@@ -170,6 +173,8 @@ function bindAuth(root) {
 const MYPAGE_PATHS = ['/library', '/profile', '/research'];
 
 function isActive(navPath, current) {
+  if (navPath === '/products-admin') return current === '/products-admin';
+  if (current === '/products-admin') return false;
   // 설정 화면(프로필·블로그 스타일)도 마이페이지 안에 있으므로 같은 탭으로 표시한다
   const inMypage = MYPAGE_PATHS.includes(current) || Boolean(getLibraryEditId());
   if (navPath === '/library') return inMypage;

@@ -83,7 +83,7 @@ export async function requireApprovedUser(req) {
 
   let row;
   try {
-    const q = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${encodeURIComponent(user.id)}&select=status`, { headers });
+    const q = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${encodeURIComponent(user.id)}&select=status,role`, { headers });
     if (!q.ok) return { ok: false, status: 403, message: '승인 상태를 확인하지 못했습니다.' };
     [row] = await q.json();
   } catch {
@@ -95,6 +95,20 @@ export async function requireApprovedUser(req) {
     return { ok: false, status: 403, message: '관리자 승인이 완료된 계정만 사용할 수 있습니다.' };
   }
   return { ok: true, user, token };
+}
+
+export async function requireAdminUser(req) {
+  const auth = await requireApprovedUser(req);
+  if (!auth.ok) return auth;
+  const headers = { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${auth.token}` };
+  try {
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/users?id=eq.${encodeURIComponent(auth.user.id)}&select=role`, { headers });
+    const [row] = response.ok ? await response.json() : [];
+    if (row?.role !== 'admin') return { ok: false, status: 403, message: '관리자 권한이 필요합니다.' };
+  } catch {
+    return { ok: false, status: 503, message: '관리자 권한 확인에 실패했습니다.' };
+  }
+  return { ...auth, headers, supabaseUrl: SUPABASE_URL };
 }
 
 /** 프롬프트를 검사한다. 길이 상한은 비용 상한이기도 하다. */

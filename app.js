@@ -17,6 +17,7 @@ import * as TemplatePage from './pages/template.js';
 import * as LibraryPage from './pages/library.js';
 import * as LoginPage from './pages/login.js';
 import * as ResearchPage from './pages/research.js';
+import * as ProductsAdminPage from './pages/products-admin.js';
 
 const ROUTES = {
   '/login': LoginPage,
@@ -26,6 +27,7 @@ const ROUTES = {
   '/template': TemplatePage,
   '/library': LibraryPage,
   '/research': ResearchPage,
+  '/products-admin': ProductsAdminPage,
 };
 
 const LOGIN_PATH = '/login';
@@ -110,6 +112,11 @@ onAuth(async (user) => {
   if (user?.status !== 'approved') {
     restored = false;
     route();
+    return;
+  }
+
+  if (path === '/products-admin' && user?.role !== 'admin') {
+    location.replace('#/');
     return;
   }
 
