@@ -1,7 +1,11 @@
 /* ============================================================
    base — 리셋 · 타이포 · 접근성 기본
    ============================================================ */
-*, *::before, *::after { box-sizing: border-box; }
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
 
 /**
  * hidden 속성이 항상 이긴다.
@@ -11,38 +15,85 @@
  * AI 설정 폼이 접히지 않고 617px 를 계속 차지했다 — 접기 버튼은 멀쩡히 동작하는데도.
  * 개별 선택자로 땜질하면 같은 사고가 다른 곳에서 또 난다.
  */
-[hidden] { display: none !important; }
+[hidden] {
+  display: none !important;
+}
 
-html, body { height: 100%; }
+html,
+body {
+  height: 100%;
+}
 
 body {
   margin: 0;
-  font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif;
+  font-family:
+    "Noto Sans KR",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Malgun Gothic",
+    sans-serif;
   font-weight: 400;
   font-size: var(--fs-base);
   line-height: 1.6;
   color: var(--text);
   background: var(--bg);
   -webkit-font-smoothing: antialiased;
-  word-break: keep-all;      /* 한글 줄바꿈 자연스럽게 */
+  word-break: keep-all; /* 한글 줄바꿈 자연스럽게 */
   display: flex;
   flex-direction: column;
 }
 
-h1, h2, h3, h4 { font-weight: 700; color: #191F28; margin: 0; line-height: 1.35; }
-h1 { font-size: var(--fs-3xl); letter-spacing: -.02em; }
-h2 { font-size: var(--fs-2xl); letter-spacing: -.01em; }
-h3 { font-size: var(--fs-xl); }
-p  { margin: 0; }
+h1,
+h2,
+h3,
+h4 {
+  font-weight: 700;
+  color: #191f28;
+  margin: 0;
+  line-height: 1.35;
+}
+h1 {
+  font-size: var(--fs-3xl);
+  letter-spacing: -0.02em;
+}
+h2 {
+  font-size: var(--fs-2xl);
+  letter-spacing: -0.01em;
+}
+h3 {
+  font-size: var(--fs-xl);
+}
+p {
+  margin: 0;
+}
 
-a { color: var(--link); text-decoration: none; }
-a:hover { text-decoration: underline; }
+a {
+  color: var(--link);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
 
-button, input, textarea, select { font: inherit; color: inherit; }
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
 
-img { max-width: 100%; display: block; }
+img {
+  max-width: 100%;
+  display: block;
+}
 
-ul, ol { margin: 0; padding: 0; list-style: none; }
+ul,
+ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
 
 /* --- 키보드 포커스 표시 (마우스 클릭 시에는 숨김) --- */
 :focus-visible {
@@ -50,7 +101,9 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
   outline-offset: 2px;
   border-radius: var(--radius-sm);
 }
-:focus:not(:focus-visible) { outline: none; }
+:focus:not(:focus-visible) {
+  outline: none;
+}
 
 /* --- 본문 바로가기 링크 --- */
 .skip-link {
@@ -64,13 +117,17 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
   border-radius: var(--radius-pill);
   font-weight: 700;
 }
-.skip-link:focus { left: 12px; }
+.skip-link:focus {
+  left: 12px;
+}
 
 /* --- 스크린리더 전용 --- */
 .sr-only {
   position: absolute;
-  width: 1px; height: 1px;
-  padding: 0; margin: -1px;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
@@ -85,7 +142,10 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
   padding: 0 20px;
 }
 
-main { flex: 1 0 auto; padding: 32px 0 64px; }
+main {
+  flex: 1 0 auto;
+  padding: 0;
+}
 
 .site-footer {
   flex-shrink: 0;
@@ -98,7 +158,8 @@ main { flex: 1 0 auto; padding: 32px 0 64px; }
 
 /* --- 라인 아이콘 (Lucide / Feather 스타일) --- */
 .icon {
-  width: 24px; height: 24px;
+  width: 24px;
+  height: 24px;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.5;
@@ -106,11 +167,24 @@ main { flex: 1 0 auto; padding: 32px 0 64px; }
   stroke-linejoin: round;
   flex-shrink: 0;
 }
-.icon--sm { width: 18px; height: 18px; stroke-width: 1.75; }
-.icon--lg { width: 32px; height: 32px; }
+.icon--sm {
+  width: 18px;
+  height: 18px;
+  stroke-width: 1.75;
+}
+.icon--lg {
+  width: 32px;
+  height: 32px;
+}
 
 @media (max-width: 640px) {
-  h1 { font-size: var(--fs-2xl); }
-  h2 { font-size: var(--fs-xl); }
-  main { padding: 20px 0 48px; }
+  h1 {
+    font-size: var(--fs-2xl);
+  }
+  h2 {
+    font-size: var(--fs-xl);
+  }
+  main {
+    padding: 20px 0 48px;
+  }
 }

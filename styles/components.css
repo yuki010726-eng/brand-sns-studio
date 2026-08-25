@@ -199,14 +199,12 @@
 /* 정말 눈에 띄어야 할 하나에만 — 남발하면 배지를 중립으로 바꾼 의미가 없다 */
 .badge--accent { background: var(--primary-weak); color: var(--primary-dark); }
 
-/* ---------- 헤더 ---------- */
+/* ---------- 헤더 (2026-08-25, Figma node 8:278 반영: 다크 헤더) ---------- */
 .site-header {
   position: sticky;
   top: 0;
   z-index: 40;
-  background: rgba(255, 255, 255, .92);
-  backdrop-filter: blur(8px);
-  border-bottom: 1px solid var(--border);
+  background: var(--header-bg);
 }
 .site-header__inner {
   height: var(--header-h);
@@ -214,31 +212,30 @@
   align-items: center;
   gap: var(--gap-lg);
 }
-.brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-  font-weight: 700;
-  font-size: var(--fs-lg);
-  color: #191F28;
-}
+.brand { display: inline-flex; align-items: center; }
 .brand:hover { text-decoration: none; }
-.brand__mark { color: var(--ink); }
+.brand__logo { display: block; height: 20px; width: auto; }
 
-.nav { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+.nav { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 .nav__link {
-  padding: 8px 14px;
+  padding: 9px 20px;
   border-radius: var(--radius-pill);
-  font-size: var(--fs-md);
+  font-size: var(--fs-lg);
   font-weight: 500;
-  color: var(--sub-strong);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, .92);
+  background: transparent;
+  white-space: nowrap;
+  transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease);
 }
-.nav__link:hover { background: var(--bg); color: var(--text); text-decoration: none; }
+.nav__link:hover { background: rgba(255, 255, 255, .1); color: #fff; text-decoration: none; }
 .nav__link[aria-current="page"] {
   background: var(--fill);
   color: var(--ink);
   font-weight: 700;
+  border-color: transparent;
 }
+.nav__link[aria-current="page"]:hover { background: var(--fill-hover); }
 
 /* ---------- 스테퍼 (3단계 게시물 제작 진행 표시) ---------- */
 .stepper {
@@ -424,9 +421,9 @@
 
 /* ---------- 로그인 (헤더 우측) ---------- */
 .authbox { display: flex; align-items: center; margin-left: auto; }
-.authbox__user { display: flex; align-items: center; gap: 8px; }
+.authbox__user { display: flex; align-items: center; gap: 10px; }
 .authbox__avatar {
-  width: 28px; height: 28px;
+  width: 36px; height: 36px;
   border-radius: 50%;
   object-fit: cover;
   background: var(--bg);
@@ -436,21 +433,25 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  /* 아바타까지 파랗게 두면 헤더에서 주 버튼과 시선이 갈린다 */
-  background: var(--ink);
-  color: #fff;
-  font-size: var(--fs-sm);
+  /* 다크 헤더 위에서 눈에 띄도록 흰 원 + 헤더 배경색 글자로 뒤집는다(피그마 실측) */
+  background: #fff;
+  color: var(--header-bg);
+  font-size: var(--fs-base);
   font-weight: 700;
 }
 /* 긴 이름이 헤더를 밀지 않도록 자른다 */
 .authbox__name {
-  font-size: var(--fs-sm);
-  color: var(--text);
+  font-size: var(--fs-lg);
+  font-weight: 400;
+  color: #fff;
   max-width: 140px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* 로그아웃 — 텍스트 버튼 기본색(--ink-soft)은 어두워 다크 헤더에서 안 보인다 */
+.authbox .btn--text { color: rgba(255, 255, 255, .82); }
+.authbox .btn--text:hover { background: rgba(255, 255, 255, .12); color: #fff; }
 /**
  * ⚠️ 375px 에서 헤더가 화면을 20px 밀어내 **모든 페이지에 가로 스크롤**이 생겼다 (2026-08-12).
  *    브랜드(92) + 메뉴(116) + 계정(120) + 간격(48) = 376px 인데 쓸 수 있는 폭은 335px 였다.
@@ -460,8 +461,11 @@
 @media (max-width: 560px) {
   .site-header__inner { gap: var(--gap-sm); }
   .site-header__inner > * { min-width: 0; }
-  /* 로고 글자만 감춘다. 마크는 남으므로 홈 버튼이 사라지지는 않는다. */
-  .brand__text { display: none; }
+  /* ⚠️ 로고가 「BSS + 브랜드 SNS 스튜디오」를 한 장으로 합친 SVG(216x20)라 글자만 감출 수 없다.
+     줄여서 남겨 봤지만(14px→151px) 나머지(메뉴 두 알약 + 계정)만으로 이미 375px 폭을 넘겨서
+     로고를 완전히 감춘다 — 「새 게시물」 메뉴가 이미 홈(`/`)으로 가므로 로고가 없어도
+     홈으로 가는 길은 남는다. 실측: 로고 없이 메뉴+계정만 두면 375px 에서 18px 여유. */
+  .brand { display: none; }
   .nav__link { padding: 8px 10px; }
   .authbox__name { display: none; }
   .authbox .btn--text { padding: 8px 10px; }

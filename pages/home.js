@@ -1,12 +1,16 @@
 /**
  * 1단계 — 상품·주제 선택
- * 상품을 고르면 기준 정보 브리프가 열리고, 주제를 입력하면 2단계로 넘어간다.
+ * 상품을 고르면 기준 정보 패널이 열리고, 주제를 입력하면 2단계로 넘어간다.
+ *
+ * Figma jRjBo4LUHkohSoPRqSaEAv, node 8:3 「SNS 게시물 제작」 워크스페이스를 반영했다.
+ * ⚠️ 이 다크 워크스페이스 껍데기(`.workshop`)는 **이 페이지 전용**이다. 2·3단계(copy.js·template.js)는
+ *    아직 기존 밝은 배경 + 가로 스테퍼(`stepperHTML()`)를 그대로 쓴다 — 이번 반영 범위가 1단계 화면뿐이다.
  */
 import { icon } from '../assets/icons.js';
 import { PRODUCTS, getProduct } from '../lib/products.js';
 import { CHANNELS } from '../data/channels.js';
 import { productCardHTML } from '../components/product-card.js';
-import { stepperHTML, bindStepper } from '../components/stepper.js';
+import { stepperVerticalHTML, bindStepper } from '../components/stepper.js';
 import { getState, setState, navigate, newPostId } from '../store.js';
 import { toast } from '../components/toast.js';
 import { choiceModal, confirmModal } from '../components/modal.js';
@@ -27,30 +31,35 @@ export function render(root) {
 
   root.innerHTML = `
     <div class="container">
-      ${stepperHTML('/')}
+      <section class="workshop">
+        <aside class="workshop__side">
+          <p class="workshop__side-title">SNS 게시물 제작</p>
+          ${stepperVerticalHTML('/')}
+        </aside>
 
-      <section class="hero">
-        <h1>어떤 상품을 알리고 싶으세요?</h1>
-        
-      </section>
+        <div class="workshop__main">
+          <div class="workshop__block">
+            <div class="workshop__head">
+              <h1>1. 제작할 게시물의 상품을 선택해 주세요.</h1>
+              <p class="workshop__desc">기준 정보는 사내 브랜드 자료(2026-07-23 기준)를 따릅니다.</p>
+            </div>
+            <div class="prodrow">
+              <div class="card prodlist">
+                <h2 class="prodlist__title">상품 리스트</h2>
+                <fieldset class="prodlist__items" id="product-grid">
+                  <legend class="sr-only">광고할 상품을 선택하세요</legend>
+                  ${PRODUCTS.map((p) => productCardHTML(p, p.id === s.productId)).join('')}
+                </fieldset>
+              </div>
+              <div class="proddetail" id="detail-panel">${detailHTML()}</div>
+            </div>
+          </div>
 
-      <section class="section" aria-labelledby="sec-product">
-        <div class="section__head">
-          <h2 id="sec-product">1. 상품 선택</h2>
-          <p class="section__desc">기준 정보는 사내 브랜드 자료(2026-07-23 기준)를 따릅니다.</p>
+          <div class="workshop__block">
+            <h1>2. 게시물의 주제를 선택해주세요.</h1>
+            <div id="topic-panel">${topicFormHTML()}</div>
+          </div>
         </div>
-        <fieldset class="product-grid" id="product-grid">
-          <legend class="sr-only">광고할 상품을 선택하세요</legend>
-          ${PRODUCTS.map((p) => productCardHTML(p, p.id === s.productId)).join('')}
-        </fieldset>
-      </section>
-
-      <section class="section" aria-labelledby="sec-brief">
-        <div class="section__head">
-          <h2 id="sec-brief">2. 주제 정하기</h2>
-          <p class="section__desc">이번 게시물에서 하고 싶은 이야기를 적어주세요.</p>
-        </div>
-        <div id="brief-panel">${briefHTML()}</div>
       </section>
     </div>`;
 
@@ -59,144 +68,163 @@ export function render(root) {
   bindBrief(root);
 }
 
-/* ---------------- 브리프 패널 ---------------- */
+/* ---------------- 상품 상세(다크 패널) ---------------- */
 
-function briefHTML() {
+function detailHTML() {
   const s = getState();
   const p = getProduct(s.productId);
 
   if (!p) {
     return `
-      <div class="card empty">
+      <div class="proddetail__empty">
         ${icon('award', 'icon--lg')}
-        <p>먼저 위에서 상품을 선택하면 기준 정보와 주제 추천이 열립니다.</p>
+        <p>왼쪽에서 상품을 선택하면 기준 정보가 열립니다.</p>
       </div>`;
   }
 
   return `
-    <div class="brief">
-      <!-- 왼쪽: 선택한 상품의 기준 정보 -->
-      <aside class="card brief__facts" aria-labelledby="brief-title">
-        <span class="badge">${p.short}</span>
-        <h3 id="brief-title">${p.name}</h3>
-        <p class="brief__summary">${p.summary}</p>
+    <!-- ⚠️ 요청자 지시: 아직 기능은 없다. 아이콘만 놓아 둔다. -->
+    <div class="proddetail__icons" aria-hidden="true">
+      ${icon('instagram', 'icon--sm')}
+      ${icon('download', 'icon--sm')}
+      ${icon('external', 'icon--sm')}
+    </div>
 
-        <h4 class="brief__label">기본 정보</h4>
-        <ul class="brief__list">
-          ${p.facts.map((f) => `<li>${icon('check', 'icon--sm')}<span>${f}</span></li>`).join('')}
-        </ul>
+    <h3 id="brief-title" class="proddetail__name">${p.name}</h3>
+    <p class="brief__summary">${p.summary}</p>
 
-        ${p.events.length ? `
-        <h4 class="brief__label">행사 일정</h4>
-        <ul class="brief__list brief__list--events">
-          ${p.events.map((e) => `
-            <li>
-              <span class="badge ${e.status === 'open' ? '' : 'badge--neutral'}">${e.status === 'open' ? '진행 예정' : '종료'}</span>
-              <span><strong>${e.name}</strong><br /><span class="brief__muted">${e.date} · ${e.desc}</span></span>
-            </li>`).join('')}
-        </ul>` : ''}
+    <h4 class="brief__label">기본 정보</h4>
+    <ul class="brief__list">
+      ${p.facts.map((f) => `<li>${icon('check', 'icon--sm')}<span>${f}</span></li>`).join('')}
+    </ul>
 
-        ${p.criteria.length ? `
-        <h4 class="brief__label">심사 기준</h4>
-        <ul class="brief__bars">
-          ${p.criteria.map((c) => `
-            <li>
-              <span class="brief__bar-label">${c.label}<b>${c.weight}%</b></span>
-              <span class="brief__bar" aria-hidden="true"><span style="width:${c.weight * 2}%"></span></span>
-            </li>`).join('')}
-        </ul>` : ''}
+    ${p.events.length ? `
+    <h4 class="brief__label">행사 일정</h4>
+    <ul class="brief__list brief__list--events">
+      ${p.events.map((e) => `
+        <li>
+          <span class="badge ${e.status === 'open' ? '' : 'badge--neutral'}">${e.status === 'open' ? '진행 예정' : '종료'}</span>
+          <span><strong>${e.name}</strong><br /><span class="brief__muted">${e.date} · ${e.desc}</span></span>
+        </li>`).join('')}
+    </ul>` : ''}
 
-        <h4 class="brief__label">기본 특전</h4>
-        <ul class="brief__tags">${p.benefits.map((b) => `<li>${b}</li>`).join('')}</ul>
+    ${p.criteria.length ? `
+    <h4 class="brief__label">심사 기준</h4>
+    <ul class="brief__bars">
+      ${p.criteria.map((c) => `
+        <li>
+          <span class="brief__bar-label">${c.label}<b>${c.weight}%</b></span>
+          <span class="brief__bar" aria-hidden="true"><span style="width:${c.weight * 2}%"></span></span>
+        </li>`).join('')}
+    </ul>` : ''}
 
-        ${p.packages.length ? `
-        <h4 class="brief__label">추가 패키지</h4>
-        <ul class="brief__list">
-          ${p.packages.map((k) => `<li>${icon('plus', 'icon--sm')}<span><strong>${k.name}</strong> · ${k.desc}</span></li>`).join('')}
-        </ul>` : ''}
+    <h4 class="brief__label">기본 특전</h4>
+    <ul class="brief__tags">${p.benefits.map((b) => `<li>${b}</li>`).join('')}</ul>
 
-        <div class="notice notice--warn" role="note">
-          <span class="notice__icon" aria-hidden="true">${icon('alert', 'icon--sm')}</span>
-          <div>
-            <strong>표현 주의</strong>
-            <ul>${p.cautions.map((c) => `<li>${c}</li>`).join('')}</ul>
-          </div>
-        </div>
-      </aside>
+    ${p.packages.length ? `
+    <h4 class="brief__label">추가 패키지</h4>
+    <ul class="brief__list">
+      ${p.packages.map((k) => `<li>${icon('plus', 'icon--sm')}<span><strong>${k.name}</strong> · ${k.desc}</span></li>`).join('')}
+    </ul>` : ''}
 
-      <!-- 오른쪽: 주제·톤·채널 입력 -->
-      <div class="card brief__form">
-        <div class="field">
-          <label class="field__label" for="topic-input">이번 게시물 주제</label>
-          <textarea class="textarea" id="topic-input" rows="4" autocomplete="off"
-                    placeholder="예) 2026 시상식 일정을 알리고, 기본 특전 6종을 정리해서 보여주고 싶어요."
-                    aria-describedby="topic-hint">${escapeHTML(getState().topic)}</textarea>
-          <p class="field__hint" id="topic-hint">구체적일수록 글귀가 정확해집니다. 아래 추천 주제를 눌러 채울 수도 있어요.</p>
-        </div>
+    <div class="notice notice--warn notice--dark" role="note">
+      <span class="notice__icon" aria-hidden="true">${icon('alert', 'icon--sm')}</span>
+      <div>
+        <strong>표현 주의</strong>
+        <ul>${p.cautions.map((c) => `<li>${c}</li>`).join('')}</ul>
+      </div>
+    </div>`;
+}
 
-        <div class="field">
-          <span class="field__label" id="preset-label">추천 주제</span>
-          <ul class="chip-row" aria-labelledby="preset-label">
-            ${p.topicPresets.map((t) => `
-              <li><button type="button" class="chip" data-preset="${escapeAttr(t)}"
-                          aria-label="추천 주제 적용: ${escapeAttr(t)}">${t}</button></li>`).join('')}
-          </ul>
-        </div>
+/* ---------------- 게시물 주제 카드 ---------------- */
 
-        <div class="field">
-          <label class="field__label" for="tone-select">톤앤매너</label>
-          <select class="select" id="tone-select" aria-describedby="tone-hint">
-            ${TONES.map((t) => `<option value="${t.id}" ${t.id === getState().tone ? 'selected' : ''}>${t.label} — ${t.desc}</option>`).join('')}
-          </select>
-          <p class="field__hint" id="tone-hint">선택한 톤에 맞춰 3개 채널 글귀가 함께 만들어집니다.</p>
-        </div>
+function topicFormHTML() {
+  const s = getState();
+  const p = getProduct(s.productId);
+  if (!p) return '';
 
-        <fieldset class="field">
-          <legend class="field__label">카드뉴스 장수</legend>
-          <div class="pickrow" role="radiogroup" aria-label="카드뉴스 장수 선택">
-            ${[1, 2, 3, 4, 5, 6].map((n) => `
-              <input class="sr-only pick__input" type="radio" name="cardcount" id="cc-${n}" value="${n}"
-                     autocomplete="off" aria-label="카드 ${n}장"
-                     ${(getState().cardCount || 6) === n ? 'checked' : ''} />
-              <label class="pick" for="cc-${n}">${n}장</label>`).join('')}
-          </div>
-          <p class="field__hint" id="cc-hint">${cardCountHint(getState().cardCount || 6)}</p>
-        </fieldset>
+  const tone = TONES.find((t) => t.id === s.tone) || TONES[0];
 
-        <fieldset class="field">
-          <legend class="field__label">내보낼 채널</legend>
-          <ul class="channel-row">
-            ${CHANNELS.map((c) => `
+  return `
+    <div class="card topicform">
+      <h3 class="topicform__title">게시물 주제</h3>
+      <div class="topicform__grid">
+
+        <div class="topicform__col">
+          <div class="field">
+            <span class="field__label" id="preset-label">추천 주제</span>
+            <ul class="chip-row" id="preset-row" aria-labelledby="preset-label">
+              ${p.topicPresets.map((t) => `
+                <li><button type="button" class="chip" data-preset="${escapeAttr(t)}"
+                            aria-label="추천 주제 적용: ${escapeAttr(t)}">${t}</button></li>`).join('')}
               <li>
-                <input class="sr-only channel__input" type="checkbox" id="ch-${c.id}" value="${c.id}"
-                       aria-label="${c.name} — ${c.hint}" autocomplete="off"
-                       ${getState().channels.includes(c.id) ? 'checked' : ''} />
-                <label class="channel" for="ch-${c.id}">
-                  ${icon(c.icon, 'icon--sm')}
-                  <span>
-                    <strong>${c.name}</strong>
-                    <em>${c.hint}</em>
-                  </span>
-                </label>
-              </li>`).join('')}
-          </ul>
-        </fieldset>
+                <button type="button" class="chip chip--icon" id="shuffle-presets"
+                        aria-label="추천 주제 다시 보기">${icon('refresh', 'icon--sm')}</button>
+              </li>
+            </ul>
+          </div>
 
-        <div class="brief__actions">
-          <!--
-            ⚠️ **여기서 「블로그 스타일」로 보내지 말 것** (2026-08-20, 요청자 지시).
-               8-20 에 스타일 수집을 단계에서 뺐는데(store.js STEPS 주석) 이 버튼만 그대로
-               /research 로 가고 있었다 — 상품·주제를 고르면 매번 수집 화면이 열렸다.
-               스타일은 설정이고, 다음 단계는 2단계 「아이디어 문서화」다. 거기서 골라 쓴다.
-          -->
-          <button type="button" class="btn btn--lg" id="go-copy"
-                  aria-label="아이디어 문서화 단계로 이동">
-            아이디어 문서화로 계속 ${icon('arrowRight', 'icon--sm')}
-          </button>
-          <button type="button" class="btn btn--text" id="clear-topic" aria-label="입력한 주제 지우기">
-            초기화
-          </button>
+          <div class="field">
+            <label class="sr-only" for="topic-input">이번 게시물 주제</label>
+            <textarea class="textarea" id="topic-input" rows="4" autocomplete="off"
+                      placeholder="주제를 입력해주세요. ( 구체적일수록 글귀가 정확해집니다. )"
+                      aria-describedby="topic-hint">${escapeHTML(s.topic)}</textarea>
+            <p class="field__hint sr-only" id="topic-hint">아래 추천 주제를 눌러 채울 수도 있어요.</p>
+          </div>
         </div>
+
+        <div class="topicform__col">
+          <div class="field">
+            <label class="field__label" for="tone-select">글 스타일</label>
+            <p class="topicform__style-desc" id="tone-desc">${tone.desc}</p>
+            <select class="select" id="tone-select" aria-describedby="tone-desc">
+              ${TONES.map((t) => `<option value="${t.id}" ${t.id === s.tone ? 'selected' : ''}>${t.label} — ${t.desc}</option>`).join('')}
+            </select>
+          </div>
+
+          <fieldset class="field">
+            <legend class="field__label">이미지 · 카드뉴스 장수</legend>
+            <div class="pickrow" role="radiogroup" aria-label="카드뉴스 장수 선택">
+              ${[1, 2, 3, 4, 5, 6].map((n) => `
+                <input class="sr-only pick__input" type="radio" name="cardcount" id="cc-${n}" value="${n}"
+                       autocomplete="off" aria-label="카드 ${n}장"
+                       ${(s.cardCount || 6) === n ? 'checked' : ''} />
+                <label class="pick" for="cc-${n}">${n}장</label>`).join('')}
+            </div>
+            <p class="field__hint" id="cc-hint">${cardCountHint(s.cardCount || 6)}</p>
+          </fieldset>
+        </div>
+
+        <div class="topicform__col">
+          <fieldset class="field">
+            <legend class="field__label">내보낼 채널</legend>
+            <ul class="channel-row">
+              ${CHANNELS.map((c) => `
+                <li>
+                  <input class="sr-only channel__input" type="checkbox" id="ch-${c.id}" value="${c.id}"
+                         aria-label="${c.name} — ${c.hint}" autocomplete="off"
+                         ${s.channels.includes(c.id) ? 'checked' : ''} />
+                  <label class="channel" for="ch-${c.id}">
+                    ${icon(c.icon, 'icon--sm')}
+                    <span>
+                      <strong>${c.name}</strong>
+                      <em>${c.hint}</em>
+                    </span>
+                  </label>
+                </li>`).join('')}
+            </ul>
+          </fieldset>
+        </div>
+      </div>
+
+      <div class="topicform__actions">
+        <button type="button" class="btn btn--lg" id="go-copy"
+                aria-label="아이디어 문서화 단계로 이동">
+          아이디어 문서화로 계속 ${icon('arrowRight', 'icon--sm')}
+        </button>
+        <button type="button" class="btn btn--text" id="clear-topic" aria-label="입력한 주제 지우기">
+          초기화
+        </button>
       </div>
     </div>`;
 }
@@ -208,16 +236,19 @@ function bindProductGrid(root) {
     const input = e.target;
     if (input.name !== 'product') return;
     setState({ productId: input.value, libraryTitle: '' });
-    refreshBrief(root);
+    refreshDetail(root);
     // 상품을 바꾸면 곧바로 주제 입력으로 초점을 옮겨 흐름이 끊기지 않게 한다
     root.querySelector('#topic-input')?.focus({ preventScroll: true });
   });
 }
 
-function refreshBrief(root) {
-  const panel = root.querySelector('#brief-panel');
+function refreshDetail(root) {
+  const detail = root.querySelector('#detail-panel');
+  if (detail) detail.innerHTML = detailHTML();
+
+  const panel = root.querySelector('#topic-panel');
   if (!panel) return;
-  panel.innerHTML = briefHTML();
+  panel.innerHTML = topicFormHTML();
   bindBrief(root);
 }
 
@@ -240,6 +271,8 @@ function bindBrief(root) {
 
   root.querySelector('#tone-select')?.addEventListener('change', (e) => {
     setState({ tone: e.target.value });
+    const desc = root.querySelector('#tone-desc');
+    if (desc) desc.textContent = (TONES.find((t) => t.id === e.target.value) || TONES[0]).desc;
   });
 
   root.querySelectorAll('[data-preset]').forEach((btn) => {
@@ -252,6 +285,17 @@ function bindBrief(root) {
       }
       syncCta(root);
     });
+  });
+
+  root.querySelector('#shuffle-presets')?.addEventListener('click', () => {
+    const row = root.querySelector('#preset-row');
+    if (!row) return;
+    const chips = [...row.querySelectorAll('[data-preset]')];
+    for (let i = chips.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      row.insertBefore(chips[j], chips[i].nextSibling);
+      [chips[i], chips[j]] = [chips[j], chips[i]];
+    }
   });
 
   root.querySelectorAll('.channel__input').forEach((box) => {
