@@ -15,8 +15,7 @@ function shellHTML(inner) {
   return `
     <section class="login-page" aria-labelledby="login-title">
       <div class="login-brand" aria-hidden="true">
-        <span class="login-brand__mark">BSS</span>
-        <span class="login-brand__text">브랜드 SNS 스튜디오</span>
+        <img src="assets/logos/logo.svg" alt="브랜드 SNS 스튜디오 로고" />
       </div>
       <div class="login-stage">
         <img class="login-art" src="assets/img/login.png" alt="" aria-hidden="true" />
@@ -48,7 +47,7 @@ export function render(root) {
           <input class="login-input" name="password" type="password" autocomplete="current-password" minlength="6" required placeholder="비밀번호를 입력해 주세요" />
         </label>
         <p class="login-form__error" id="login-error" role="alert" aria-live="polite" hidden></p>
-        <button class="login-submit" type="submit" ${configured ? '' : 'disabled'}>로그인</button>
+        <button class="login-submit__final" type="submit" ${configured ? '' : 'disabled'}>로그인</button>
       </form>
       <form class="login-form" id="signup-form" hidden>
         <label class="login-field">
@@ -63,7 +62,7 @@ export function render(root) {
           <span class="login-field__label">비밀번호</span>
           <input class="login-input" name="password" type="password" autocomplete="new-password" minlength="6" required placeholder="비밀번호를 입력해 주세요" />
         </label>
-        <button class="login-submit" type="submit" ${configured ? '' : 'disabled'}>회원가입</button>
+        <button class="login-submit__final" type="submit" ${configured ? '' : 'disabled'}>회원가입</button>
         <p class="login-card__hint">가입 후 관리자의 승인이 완료되어야 서비스를 이용할 수 있습니다.</p>
       </form>
       ${configured ? '' : '<p class="login-card__notice" role="alert">Supabase 연결 정보가 설정되지 않았습니다.</p>'}
