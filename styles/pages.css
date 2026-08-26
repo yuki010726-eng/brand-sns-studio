@@ -621,7 +621,7 @@ body.is-home-page main > .container {
   grid-template-columns: minmax(340px, 1fr) minmax(430px, 1.2fr);
   align-content: start;
   column-gap: 56px;
-  row-gap: 10px;
+  row-gap: 16px;
   min-height: 337px;
   height: auto;
   overflow: visible;
@@ -684,6 +684,9 @@ body.is-home-page main > .container {
   gap: 10px;
   padding-left: 20px;
 }
+.proddetail__col > :not(.proddetail__name) + .proddetail__name {
+  margin-top: 14px;
+}
 .proddetail__col--benefits {
   padding-right: 42px;
 }
@@ -741,7 +744,8 @@ body.is-home-page main > .container {
 }
 .proddetail .brief__tags li {
   background: #fff;
-  color: var(--ink);
+  color: black;
+  font-weight: 500;
 }
 .proddetail .badge,
 .proddetail .badge--neutral {
@@ -886,21 +890,49 @@ body.is-home-page main > .container {
   padding: 23px 26px 32px;
   border: 0;
   border-radius: 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 .topicform__grid {
   display: grid;
-  grid-template-columns: minmax(390px, 1.35fr) minmax(330px, 1fr) minmax(
+  grid-template-columns: minmax(360px, 1.35fr) 28px minmax(
       300px,
-      0.95fr
-    );
-  gap: 60px;
-  margin: 34px 26px 0;
+      1fr
+    ) 28px minmax(280px, 0.95fr);
+  gap: 22px;
+  margin: 15px 27px 0;
+}
+.topicform__arrow {
+  align-self: center;
+  justify-self: center;
+  color: var(--sub-strong);
+  font-size: 28px;
+  font-weight: 500;
+  line-height: 1;
 }
 .topicform__col {
   display: flex;
   flex-direction: column;
   gap: var(--gap-lg);
   min-width: 0;
+  transition:
+    opacity 220ms ease,
+    filter 220ms ease;
+}
+.topicform__col.is-locked {
+  opacity: 0.38;
+  filter: grayscale(0.35);
+  pointer-events: none;
+  user-select: none;
+}
+.topicform__topic-input {
+  min-height: 48px;
+  resize: vertical;
+}
+.topicform__focus-input {
+  min-height: 92px;
+  resize: vertical;
 }
 .topicform__col fieldset {
   border: 0;
@@ -2871,6 +2903,9 @@ body.is-home-page main > .container {
   .topicform__grid {
     grid-template-columns: 1fr;
     margin-inline: 0;
+  }
+  .topicform__arrow {
+    display: none;
   }
 }
 @media (max-width: 860px) {

@@ -558,13 +558,15 @@ function warnHTML(banned, over, c) {
  * AI 생성 이력의 지문. 톤과 무관하게 같은 상품·주제의 결과를 한 묶음으로 관리한다.
  * 글의 내용/아웃라인 캐시는 계속 `outlineKeyOf()`로 톤까지 구분한다.
  */
-const aiRunsKeyOf = (s) => `${s.productId}|${String(s.topic || '').trim()}`;
+const aiRunsKeyOf = (s) => `${s.productId}|${String(s.topic || '').trim()}|${String(s.focusPoint || '').trim()}`;
 
 /** 이전 버전의 `상품|주제|톤` 지문도 읽어 기존 생성 횟수가 사라지지 않게 한다. */
 function matchesAiRunsKey(storedKey, s) {
   const key = aiRunsKeyOf(s);
+  const legacyKey = `${s.productId}|${String(s.topic || '').trim()}`;
   return storedKey === key
-    || Object.keys(TONE_LABEL).some((tone) => storedKey === `${key}|${tone}`);
+    || storedKey === legacyKey
+    || Object.keys(TONE_LABEL).some((tone) => storedKey === `${key}|${tone}` || storedKey === `${legacyKey}|${tone}`);
 }
 
 /** 지금 상품·주제 조합에서 채널별로 몇 벌까지 만들었는지 — 톤을 바꿔도 유지한다 */
@@ -1282,7 +1284,7 @@ function autoGrow(ta) {
 
 function ctx(variant) {
   const s = getState();
-  return { product: getProduct(s.productId), topic: s.topic.trim(), tone: s.tone, variant, cardCount: s.cardCount };
+  return { product: getProduct(s.productId), topic: s.topic.trim(), focusPoint: String(s.focusPoint || '').trim(), tone: s.tone, variant, cardCount: s.cardCount };
 }
 
 /**

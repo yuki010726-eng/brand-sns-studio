@@ -93,9 +93,9 @@ function detailHTML() {
     <div class="proddetail__header">
       <h2 class="prodlist__title">상품 정보</h2>
       <div class="proddetail__icons" aria-hidden="true">
-        ${icon("instagram", "icon--sm")}
-        ${icon("download", "icon--sm")}
-        ${icon("external", "icon--sm")}
+        ${icon("instagram", "icon--proddetail")}
+        ${icon("download", "icon--proddetail")}
+        ${icon("external", "icon--proddetail")}
       </div>
     </div>
     <div class="proddetail__title-border"></div>
@@ -105,7 +105,7 @@ function detailHTML() {
         <div class="proddetail__summary-accent" aria-hidden="true"></div>
         <p class="brief__summary">${p.summary}</p>
       </div>
-      <h4 class="brief__label">기본 정보</h4>
+      <h3 class="proddetail__name">기본 정보</h3>
       <ul class="brief__list">
         ${p.facts.map((f) => `<li>${icon("check", "icon--sm")}<span>${f}</span></li>`).join("")}
       </ul>
@@ -114,7 +114,7 @@ function detailHTML() {
       ${
         p.events.length
           ? `
-      <h4 class="brief__label">행사 일정</h4>
+      <h3 class="proddetail__name">행사 일정</h3>
       <ul class="brief__list brief__list--events">
         ${p.events
           .map(
@@ -131,7 +131,7 @@ function detailHTML() {
       ${
         p.criteria.length
           ? `
-      <h4 class="brief__label">심사 기준</h4>
+      <h3 class="proddetail__name">심사 기준</h3>
       <ul class="brief__bars">
         ${p.criteria
           .map(
@@ -145,12 +145,12 @@ function detailHTML() {
       </ul>`
           : ""
       }
-      <h4 class="brief__label">기본 특전</h4>
+      <h3 class="proddetail__name">기본 특전</h3>
       <ul class="brief__tags">${p.benefits.map((b) => `<li>${b}</li>`).join("")}</ul>
       ${
         p.packages.length
           ? `
-      <h4 class="brief__label">추가 패키지</h4>
+      <h3 class="proddetail__name">추가 패키지</h3>
       <ul class="brief__list">${p.packages.map((k) => `<li>${icon("plus", "icon--sm")}<span><strong>${k.name}</strong> · ${k.desc}</span></li>`).join("")}</ul>`
           : ""
       }
@@ -165,13 +165,16 @@ function topicFormHTML() {
   if (!p) return "";
 
   const tone = TONES.find((t) => t.id === s.tone) || TONES[0];
+  const hasTopic = s.topic.trim().length >= 2;
+  const hasOptions = hasTopic && Boolean(s.tone) && Number(s.cardCount) > 0;
 
   return `
     <div class="card topicform">
-      <h3 class="topicform__title">게시물 주제</h3>
+      <h2 class="prodlist__title">게시물 주제 설정</h2>
+      <div class="prodlist-title-border"></div>
       <div class="topicform__grid">
 
-        <div class="topicform__col">
+        <div class="topicform__col" data-topic-step="topic">
           <div class="field">
             <span class="field__label" id="preset-label">추천 주제</span>
             <ul class="chip-row" id="preset-row" aria-labelledby="preset-label">
@@ -191,14 +194,23 @@ function topicFormHTML() {
 
           <div class="field">
             <label class="sr-only" for="topic-input">이번 게시물 주제</label>
-            <textarea class="textarea" id="topic-input" rows="4" autocomplete="off"
+            <textarea class="textarea topicform__topic-input" id="topic-input" rows="1" autocomplete="off"
                       placeholder="주제를 입력해주세요. ( 구체적일수록 글귀가 정확해집니다. )"
                       aria-describedby="topic-hint">${escapeHTML(s.topic)}</textarea>
             <p class="field__hint sr-only" id="topic-hint">아래 추천 주제를 눌러 채울 수도 있어요.</p>
           </div>
+
+          <div class="field">
+            <label class="field__label" for="focus-input">강조하고 싶은 내용</label>
+            <textarea class="textarea topicform__focus-input" id="focus-input" rows="3" autocomplete="off"
+                      placeholder="게시물에서 꼭 강조할 내용을 입력해주세요. (선택)"
+                      >${escapeHTML(s.focusPoint || "")}</textarea>
+          </div>
         </div>
 
-        <div class="topicform__col">
+        <span class="topicform__arrow" aria-hidden="true">&gt;</span>
+
+        <div class="topicform__col ${hasTopic ? "" : "is-locked"}" data-topic-step="options" aria-disabled="${!hasTopic}">
           <div class="field">
             <label class="field__label" for="tone-select">글 스타일</label>
             <p class="topicform__style-desc" id="tone-desc">${tone.desc}</p>
@@ -224,7 +236,9 @@ function topicFormHTML() {
           </fieldset>
         </div>
 
-        <div class="topicform__col">
+        <span class="topicform__arrow" aria-hidden="true">&gt;</span>
+
+        <div class="topicform__col ${hasOptions ? "" : "is-locked"}" data-topic-step="channels" aria-disabled="${!hasOptions}">
           <fieldset class="field">
             <legend class="field__label">내보낼 채널</legend>
             <ul class="channel-row">
@@ -285,10 +299,15 @@ function refreshDetail(root) {
 
 function bindBrief(root) {
   const topicEl = root.querySelector("#topic-input");
+  const focusEl = root.querySelector("#focus-input");
 
   topicEl?.addEventListener("input", () => {
     setState({ topic: topicEl.value, libraryTitle: "" });
     syncCta(root);
+  });
+
+  focusEl?.addEventListener("input", () => {
+    setState({ focusPoint: focusEl.value, libraryTitle: "" });
   });
 
   root.querySelectorAll('input[name="cardcount"]').forEach((el) => {
@@ -297,6 +316,7 @@ function bindBrief(root) {
       setState({ cardCount: n });
       const hint = root.querySelector("#cc-hint");
       if (hint) hint.textContent = cardCountHint(n);
+      syncCta(root);
     });
   });
 
@@ -307,6 +327,7 @@ function bindBrief(root) {
       desc.textContent = (
         TONES.find((t) => t.id === e.target.value) || TONES[0]
       ).desc;
+    syncCta(root);
   });
 
   root.querySelectorAll("[data-preset]").forEach((btn) => {
@@ -347,11 +368,12 @@ function bindBrief(root) {
   });
 
   root.querySelector("#clear-topic")?.addEventListener("click", () => {
-    setState({ topic: "", libraryTitle: "" });
+    setState({ topic: "", focusPoint: "", libraryTitle: "" });
     if (topicEl) {
       topicEl.value = "";
       topicEl.focus();
     }
+    if (focusEl) focusEl.value = "";
     syncCta(root);
     toast("주제를 비웠습니다.");
   });
@@ -476,8 +498,22 @@ function isReady() {
 }
 
 function syncCta(root) {
+  const s = getState();
+  const hasTopic = s.topic.trim().length >= 2;
+  const hasOptions = hasTopic && Boolean(s.tone) && Number(s.cardCount) > 0;
+  setStepState(root.querySelector('[data-topic-step="options"]'), hasTopic);
+  setStepState(root.querySelector('[data-topic-step="channels"]'), hasOptions);
   const btn = root.querySelector("#go-copy");
   if (btn) btn.disabled = !isReady();
+}
+
+function setStepState(step, enabled) {
+  if (!step) return;
+  step.classList.toggle("is-locked", !enabled);
+  step.setAttribute("aria-disabled", String(!enabled));
+  step.querySelectorAll("input, select, button, textarea").forEach((control) => {
+    control.disabled = !enabled;
+  });
 }
 
 /* ---------------- 유틸 ---------------- */

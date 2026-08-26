@@ -167,6 +167,10 @@ main {
   stroke-linejoin: round;
   flex-shrink: 0;
 }
+.icon--proddetail {
+  stroke-width: 2px;
+  stroke: white;
+}
 .icon--sm {
   width: 18px;
   height: 18px;

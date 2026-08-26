@@ -39,6 +39,7 @@ const INITIAL = {
    */
   postId: '',
   topic: '',
+  focusPoint: '',     // 이번 게시물에서 특히 강조할 내용 (선택 입력)
   // "다른 이름으로 저장" 때 보관함에서만 쓰는 이름. 글 생성 주제와 분리한다.
   libraryTitle: '',
   tone: 'trust',
@@ -117,7 +118,7 @@ const INITIAL = {
 };
 
 /** 현재 입력 조합의 지문 — 상품·주제·톤이 바뀌면 초안이 낡았다고 판단한다 */
-export const draftKeyOf = (s) => `${s.productId}|${s.topic.trim()}|${s.tone}|${s.cardCount}`;
+export const draftKeyOf = (s) => `${s.productId}|${s.topic.trim()}|${String(s.focusPoint || '').trim()}|${s.tone}|${s.cardCount}`;
 
 /**
  * 3단계 게시물 제작 흐름 정의 — 스테퍼·라우터 가드가 함께 사용.
@@ -232,7 +233,7 @@ export const newPostId = () => `p${Date.now().toString(36)}${Math.random().toStr
 export function resetFlow() {
   setState({
     postId: newPostId(),
-    productId: null, topic: '', libraryTitle: '', drafts: {}, generated: {}, variants: {}, sources: {},
+    productId: null, topic: '', focusPoint: '', libraryTitle: '', drafts: {}, generated: {}, variants: {}, sources: {},
     draftKey: '', aiKey: {}, outline: null, researchStyle: null,
     aiRuns: { key: '', list: [] }, activeAiRun: null,
     image: null, images: {}, card: null,
