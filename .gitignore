@@ -31,3 +31,5 @@ config.local.js
 # 예전 방식의 로컬 키 파일 — 지금 코드는 안 읽지만, 실제 키가 든 채로 남아있는
 # 기기가 있을 수 있어 계속 무시한다.
 lib/apikeys.local.js
+
+.next/
