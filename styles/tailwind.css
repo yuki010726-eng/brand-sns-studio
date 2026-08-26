@@ -1,0 +1,14 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Noto Sans KR", -apple-system, BlinkMacSystemFont, "Malgun Gothic", sans-serif;
+}
+
+.outline-modal-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.outline-modal-scroll::-webkit-scrollbar {
+  display: none;
+}

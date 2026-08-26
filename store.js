@@ -40,11 +40,15 @@ const INITIAL = {
   postId: '',
   topic: '',
   focusPoint: '',     // 이번 게시물에서 특히 강조할 내용 (선택 입력)
+  contentOutline: null, // 뼈대잡기 모달에서 사용자가 확정·수정한 서론/본론/결론
   // "다른 이름으로 저장" 때 보관함에서만 쓰는 이름. 글 생성 주제와 분리한다.
   libraryTitle: '',
-  tone: 'trust',
-  channels: ['blog', 'instagram', 'threads'],
-  cardCount: 6,        // 카드뉴스 장수 1~6 — API 비용을 줄이려고 요청자가 고르게 했다
+  tone: '',
+  customStyleUrl: '', // 직접 추가한 참고 블로그 글 URL
+  customStyleGuide: '', // URL에서 분석해 재사용하는 문체 가이드
+  customStyleGuideUrl: '', // 위 가이드를 분석한 원본 URL
+  channels: [],
+  cardCount: 0,        // 카드뉴스 장수 1~6 — API 비용을 줄이려고 요청자가 고르게 했다
   /**
    * ⚠️ **`adCount` 는 없앴다** (2026-08-20). 직관형 장수는 `cardCount` 하나가 정한다 —
    * 선택지를 두 곳에 두면 덱과 장수가 어긋난다 (`lib/adprompt.js` 머리말 참고).
@@ -233,7 +237,7 @@ export const newPostId = () => `p${Date.now().toString(36)}${Math.random().toStr
 export function resetFlow() {
   setState({
     postId: newPostId(),
-    productId: null, topic: '', focusPoint: '', libraryTitle: '', drafts: {}, generated: {}, variants: {}, sources: {},
+    productId: null, topic: '', focusPoint: '', contentOutline: null, libraryTitle: '', tone: '', customStyleUrl: '', customStyleGuide: '', customStyleGuideUrl: '', channels: [], cardCount: 0, drafts: {}, generated: {}, variants: {}, sources: {},
     draftKey: '', aiKey: {}, outline: null, researchStyle: null,
     aiRuns: { key: '', list: [] }, activeAiRun: null,
     image: null, images: {}, card: null,
