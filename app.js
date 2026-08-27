@@ -10,7 +10,6 @@ import { pull, applyRemote } from './lib/sync.js';
 import { setState } from './store.js';
 import { toast } from './components/toast.js';
 import { loadProducts } from './lib/products.js';
-import * as ProfilePage from './pages/profile.js';
 import * as HomePage from './pages/home.js';
 import * as CopyPage from './pages/copy.js';
 import * as TemplatePage from './pages/template.js';
@@ -21,7 +20,6 @@ import * as ProductsAdminPage from './pages/products-admin.js';
 
 const ROUTES = {
   '/login': LoginPage,
-  '/profile': ProfilePage,
   '/': HomePage,
   '/copy': CopyPage,
   '/template': TemplatePage,
@@ -34,8 +32,8 @@ const LOGIN_PATH = '/login';
 const RETURN_PATH_KEY = 'auth:return-path';
 let authReady = false;
 
-/** 없어진 경로 → 현재 경로. 이미지 제작 단계는 템플릿 안으로 합쳤다. */
-const MOVED = { '/image': '/template' };
+/** 없어진 경로 → 현재 경로. 이미지 제작 단계는 템플릿 안으로 합쳤다. 프로필은 Next.js 로 옮겼다. */
+const MOVED = { '/image': '/template', '/profile': '/library/profile' };
 
 const headerRoot = document.getElementById('header-root');
 const mainRoot = document.getElementById('main');

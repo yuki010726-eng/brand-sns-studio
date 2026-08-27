@@ -19,8 +19,8 @@ research-output/
 # 비밀값은 저장소에 두지 않는다.
 # API 키는 기본적으로 파일이 아니라 브라우저 localStorage 에만 저장된다 (README 참고).
 # 배포본의 API 키는 Vercel 환경 변수에만 있다.
-.env
-.env.*
+
+.env.local
 *.key
 secrets.json
 

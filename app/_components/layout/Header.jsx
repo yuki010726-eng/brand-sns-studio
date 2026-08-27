@@ -4,7 +4,13 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import logo from "../../../assets/logos/logo.svg";
-import { getUser, initAuth, onAuth, usernameOf } from "../../../lib/auth.js";
+import {
+  getUser,
+  initAuth,
+  onAuth,
+  signOut,
+  usernameOf,
+} from "../../../lib/auth.js";
 import {
   clearLibraryEdit,
   getLibraryEditId,
@@ -18,7 +24,7 @@ const NAV_ITEMS = [
   { path: "/library", label: "마이페이지" },
 ];
 
-const MY_PAGE_PATHS = ["/library", "/profile", "/research"];
+const MY_PAGE_PATHS = ["/library", "/library/profile", "/research"];
 
 function isActive(navPath, currentPath, libraryEditId) {
   if (navPath === "/products-admin") return currentPath === navPath;
@@ -35,6 +41,7 @@ export function Header() {
   const isLoginPage = pathname === "/login" || pathname.startsWith("/login/");
   const [user, setUser] = useState(() => getUser());
   const [isStartingPost, setIsStartingPost] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const [libraryEditId, setLibraryEditId] = useState(null);
   const [isScrolled, setIsScrolled] = useState(false);
 
@@ -90,6 +97,20 @@ export function Header() {
       }
     } finally {
       setIsStartingPost(false);
+    }
+  }
+
+  async function handleSignOut() {
+    if (isSigningOut) return;
+    setIsSigningOut(true);
+
+    try {
+      await signOut();
+      router.replace("/login");
+      router.refresh();
+    } catch (error) {
+      toast(error?.message || "로그아웃하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+      setIsSigningOut(false);
     }
   }
 
@@ -171,6 +192,18 @@ export function Header() {
                 >
                   {user.name}
                 </span>
+                <button
+                  type="button"
+                  onClick={handleSignOut}
+                  disabled={isSigningOut}
+                  className={`shrink-0 whitespace-nowrap rounded-full border border-white/70 font-bold text-white transition-[background-color,font-size,opacity] hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50 ${
+                    isScrolled
+                      ? "px-3 py-[5px] text-[11px]"
+                      : "px-4 py-[8px] text-[14px]"
+                  }`}
+                >
+                  {isSigningOut ? "로그아웃 중..." : "로그아웃"}
+                </button>
               </div>
             </div>
           )}
