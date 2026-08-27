@@ -13,6 +13,7 @@ import {
   ALLOWED_IMAGE_MODELS, requirePost, requireApprovedUser,
   readPrompt, pickModel, providerOf, keyFor, fail,
 } from './_shared.mjs';
+import { recordOpenAIUsage } from '../lib/openaiusage.js';
 
 const OPENAI_URL = 'https://api.openai.com/v1/images/generations';
 const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/interactions';
@@ -41,9 +42,23 @@ export default async function handler(req, res) {
   if (!model.ok) return fail(res, 400, model.message);
 
   try {
-    const { bytes, mime } = provider === 'gemini'
+    const result = provider === 'gemini'
       ? await callGemini({ key, model: model.value, prompt: prompt.value })
       : await callOpenAI({ key, model: model.value, prompt: prompt.value });
+    const { bytes, mime } = result;
+
+    if (provider === 'openai') {
+      await recordOpenAIUsage({
+        supabaseUrl: process.env.SUPABASE_URL,
+        anonKey: process.env.SUPABASE_ANON_KEY,
+        token: auth.token,
+        userId: auth.user.id,
+        type: 'image_generation',
+        model: result.model || model.value,
+        responseId: result.responseId,
+        usage: result.usage,
+      });
+    }
 
     if (bytes.length > MAX_IMAGE_BYTES) {
       return fail(res, 413, '만들어진 이미지가 너무 커서 전달하지 못했습니다. 더 낮은 품질의 모델로 시도해 주세요.');
@@ -71,7 +86,13 @@ async function callOpenAI({ key, model, prompt }) {
   const data = await ensureOk(res);
   const b64 = data?.data?.[0]?.b64_json;
   if (!b64) throw withStatus(502, '응답에 이미지 데이터가 없습니다.');
-  return { bytes: Buffer.from(b64, 'base64'), mime: 'image/png' };
+  return {
+    bytes: Buffer.from(b64, 'base64'),
+    mime: 'image/png',
+    usage: data.usage,
+    model: data.model || model,
+    responseId: data.id,
+  };
 }
 
 async function callGemini({ key, model, prompt }) {

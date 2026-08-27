@@ -12,7 +12,6 @@ import {
   postKeyOf,
 } from "../lib/librarystore.js";
 import { loadProducts } from "../lib/products.js";
-import { getTopicSuggestions } from "../lib/topicSuggestions.js";
 import { getState, newPostId, setState, STEPS, subscribe } from "../store.js";
 import { LoadingScreen } from "./_components/LoadingScreen.jsx";
 import { ProductSection } from "./_components/home/ProductSection.jsx";
@@ -41,8 +40,6 @@ export default function HomePage() {
   const [state, setViewState] = useState(null);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [presetOrder, setPresetOrder] = useState([]);
-  const [topicsLoading, setTopicsLoading] = useState(false);
   const [outlineOpen, setOutlineOpen] = useState(false);
 
   useEffect(() => {
@@ -59,26 +56,8 @@ export default function HomePage() {
     () => products.find((item) => item.id === state?.productId) || null,
     [products, state?.productId],
   );
-  const presets = presetOrder;
+  const presets = product?.topicPresets || [];
   const update = (patch) => setState(patch);
-
-  useEffect(() => {
-    if (!product) {
-      setPresetOrder([]);
-      return undefined;
-    }
-    const controller = new AbortController();
-    setTopicsLoading(true);
-    getTopicSuggestions(product, [], { signal: controller.signal })
-      .then(setPresetOrder)
-      .catch((error) => {
-        if (error?.name !== "AbortError") console.error(error);
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setTopicsLoading(false);
-      });
-    return () => controller.abort();
-  }, [product]);
 
   function selectProduct(id) {
     update({
@@ -93,20 +72,9 @@ export default function HomePage() {
       channels: [],
       libraryTitle: "",
     });
-    setPresetOrder([]);
     requestAnimationFrame(() =>
       topicRef.current?.focus({ preventScroll: true }),
     );
-  }
-
-  async function shufflePresets() {
-    if (!product || topicsLoading) return;
-    setTopicsLoading(true);
-    try {
-      setPresetOrder(await getTopicSuggestions(product, presetOrder));
-    } finally {
-      setTopicsLoading(false);
-    }
   }
 
   function toggleChannel(id) {
@@ -221,11 +189,9 @@ export default function HomePage() {
             <TopicSection
               product={product}
               presets={presets}
-              topicsLoading={topicsLoading}
               state={state}
               topicRef={topicRef}
               onUpdate={update}
-              onShuffle={shufflePresets}
               onToggleChannel={toggleChannel}
               onClear={clearTopic}
               onSubmit={openOutline}

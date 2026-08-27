@@ -5,11 +5,10 @@ import { useRouter } from "next/navigation";
 import { BANNED_PHRASES } from "../../data/banned-phrases.js";
 import { CHANNELS } from "../../data/channels.js";
 import { generateWithAI } from "../../lib/copyai.js";
-import { analyzeCustomBlogStyle } from "../../lib/customBlogStyle.js";
+import { analyzeCustomBlogStyle } from "./_lib/customBlogStyle.js";
 import { getMemorySummary } from "../../lib/copymemory.js";
 import { coreWithOutline, outlineKeyOf } from "../../lib/outline.js";
 import { findBanned, TONE_LABEL } from "../../lib/copywriter.js";
-import { hasKey, setKey } from "../../lib/llm.js";
 import { saveToLibrary } from "../../lib/librarystore.js";
 import { loadLocalConfig } from "../../lib/localconfig.js";
 import { getProduct, loadProducts } from "../../lib/products.js";
@@ -169,21 +168,6 @@ export default function CopyPage() {
   }
 
   async function generate(channelIds) {
-    if (!hasKey()) {
-      const apiKey = window.prompt(
-        "OpenAI API 키를 입력해 주세요. 키는 이 브라우저에만 저장됩니다.",
-      );
-      if (apiKey?.trim().startsWith("sk-")) {
-        setKey(apiKey);
-        toast("OpenAI API 키를 저장했습니다.");
-      } else if (apiKey?.trim()) {
-        toast("올바른 OpenAI API 키를 입력해 주세요.");
-      }
-    }
-    if (!hasKey()) {
-      toast("OpenAI 키가 없습니다. 설정에서 먼저 입력해 주세요.");
-      return;
-    }
     if (!product || busy) return;
     setBusy(true);
     try {
@@ -325,7 +309,7 @@ export default function CopyPage() {
     <main className="min-h-dvh bg-[#1a1a1a] pb-[140px] text-[#4e5968]">
       <div className="w-full px-[clamp(20px,3.85vw,74px)]">
         <div className="flex min-h-[1050px] items-stretch overflow-hidden rounded-[15px] bg-white/10 max-[860px]:min-h-0 max-[860px]:flex-col">
-          <TextStepper steps={STEPS} />
+          <TextStepper steps={STEPS} activeIndex={1} />
           <div className="min-w-0 flex-1 px-[clamp(24px,4vw,56px)] py-14">
             <header className="mb-8">
               <h1 className="text-[32px] font-bold tracking-[-0.04em] text-white">

@@ -36,7 +36,7 @@ body {
   font-size: var(--fs-base);
   line-height: 1.6;
   color: var(--text);
-  background: var(--bg);
+  background: #1a1a1a;
   -webkit-font-smoothing: antialiased;
   word-break: keep-all; /* 한글 줄바꿈 자연스럽게 */
   display: flex;

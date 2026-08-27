@@ -25,10 +25,10 @@ export function ProductDetail({ product }) {
     <article className={panel} aria-labelledby="brief-title">
       <div className="col-span-full -ml-[30px] -mr-1 flex min-w-0 items-center justify-between pl-[42px] pr-[21px] max-[1024px]:mx-[-18px] max-[1024px]:px-[18px]">
         <h2 className="text-[18px] font-bold text-white">상품 정보</h2>
-        <div className="flex items-center gap-5 text-white/70">
-          <Icon name="instagram" />
-          <Icon name="download" />
-          <Icon name="external" />
+        <div className="flex items-center gap-5 text-white">
+          <Icon name="house" className="size-6 !stroke-2" />
+          <Icon name="instagram" className="size-6 !stroke-2" />
+          <Icon name="download" className="size-6 !stroke-2" />
         </div>
       </div>
       <div className="col-span-full -ml-1.5 mr-1 -mt-px mb-3 h-px bg-white/55 max-[1024px]:mx-[-18px]" />
