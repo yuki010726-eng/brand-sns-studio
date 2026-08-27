@@ -23,6 +23,9 @@
 현재 프롬프트는 "이 뜻을 표현해라"까지만 말하고 사물을 지정하지 않는다. 이미지 모델은 지시가
 추상적이면 자기가 아는 가장 안전한 그림(전구·톱니바퀴)으로 돌아간다.
 
+⚠️ **이게 가장 큰 문제다.** 사물을 지정해도 주제의 **명사**를 지정하면 주제와 상관없는 그림이
+   나온다. 지정해야 하는 건 주제가 하는 **주장**이다. 3절 ①이 이 문서에서 제일 중요한 이유다.
+
 ⚠️ 이건 `lib/imageprompt.js` 에 이미 적혀 있는 교훈과 같은 것이다 — 사진 프롬프트에서
 `avoid generic stock-photo scenes` 를 넣은 이유(2026-08-20)와 원인이 똑같다.
 
@@ -73,9 +76,29 @@ no text, no letters, no numbers, no watermark, no logo, no signature
 
 ## 3. SUBJECT 작성 규칙 — 여기가 핵심
 
-품질은 스타일 블록이 아니라 **무엇을 그리라고 적느냐**에서 갈린다. 규칙 세 개를 지킨다.
+품질은 스타일 블록이 아니라 **무엇을 그리라고 적느냐**에서 갈린다.
 
-### ① 사물을 나열하지 않는다
+⚠️ **①이 전부다.** 나머지는 그림을 깔끔하게 만드는 규칙이고, ①은 그림이 **주제와 상관있게**
+만드는 규칙이다. ①을 어기면 아무리 잘 그려져도 못 쓴다.
+
+### ① 주제의 명사가 아니라 주장을 그린다
+
+주제 문장에서 **무엇을 말하고 있는지(동사)** 를 그린다. 문장에 등장하는 사물(명사)을 그리면
+보기엔 관련 있어 보여도 주제와 아무 상관 없는 그림이 된다.
+
+```
+주제: 상은 쓰기 시작하는 순간부터 일합니다
+✗ a trophy standing on a shelf          ← '상'이라는 명사만 옮겼다
+✓ a trophy cup being used as a pen holder  ← '쓴다'는 주장을 그렸다
+```
+
+검증은 질문 하나로 한다. **그림만 보고 주제의 주장을 되말할 수 있나?**
+못 하면 명사만 그린 것이다.
+
+⚠️ **주장을 뒤집지 말 것.** 실제로 걸렸다 — "상은 쓰면 일한다" 에 거미줄 낀 트로피를 그려서
+   *안 쓰면 방치된다* 는 정반대 그림이 나왔다. 주장의 반대편은 부정문이지 그 주제가 아니다.
+
+### ② 사물을 나열하지 않는다
 
 요소를 `A + B + C` 로 적으면 모델이 각각 그려서 나란히 놓는다. 그게 "그냥 합쳐놓은 느낌"의
 직접 원인이다.
@@ -85,12 +108,12 @@ no text, no letters, no numbers, no watermark, no logo, no signature
 ✓ a round certification stamp pressed down onto a checklist sheet
 ```
 
-### ② 주연 하나 + 조연 하나까지, 조연은 주연에 닿아야 한다
+### ③ 주연 하나 + 조연 하나까지, 조연은 주연에 닿아야 한다
 
 떠 있는 요소가 하나라도 있으면 실루엣이 갈라진다. 조연은 주연을 **감거나 · 꽂히거나 · 얹히거나 ·
 눌러야** 한다.
 
-### ③ 관계를 동사로 쓴다
+### ④ 관계를 동사로 쓴다
 
 `A와 B가 있다` 가 아니라 `A가 B를 하고 있다`. 동사가 들어가야 구도가 생긴다.
 
@@ -99,9 +122,9 @@ no text, no letters, no numbers, no watermark, no logo, no signature
 ✓ a business card tucked into the calendar's spiral binding
 ```
 
-### ④ 스타일 블록의 금지 항목과 충돌시키지 않는다
+### ⑤ 스타일 블록의 금지 항목과 충돌시키지 않는다
 
-**실제로 뽑아 보고 걸린 것들이다.** SUBJECT 를 쓴 다음 2절의 금지 줄과 대조한다.
+SUBJECT 를 쓴 다음 2절의 금지 줄과 대조한다. ①을 통과한 다음에 보는 것이다.
 
 | SUBJECT 에 쓰면 안 되는 것 | 충돌하는 금지 항목 | 대신 |
 |---|---|---|
@@ -110,7 +133,7 @@ no text, no letters, no numbers, no watermark, no logo, no signature
 | 점선 · 끊어진 선 · 흩어진 조각 | `no floating disconnected elements` | 붙어 있는 형태로 바꾼다 |
 | 리본 로제트 · 술 · 깃털 · 주름 | `two-weight line hierarchy` | 굵은 외곽선 하나로 잡히는 형태로 |
 
-### ⑤ 은유는 한 겹으로
+### ⑥ 은유는 한 겹으로
 
 `계산기 + 동전 + 재생버튼` 처럼 개념이 셋이면 그림이 셋으로 갈라진다. 하나로 줄인다.
 
@@ -132,16 +155,16 @@ SUBJECT: a trophy cup being used as a pen holder,
 three pens standing upright inside it
 
 3. 월 100만원이 비싼지 싼지는 CPV를 봐야 압니다
-SUBJECT: a magnifying glass held over a single large coin,
-the coin appearing enlarged inside the lens
+SUBJECT: a single large coin sliced into many thin equal slices,
+the slices still stacked together
 
 4. '1위'만 적힌 문구는 근거를 물었을 때 댈 것이 없습니다
 SUBJECT: a thick heavy medal resting on top of one thin sheet of paper,
 the sheet buckling in the middle under its weight
 
 5. 수상 후 2주 안에 할 일
-SUBJECT: a trophy cup tipped forward,
-a small stack of business cards spilling out of its mouth
+SUBJECT: a round award mark being peeled off a trophy like a sticker,
+its edge lifting up
 
 6. ○○부문 선정 소식을 전합니다
 SUBJECT: a megaphone,
@@ -150,18 +173,22 @@ a small trophy emerging out of its horn
 
 ### 2~6번을 다시 쓴 이유
 
-처음 쓴 것들이 이미지로는 못 쓸 수준이었다. 전부 **3절 ④의 충돌**에 걸린 것이다.
+처음 쓴 것들이 이미지로는 못 쓸 수준이었다. 전부 **3절 ①** 을 어긴 것이다 — 주제의 명사만 옮기고 주장을 안 그렸다.
 
-| | 처음 쓴 것 | 걸린 이유 |
-|---|---|---|
-| 2 | 선반 위 트로피 + 거미줄 | 선반이 들어와 사물이 아니라 장면이 됐다 |
-| 3 | 계산기 화면 속 재생 버튼 + 동전 | 화면 내부 UI · 은유가 세 겹 |
-| 4 | 말풍선 꼬리가 점선으로 끊어짐 | `no floating disconnected elements` 와 정면 충돌 |
-| 5 | 날짜에 동그라미 친 달력 | 숫자 없이는 달력으로 안 읽힌다 |
-| 6 | 리본 로제트를 두른 트로피 | 주름·겹침이 많아 굵은 외곽선으로 안 잡힌다 |
+| | 주제의 주장 | 처음 그린 것 | 무엇이 어긋났나 |
+|---|---|---|---|
+| 2 | 상은 **쓰면** 일한다 | 선반 위 트로피 + 거미줄 | 주장의 **정반대**(안 쓰면 방치된다)를 그렸다 |
+| 3 | 나눠 봐야 **판단**된다 | 계산기 + 동전 + 재생 버튼 | 주제에 나온 명사만 늘어놨다. 나눈다는 주장이 없다 |
+| 4 | 주장에 **근거가 없다** | 1위 말풍선 + 점선 꼬리 | 주장만 그리고 근거가 없다는 대목을 안 그렸다 |
+| 5 | 2주 안에 **옮겨 붙여라** | 날짜에 동그라미 친 달력 | 일정만 그렸다. 옮긴다는 행위가 없다 |
+| 6 | 수상을 **알린다** | 리본 로제트를 두른 트로피 | 받았다까지만 그렸다. 알린다가 없다 |
 
-⚠️ **SUBJECT 를 새로 쓸 때마다 3절 ④ 표와 대조할 것.** 스타일 블록만 지키고 SUBJECT 를
-   검증하지 않으면 여기서 그대로 다시 걸린다.
+1번만 통과한 이유는 형태가 예뻐서가 아니다. **주제가 「확인할 네 가지」고 그림이 「도장이
+체크리스트를 누른다」 — 주장과 그림이 같은 행위를 가리켰다.** 나머지 다섯은 주제 문장에서
+명사만 뽑아 옮겼고, 그래서 보기엔 관련 있어 보여도 주제와 상관없는 그림이 나왔다.
+
+⚠️ **SUBJECT 를 새로 쓸 때마다 3절 ①의 질문부터 할 것** — 그림만 보고 주제의 주장을 되말할
+   수 있나. 그다음에 ⑤ 표와 대조한다. 순서가 바뀌면 예쁘고 상관없는 그림이 나온다.
 
 ---
 
@@ -177,6 +204,8 @@ function noteIconPrompt(card, title, subject) {
     subject ? `the pictogram must visually communicate the meaning of this Korean editorial caption: "${subject}"` : '',
     card.shot ? `visual motif to draw from: ${card.shot}` : '',
 
+    // ⚠️ 아래 첫 줄이 「주제와 상관없는 그림」을 막는다. 이 줄이 제일 중요하다. 빼지 말 것.
+    'draw what the sentence CLAIMS, not the objects it mentions. the picture must let a viewer restate the claim. never draw the opposite of the claim',
     // ⚠️ 아래 두 줄이 「나열된 아이콘」을 막는다. 빼지 말 것.
     'draw ONE main object with at most one secondary element, and the secondary element must physically touch, overlap, wrap or rest on the main object',
     'describe them as a single action, never as a list of separate props',
@@ -225,10 +254,16 @@ pure white #FFFFFF background, no shadow, no reflection, no ground plane
 
 ## 8. 검증
 
-나온 그림을 **눈을 가늘게 뜨고 본다.**
+**순서가 있다. 1번부터 본다.**
 
-- 덩어리 **하나**로 읽히면 통과
-- 두세 덩어리로 갈라져 보이면 실패 → SUBJECT 가 나열식으로 쓰였는지 먼저 본다
+**1 — 주제 적합도.** 주제 문장을 가리고 그림만 남긴 뒤, 그림만 보고 주제의 주장을 되말할 수
+있는지 본다. 못 하면 나머지는 볼 것도 없이 실패다. SUBJECT 가 명사를 그렸는지 확인한다.
+
+**2 — 실루엣.** 눈을 가늘게 뜨고 본다. 덩어리 **하나**로 읽히면 통과, 두세 덩어리로 갈라져
+보이면 SUBJECT 가 나열식으로 쓰인 것이다.
+
+⚠️ **2를 먼저 보지 말 것.** 잘 그려졌는지부터 보면 주제와 상관없는 예쁜 그림을 통과시킨다.
+   실제로 그렇게 다섯 개를 통과시켰다.
 
 **기준선은 1번(도장이 종이를 눌러 모서리가 휨)이다.** 실제로 뽑아서 통과한 유일한 첫 판이고,
 2~6번은 이 형태에 맞춰 다시 쓴 것이다. 새 주제의 결과가 1번보다 못하면 SUBJECT 를 의심한다.
