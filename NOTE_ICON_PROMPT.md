@@ -6,36 +6,32 @@
 - **호출 경로**: `buildPrompt()` → `concept.id === 'note'` 일 때만
 - **레퍼런스**: 쓸모실험실(`sslmo.lab`) — `lib/concepts.js` 의 `note.ref` 에 이미 적혀 있다
 
+> **2판 (2026-08-27)** — 그림체를 **빈티지 손그림(felt-tip marker)** 으로 바꾸고,
+> 프롬프트를 **6단 구조**로 세웠다. 1판의 `clean editorial pictogram` 은 폐기했다.
+> 실측 근거는 7절에 있다.
+
 ---
 
 ## 1. 왜 바꾸나
 
-지금 나오는 그림이 **투박하고, 요소들이 그냥 나란히 놓인 것처럼 보인다.** 원인이 세 개다.
+### 1판에서 고친 것
 
-### ① 선 굵기가 한 종류다
+| | 무슨 일이 벌어졌나 |
+|---|---|
+| `thick uniform black outlines` (선 굵기 한 종류) | 뭉툭하고 투박해졌다 |
+| 무엇을 그릴지 지정이 없음 | 모델이 아는 가장 안전한 그림(전구·톱니바퀴)으로 돌아갔다 |
+| `plain flat off-white background` | 카드 종이색 위에 사각형 자국이 남았다 → 투명 배경으로 |
 
-현재 프롬프트: `thick uniform black outlines`
+### 2판에서 다시 고친 것 — **그림체**
 
-레퍼런스는 **외곽선이 굵고 내부 선이 얇다.** 전부 같은 굵기로 못박아서 뭉툭해진다.
+요청자 지정: **"빈티지스러우면서도 손그림 같은 느낌이 중요하다."**
 
-### ② 무엇을 그릴지가 없다
+1판의 `precise confident linework, geometric clarity, crisp corners` 는 그 반대로 간다 —
+자로 그은 듯한 아이콘팩 느낌이 나온다. 2판은 **펠트펜으로 한 번에 그은 선**으로 바꿨다.
 
-현재 프롬프트는 "이 뜻을 표현해라"까지만 말하고 사물을 지정하지 않는다. 이미지 모델은 지시가
-추상적이면 자기가 아는 가장 안전한 그림(전구·톱니바퀴)으로 돌아간다.
-
-⚠️ **이게 가장 큰 문제다.** 사물을 지정해도 주제의 **명사**를 지정하면 주제와 상관없는 그림이
-   나온다. 지정해야 하는 건 주제가 하는 **주장**이다. 3절 ①이 이 문서에서 제일 중요한 이유다.
-
-⚠️ 이건 `lib/imageprompt.js` 에 이미 적혀 있는 교훈과 같은 것이다 — 사진 프롬프트에서
-`avoid generic stock-photo scenes` 를 넣은 이유(2026-08-20)와 원인이 똑같다.
-
-### ③ 배경이 흰색으로 못박혀 있다
-
-현재 프롬프트: `plain flat off-white background`
-
-카드의 종이색 위에 얹었을 때 사각형 자국이 남지 않게 하려고 넣은 값인데, **투명 배경이면
-애초에 그 문제가 없다.** `lib/cardrender.js` 의 `drawImageIcon()` 은 `drawContain()` 으로
-그리므로 알파 PNG 가 종이색 위에 그대로 합성된다. 렌더러는 고칠 것이 없다.
+⚠️ **손그림이라고 거칠게 만들면 안 된다.** `dry-brush` · `scratchy` · `sketchy` 는
+   지저분해지고 배경 제거까지 망가진다. **선이 흔들리되 가장자리는 깨끗한 것**이 목표다.
+   2절 블록에 그 둘을 같이 못박아 뒀다.
 
 ---
 
@@ -44,37 +40,99 @@
 프롬프트 뒤쪽에 고정으로 붙는 부분이다. 그대로 쓴다.
 
 ```
-clean editorial pictogram illustration in black on transparent background,
-two-weight line hierarchy: thick confident outer contour, noticeably thinner interior lines,
-flat solid black fills with one or two flat light grey (#E8E8E8) panels for depth, no other color,
-no shading, no gradient, no texture, no perspective, front-on flat view,
-precise confident linework, geometric clarity, crisp corners, sticker-like,
-the whole illustration reads as ONE connected silhouette, elements overlap and touch,
-deliberate balanced composition, generous even margin, nothing touching the frame edges,
-1:1 square, transparent background, isolated cutout,
-no floating disconnected elements, no icon collage, no scattered props,
+hand-drawn ink illustration in black line on transparent background,
+drawn with a felt-tip marker at an even medium thickness — thicker than a fineliner,
+thinner than a brush pen, every stroke is one confident continuous pass whose edge waves
+and wobbles clearly enough to read as hand-drawn, but the edge stays clean:
+no rough dry-brush texture, no scratchy or broken edges, no blobs,
+line weight stays consistent across the whole drawing,
+FLAT FILLS ONLY with no texture, no hatching, no cross-hatching, no stippling,
+no sketchy fill strokes, no scribbles, no shading, no gradient,
+no cast shadows, no drop shadows, no 3D volume, no perspective, flat front-on view,
+simple clear shapes, the whole illustration reads as ONE connected silhouette,
+elements overlap and touch, generous even margin, nothing touching the frame edges,
+1:1 square, transparent background, isolated cutout with no outline or halo around it,
+not taken from an icon library, no icon-pack look, no white outline around the shape,
+no floating disconnected elements,
 no text, no letters, no numbers, no watermark, no logo, no signature
 ```
 
-### 이전 값과 달라진 곳
+### 1판과 달라진 곳
 
-| | 이전 | 새 값 |
+| | 1판 | 2판 |
 |---|---|---|
-| 화풍 | `bold hand-drawn marker illustration` | `clean editorial pictogram illustration` |
-| 선 | `thick uniform black outlines` (한 종류) | `two-weight line hierarchy` (외곽 굵게 / 내부 얇게) |
-| 마감 | `rounded friendly shapes, slightly retro cartoon feel` | `precise confident linework, geometric clarity, crisp corners` |
-| 배경 | `plain flat off-white background` | `transparent background, isolated cutout` |
-| 통합 | 없음 | `reads as ONE connected silhouette, elements overlap and touch` |
-| 부정 | 없음 | `no floating disconnected elements, no icon collage, no scattered props` |
+| 화풍 | `clean editorial pictogram illustration` | `hand-drawn ink illustration, drawn with a felt-tip marker` |
+| 선 | `two-weight line hierarchy` (외곽 굵게 / 내부 얇게) | **한 굵기**로 통일 + `edge waves and wobbles` |
+| 마감 | `precise confident linework, geometric clarity, crisp corners` | `simple clear shapes` — 정밀함을 뺐다 |
+| 채움 | `flat solid black fills` | `FLAT FILLS ONLY` + 채움 기법 부정 7종 |
+| 아이콘팩 | 없음 | `not taken from an icon library, no icon-pack look` |
+| 후광 | `isolated cutout` | `isolated cutout with no outline or halo around it` |
 
-⚠️ **`uniform` · `even weight` 를 되살리지 말 것.** 투박함의 직접 원인이다.
-
-⚠️ **손그림(`hand-drawn marker`) 쪽이 레퍼런스에 더 가깝지만 채택하지 않았다.** 비교해 본 결과
-   선이 뭉툭해지는 쪽으로 작용했다. 되돌리려면 위 표의 1·3행 두 줄만 이전 값으로 바꾸면 된다.
+⚠️ **`uniform` · `even weight` · `crisp` · `precise` 를 되살리지 말 것.** 아이콘팩으로 돌아간다.
+⚠️ **`no hatching` 이하 부정 7종을 빼지 말 것.** 손그림을 지시하는 순간 모델이
+   빗금·점묘로 채우려 든다. 실제로 모래를 점묘로 그려서 걸렸다.
 
 ---
 
-## 3. SUBJECT 작성 규칙 — 여기가 핵심
+## 3. FILL 규칙 — 2판에서 새로 생긴 칸
+
+**무엇을 흰색으로 비우고 무엇을 회색으로 채울지 반드시 지정한다.** 안 적으면 전부 같은 무게로
+그려져서 주연이 안 보인다.
+
+```
+FILL: <주연> is left WHITE and empty inside so it stands out;
+      <조연> is filled with one flat mid-grey (#DCDCDC) so it sits back;
+      solid black only for the outlines and <작은 디테일>.
+      no stars, no sparkles, no rays.
+```
+
+| 자리 | 무엇이 오나 |
+|---|---|
+| **WHITE (비움)** | 주제의 **주장을 지고 있는 것**. 트로피 · 봉투 · 인증 배지 |
+| **flat mid-grey #DCDCDC** | 무대 역할. 건물 · 가게 정면 · 모래 · 시계 몸통 |
+| **solid black** | 외곽선 + 아주 작은 디테일(창문 · 눈금 · 문) 뿐 |
+
+⚠️ **주연을 회색으로 채우지 말 것.** 흰 것이 눈에 먼저 들어온다 — 그 자리에 주장이 와야 한다.
+⚠️ `no stars, no sparkles, no rays` 는 FILL 절에 같이 둔다. 강조를 지시하면 모델이
+   별표 버스트로 때우려 하고, 그건 주 사물에 닿지 않아 실루엣을 가른다.
+
+---
+
+## 4. 프롬프트 구조 — 6단
+
+**순서를 지킨다.** 요청자가 확인한 트로피 프롬프트가 이 형태다.
+
+```
+1. a single centered illustration that expresses this idea: "<주제 문장>".
+2. the sentence is a QUESTION / STATEMENT — <문장이 무엇을 하고 있는지 한 줄>.
+3. use only symbols any reader understands without insider knowledge: <A>는 <a>, <B>는 <b>.
+4. SUBJECT: <주연>, <조연>, <둘의 관계를 동사로>.
+5. <이 주제에서 틀리게 그려질 수 있는 것을 부정문으로>.
+6. FILL: ... / <2절 스타일 블록>
+```
+
+### 2단 — 문장 성격을 반드시 적는다
+
+의문문인지 서술문인지에 따라 그림이 달라진다.
+
+```
+QUESTION  → the winner is not decided yet   (아직 안 정해졌다는 상태를 그려야 한다)
+STATEMENT → it is already in place and keeps working  (이미 그렇다는 상태)
+```
+
+### 3단 — 상식 기호로만 그린다
+
+업계 사람만 아는 기호를 쓰면 안 읽힌다. **회사 = 건물, 상 = 트로피, 접수 = 봉투,
+인증 = 둥근 배지, 시간 = 시계.** 이 대응을 프롬프트에 직접 적어 준다.
+
+### 5단 — 부정문은 이 주제에서 실제로 나올 오답만 적는다
+
+일반 금지(글자·그림자 등)는 2절 블록에 이미 있다. 5단에는 **이 주제에서 뒤집히기 쉬운 것**만
+적는다 — 「모래를 멈추지 마라」 처럼.
+
+---
+
+## 5. SUBJECT 작성 규칙
 
 품질은 스타일 블록이 아니라 **무엇을 그리라고 적느냐**에서 갈린다.
 
@@ -82,9 +140,6 @@ no text, no letters, no numbers, no watermark, no logo, no signature
 만드는 규칙이다. ①을 어기면 아무리 잘 그려져도 못 쓴다.
 
 ### ① 주제의 명사가 아니라 주장을 그린다
-
-주제 문장에서 **무엇을 말하고 있는지(동사)** 를 그린다. 문장에 등장하는 사물(명사)을 그리면
-보기엔 관련 있어 보여도 주제와 아무 상관 없는 그림이 된다.
 
 ```
 주제: 상은 쓰기 시작하는 순간부터 일합니다
@@ -94,23 +149,15 @@ no text, no letters, no numbers, no watermark, no logo, no signature
 ```
 
 검증은 질문 하나로 한다. **그림만 보고 주제의 주장을 되말할 수 있나?**
-못 하면 명사만 그린 것이다.
 
-⚠️ **주장을 뒤집지 말 것.** 실제로 걸렸다 — "상은 쓰면 일한다" 에 거미줄 낀 트로피를 그려서
-   *안 쓰면 방치된다* 는 정반대 그림이 나왔다. 주장의 반대편은 부정문이지 그 주제가 아니다.
-
-⚠️ **낱말의 다른 뜻으로 옮기지 말 것.** 이것도 실제로 걸렸다 — "상을 **쓴다**"(활용한다)를
-   "펜을 **쓴다**"(필기한다)로 옮겨 트로피에 펜을 꽂았다. 그림은 주장을 그린 것처럼 보이지만
-   뜻이 다른 낱말을 그린 것이다. **주제 문장이 어느 뜻으로 쓴 낱말인지 먼저 정하고 그린다.**
-
-⚠️ **상품을 하찮게 만드는 그림은 주장을 맞혀도 실패다.** 위의 펜꽂이는 트로피를 용도 외로
-   굴리는 그림이라, 인증 자산을 파는 글에 붙으면 그 자산의 값을 깎는다.
-   되물을 것 하나 — **이 그림이 상품을 사고 싶게 만드는가, 우습게 만드는가.**
+⚠️ **주장을 뒤집지 말 것.** "상은 쓰면 일한다" 에 거미줄 낀 트로피를 그려서 *안 쓰면 방치된다* 는
+   정반대 그림이 나왔다. 주장의 반대편은 부정문이지 그 주제가 아니다.
+⚠️ **낱말의 다른 뜻으로 옮기지 말 것.** "상을 **쓴다**"(활용)를 "펜을 **쓴다**"(필기)로 옮겨
+   트로피에 펜을 꽂았다. **주제 문장이 어느 뜻으로 쓴 낱말인지 먼저 정하고 그린다.**
+⚠️ **상품을 하찮게 만드는 그림은 주장을 맞혀도 실패다.** 되물을 것 하나 —
+   **이 그림이 상품을 사고 싶게 만드는가, 우습게 만드는가.**
 
 ### ② 사물을 나열하지 않는다
-
-요소를 `A + B + C` 로 적으면 모델이 각각 그려서 나란히 놓는다. 그게 "그냥 합쳐놓은 느낌"의
-직접 원인이다.
 
 ```
 ✗ a clipboard holding a checklist, a certification stamp on top of it, a sparkle burst at the upper left
@@ -119,40 +166,67 @@ no text, no letters, no numbers, no watermark, no logo, no signature
 
 ### ③ 주연 하나 + 조연 하나까지, 조연은 주연에 닿아야 한다
 
-떠 있는 요소가 하나라도 있으면 실루엣이 갈라진다. 조연은 주연을 **감거나 · 꽂히거나 · 얹히거나 ·
-눌러야** 한다.
+떠 있는 요소가 하나라도 있으면 실루엣이 갈라진다.
 
 ### ④ 관계를 동사로 쓴다
-
-`A와 B가 있다` 가 아니라 `A가 B를 하고 있다`. 동사가 들어가야 구도가 생긴다.
 
 ```
 ✗ a calendar page and some business cards
 ✓ a business card tucked into the calendar's spiral binding
 ```
 
-### ⑤ 스타일 블록의 금지 항목과 충돌시키지 않는다
+### ⑤ ⭐ 종이를 다른 사물에 감거나 두르지 말 것 — 2판에서 추가
 
-SUBJECT 를 쓴 다음 2절의 금지 줄과 대조한다. ①을 통과한 다음에 보는 것이다.
+**접힌 종이는 실루엣이 약해서, 감는 순간 종이로 안 읽힌다.** 천 · 띠 · 커프스 · 리본으로 보인다.
+실측에서 두 판 연속 걸렸다(7절).
+
+```
+✗ a folded application sheet wrapped around the hourglass waist like a band
+✓ an envelope pushed halfway down into a slot, its flap still visible above
+```
+
+**종이는 모서리와 봉투 덮개가 보이는 채로 어딘가에 반쯤 들어가 있어야** 종이로 남는다.
+
+### ⑥ ⭐ 두 기호를 억지로 붙이지 말고 하나로 합친다 — 2판에서 추가
+
+주제가 개념 둘(시간 + 접수)을 요구할 때, 두 사물을 나란히 놓거나 하나를 다른 하나에
+매다는 방식은 계속 실패했다. **한쪽에 다른 쪽의 기능을 넣어 하나의 사물로 만든다.**
+
+```
+✗ 모래시계 + 신청서를 목에 끼운다      → 시간이 멈춘 그림 (주장이 뒤집힘)
+✗ 모래시계 + 신청서를 목에 두른다      → 흰 커프스로 보임 (종이가 아님)
+✓ 시계 몸통 윗면에 투입구를 내고 봉투를 반쯤 밀어 넣는다   → 「시간 안에 넣는다」가 한 덩어리
+```
+
+⚠️ 이건 ③의 「조연은 주연에 닿아야 한다」보다 한 단계 위다. **닿는 것으로 안 되면 합친다.**
+
+### ⑦ 스타일 블록의 금지 항목과 충돌시키지 않는다
 
 | SUBJECT 에 쓰면 안 되는 것 | 충돌하는 금지 항목 | 대신 |
 |---|---|---|
-| 선반 · 책상 · 바닥 · 벽 | `isolated cutout` | 사물만. 놓인 자리를 그리지 않는다 |
-| 날짜 · 금액 · 화면 속 UI | `no text, no numbers` | 숫자 없이도 읽히는 사물로 바꾼다 |
-| 점선 · 끊어진 선 · 흩어진 조각 | `no floating disconnected elements` | 붙어 있는 형태로 바꾼다 |
-| 리본 로제트 · 술 · 깃털 · 주름 | `two-weight line hierarchy` | 굵은 외곽선 하나로 잡히는 형태로 |
+| 선반 · 책상 · 바닥 · 벽 · 지면선 | `isolated cutout` | 사물만. 놓인 자리를 그리지 않는다 |
+| 날짜 · 금액 · 시계 숫자판 | `no text, no numbers` | 눈금과 바늘만. 숫자는 안 쓴다 |
+| 점선 · 끊어진 선 · 흩어진 조각 · 모래알 | `no floating disconnected elements` · `no stippling` | 덩어리 하나로 |
+| 리본 로제트 · 술 · 깃털 · 주름 | 손그림 한 굵기 선 | 굵은 외곽선 하나로 잡히는 형태로 |
 
-### ⑥ 은유는 한 겹으로
+### ⑧ 은유는 한 겹으로
 
 `계산기 + 동전 + 재생버튼` 처럼 개념이 셋이면 그림이 셋으로 갈라진다. 하나로 줄인다.
 
 ---
 
-## 4. SUBJECT 예시 6개
+## 6. 완성 예시
 
-규칙대로 쓴 실물이다. 새 주제를 쓸 때 이 형태를 따른다.
+### 「포브스 어워즈, 어떤 기업이 받을까?」 — 요청자 확인 통과, **기준선**
 
-**전부 실제로 뽑아서 확인했다.** 1번이 기준선이고, 2~6번은 1번의 형태에 맞춰 다시 쓴 것이다.
+```
+a single centered illustration that expresses this idea: "포브스 어워즈, 어떤 기업이 받을까?". the sentence is a QUESTION — the winner is not decided yet. use only symbols any reader understands without insider knowledge: a company is a building, an award is a trophy. SUBJECT: a row of four simple office buildings standing side by side and touching each other, all the same shape and height, and one award trophy standing on top of the row spanning across their rooflines so it belongs to no single building. FILL: the trophy is left WHITE and empty inside so it stands out; the four buildings are filled with one flat mid-grey (#DCDCDC) so they sit back; solid black only for the outlines and the small windows. no stars, no sparkles, no rays. hand-drawn ink illustration in black line on transparent background, drawn with a felt-tip marker at an even medium thickness — thicker than a fineliner, thinner than a brush pen, every stroke is one confident continuous pass whose edge waves and wobbles clearly enough to read as hand-drawn, but the edge stays clean: no rough dry-brush texture, no scratchy or broken edges, no blobs, line weight stays consistent across the whole drawing, FLAT FILLS ONLY with no texture, no hatching, no cross-hatching, no stippling, no sketchy fill strokes, no scribbles, no shading, no gradient, no cast shadows, no drop shadows, no 3D volume, no perspective, flat front-on view, simple clear shapes, the whole illustration reads as ONE connected silhouette, elements overlap and touch, generous even margin, nothing touching the frame edges, 1:1 square, transparent background, isolated cutout with no outline or halo around it, not taken from an icon library, no icon-pack look, no white outline around the shape, no floating disconnected elements, no text, no letters, no numbers, no watermark, no logo, no signature
+```
+
+**왜 통과했나** — 「아직 안 정해졌다」를 *트로피가 어느 건물에도 속하지 않고 지붕들을 가로질러
+걸쳐 있다*로 그렸다. 명사(기업·상)를 옮긴 것이 아니라 **문장이 하는 일(아직 미정)** 을 그렸다.
+
+### 다른 SUBJECT 문형
 
 ```
 1. 인증마크, 붙이기 전에 확인할 네 가지
@@ -170,127 +244,122 @@ the slices still stacked together
 4. '1위'만 적힌 문구는 근거를 물었을 때 댈 것이 없습니다
 SUBJECT: a thick heavy medal resting on top of one thin sheet of paper,
 the sheet buckling in the middle under its weight
-
-5. 수상 후 2주 안에 할 일
-SUBJECT: a round award mark being peeled off a trophy like a sticker,
-its edge lifting up
-
-6. ○○부문 선정 소식을 전합니다
-SUBJECT: a megaphone,
-a small trophy emerging out of its horn
 ```
-
-### 2~6번을 다시 쓴 이유
-
-처음 쓴 것들이 이미지로는 못 쓸 수준이었다. 전부 **3절 ①** 을 어긴 것이다 — 주제의 명사만 옮기고 주장을 안 그렸다.
-
-| | 주제의 주장 | 처음 그린 것 | 무엇이 어긋났나 |
-|---|---|---|---|
-| 2 | 상을 **활용하면** 일한다 | ① 선반 위 트로피 + 거미줄 ② 트로피 펜꽂이 | ①은 주장의 **정반대**(방치)를 그렸고, ②는 「쓴다」를 **딴 뜻**으로 옮겨 상까지 하찮게 만들었다 |
-| 3 | 나눠 봐야 **판단**된다 | 계산기 + 동전 + 재생 버튼 | 주제에 나온 명사만 늘어놨다. 나눈다는 주장이 없다 |
-| 4 | 주장에 **근거가 없다** | 1위 말풍선 + 점선 꼬리 | 주장만 그리고 근거가 없다는 대목을 안 그렸다 |
-| 5 | 2주 안에 **옮겨 붙여라** | 날짜에 동그라미 친 달력 | 일정만 그렸다. 옮긴다는 행위가 없다 |
-| 6 | 수상을 **알린다** | 리본 로제트를 두른 트로피 | 받았다까지만 그렸다. 알린다가 없다 |
-
-1번만 통과한 이유는 형태가 예뻐서가 아니다. **주제가 「확인할 네 가지」고 그림이 「도장이
-체크리스트를 누른다」 — 주장과 그림이 같은 행위를 가리켰다.** 나머지 다섯은 주제 문장에서
-명사만 뽑아 옮겼고, 그래서 보기엔 관련 있어 보여도 주제와 상관없는 그림이 나왔다.
-
-⚠️ **SUBJECT 를 새로 쓸 때마다 3절 ①의 질문부터 할 것** — 그림만 보고 주제의 주장을 되말할
-   수 있나. 그다음에 ⑤ 표와 대조한다. 순서가 바뀌면 예쁘고 상관없는 그림이 나온다.
 
 ---
 
-## 5. 참고 구현
+## 7. ⚠️ 실패 기록 — 「접수 마감까지 2주 남았습니다」 3연속
+
+**같은 주제를 세 판 실패했다.** 셋 다 그림체는 맞았고 **뜻이 틀렸다.**
+새 주제를 쓸 때 이 표를 먼저 본다.
+
+| 판 | 그린 것 | 무엇이 틀렸나 |
+|---|---|---|
+| 1 | 신청서를 모래시계 목에 **끼움** | 목이 막혀 **모래가 멈췄다.** 「마감이 다가온다」의 정반대 — 시간이 멈춘 그림이 됐다 (5절 ①) |
+| 2 | 신청서를 모래시계 목에 **두름** | 종이가 **흰 커프스**로 보였다. 접힌 종이는 감으면 종이로 안 읽힌다 (5절 ⑤) |
+| 3 | 시계 윗면 투입구에 봉투를 반쯤 넣음 | — 이 형태로 정리됨 (5절 ⑥) |
+
+### 여기서 나온 규칙 세 개
+
+**① 흐름·진행을 뜻하는 기호는 멈추면 주장이 뒤집힌다.**
+모래시계 · 계단 · 화살표 · 물줄기가 그렇다. 조연을 붙일 때 **흐름을 막는 자리에 놓지 않는다.**
+막을 수밖에 없는 구조라면 그 기호 자체를 버린다.
+
+**② 접힌 종이는 감지 말고 반쯤 넣는다.** (5절 ⑤)
+
+**③ 개념 둘은 붙이지 말고 합친다.** (5절 ⑥)
+
+⚠️ 세 판 모두 **2절 스타일 블록은 완벽하게 작동했다.** 그림체가 잘 나온다고 통과시키면 안 된다.
+   10절 검증 순서를 반드시 1번부터 본다.
+
+---
+
+## 8. 참고 구현
 
 `noteIconPrompt()` 를 아래 형태로 바꾼다. 인자와 반환값은 그대로다 — 호출부는 손대지 않는다.
 
 ```js
-function noteIconPrompt(card, title, subject) {
-  const idea = subject || title || card.shot;
-  return [
-    `a single centered pictogram that expresses this idea: "${idea}"`,
-    subject ? `the pictogram must visually communicate the meaning of this Korean editorial caption: "${subject}"` : '',
-    card.shot ? `visual motif to draw from: ${card.shot}` : '',
+const NOTE_STYLE = [
+  'hand-drawn ink illustration in black line on transparent background',
+  'drawn with a felt-tip marker at an even medium thickness — thicker than a fineliner, thinner than a brush pen, every stroke is one confident continuous pass whose edge waves and wobbles clearly enough to read as hand-drawn, but the edge stays clean: no rough dry-brush texture, no scratchy or broken edges, no blobs, line weight stays consistent across the whole drawing',
+  'FLAT FILLS ONLY with no texture, no hatching, no cross-hatching, no stippling, no sketchy fill strokes, no scribbles, no shading, no gradient, no cast shadows, no drop shadows, no 3D volume, no perspective, flat front-on view',
+  'simple clear shapes, the whole illustration reads as ONE connected silhouette, elements overlap and touch',
+  'generous even margin, nothing touching the frame edges',
+  '1:1 square, transparent background, isolated cutout with no outline or halo around it',
+  'not taken from an icon library, no icon-pack look, no white outline around the shape',
+  'no floating disconnected elements',
+  'no text, no letters, no numbers, no watermark, no logo, no signature',
+].join(', ');
 
-    // ⚠️ 아래 첫 줄이 「주제와 상관없는 그림」을 막는다. 이 줄이 제일 중요하다. 빼지 말 것.
+function noteIconPrompt(card, title, subject) {
+  const idea = subject || title || card.icon || card.shot;
+  return [
+    `a single centered illustration that expresses this idea: "${idea}"`,
+
+    // ⚠️ 아래 세 줄이 「주제와 상관없는 그림」을 막는다. 이 줄들이 제일 중요하다. 빼지 말 것.
     'draw what the sentence CLAIMS, not the objects it mentions. the picture must let a viewer restate the claim. never draw the opposite of the claim',
+    'if the sentence is a question, show that the answer is not decided yet; if it is a statement, show it as already true',
+    'use only symbols any reader understands without insider knowledge: a company is a building, an award is a trophy, an application is an envelope, a certification is a round badge, time is a clock',
+
     'if a Korean word in the sentence has more than one meaning, use the meaning the sentence intends. never picture a different sense of the word',
     'never depict the award, certificate or product being used casually, as a joke, or for an unintended purpose. it must look valuable',
-    // ⚠️ 아래 두 줄이 「나열된 아이콘」을 막는다. 빼지 말 것.
+
+    // ⚠️ 아래 세 줄이 「나열된 아이콘」과 「알아볼 수 없는 조연」을 막는다. 빼지 말 것.
     'draw ONE main object with at most one secondary element, and the secondary element must physically touch, overlap, wrap or rest on the main object',
     'describe them as a single action, never as a list of separate props',
+    'never wrap or band a sheet of paper around another object — paper must keep its corners visible, half inserted into a slot or opening',
 
-    'clean editorial pictogram illustration in black on transparent background',
-    'two-weight line hierarchy: thick confident outer contour, noticeably thinner interior lines',
-    'flat solid black fills with one or two flat light grey (#E8E8E8) panels for depth, no other color',
-    'no shading, no gradient, no texture, no perspective, front-on flat view',
-    'precise confident linework, geometric clarity, crisp corners, sticker-like',
-    'the whole illustration reads as ONE connected silhouette, elements overlap and touch',
-    'deliberate balanced composition, generous even margin, nothing touching the frame edges',
-    '1:1 square, transparent background, isolated cutout',
-    'no floating disconnected elements, no icon collage, no scattered props',
-    'no text, no letters, no numbers, no watermark, no logo, no signature',
+    // ⚠️ 흐름 기호를 막으면 주장이 뒤집힌다 (7절 ①)
+    'if the drawing contains anything that flows or progresses, it must be shown still flowing, never blocked or stopped',
+
+    card.icon || card.shot ? `visual motif to draw from: ${card.icon || card.shot}` : '',
+
+    'FILL: the object that carries the claim is left WHITE and empty inside so it stands out; the supporting object is filled with one flat mid-grey (#DCDCDC) so it sits back; solid black only for the outlines and the smallest details. no stars, no sparkles, no rays',
+
+    NOTE_STYLE,
   ].filter(Boolean).join('. ');
 }
 ```
 
 ---
 
-## 6. 투명 배경을 못 만드는 모델일 때
+## 9. 하지 말 것
 
-`transparent background` 를 알아듣는 모델(gpt-image 계열)이면 위 그대로 나온다.
-못 알아듣는 모델이면 **마지막 배경 두 줄만** 아래로 바꾸고 배경 제거를 한 번 더 태운다.
-
-```
-pure white #FFFFFF background, no shadow, no reflection, no ground plane
-```
-
-⚠️ **그림자와 바닥면을 막는 게 핵심이다.** 흑백 픽토그램은 그림자만 없으면 흰 배경이 깨끗하게
-   떨어진다. 그림자가 남으면 제거 후 테두리에 회색 얼룩이 붙는다.
-
----
-
-## 7. 하지 말 것
-
-- **이미지 안에 한글을 넣지 않는다.** 레퍼런스의 말풍선 문구("너 기빨려" 등)는 디자인에서
-  얹은 것이다. 이미지 모델은 한글을 거의 못 그리고, 시도하면 글자 모양 얼룩이 생겨 배경 제거까지
-  지저분해진다. 말풍선은 **빈 채로** 뽑고 텍스트는 카드 레이어에서 얹는다.
-- **별표 버스트를 프롬프트에 넣지 않는다.** 레퍼런스의 시그니처지만 주 사물에 닿지 않는 요소라,
-  넣는 순간 실루엣이 갈라진다. 쓰려면 이미지가 아니라 **카드 레이어에서** 얹는다.
-- **컨셉을 가리지 않고 적용하지 않는다.** 이 프롬프트는 노트형 전용이다. 카드형(B)은 실사
-  사진(`bright natural documentary photograph`)이고 결이 완전히 다르다.
+- **이미지 안에 한글을 넣지 않는다.** 레퍼런스의 말풍선 문구는 디자인에서 얹은 것이다.
+  말풍선은 **빈 채로** 뽑고 텍스트는 카드 레이어에서 얹는다.
+- **별표 버스트를 프롬프트에 넣지 않는다.** 주 사물에 닿지 않아 실루엣이 갈라진다.
+  쓰려면 이미지가 아니라 **카드 레이어에서** 얹는다.
+- **컨셉을 가리지 않고 적용하지 않는다.** 이 프롬프트는 노트형 전용이다.
+- **`precise` · `crisp` · `geometric` 을 되살리지 않는다.** 아이콘팩으로 돌아간다 (1절).
+- **점묘·빗금으로 채우지 않는다.** 모래를 점으로 그려서 걸렸다 (2절).
+- **종이를 감지 않는다.** (5절 ⑤ · 7절)
+- **흐름을 막지 않는다.** (7절 ①)
 
 ---
 
-## 8. 검증
+## 10. 검증
 
 **순서가 있다. 1번부터 본다.**
 
 **1 — 주제 적합도.** 주제 문장을 가리고 그림만 남긴 뒤, 그림만 보고 주제의 주장을 되말할 수
-있는지 본다. 못 하면 나머지는 볼 것도 없이 실패다. SUBJECT 가 명사를 그렸는지 확인한다.
+있는지 본다. 못 하면 나머지는 볼 것도 없이 실패다.
 
-**2 — 실루엣.** 눈을 가늘게 뜨고 본다. 덩어리 **하나**로 읽히면 통과, 두세 덩어리로 갈라져
-보이면 SUBJECT 가 나열식으로 쓰인 것이다.
+**2 — 주장이 뒤집히지 않았나.** 흐름이 멈춰 있거나, 방치·중단으로 보이지 않는지 본다 (7절 ①).
 
-⚠️ **2를 먼저 보지 말 것.** 잘 그려졌는지부터 보면 주제와 상관없는 예쁜 그림을 통과시킨다.
-   실제로 그렇게 다섯 개를 통과시켰다.
+**3 — 조연이 무엇인지 알아볼 수 있나.** 종이가 천으로, 배지가 동전으로 보이면 실패다 (5절 ⑤).
 
-**기준선은 1번(도장이 종이를 눌러 모서리가 휨)이다.** 실제로 뽑아서 통과한 유일한 첫 판이고,
-2~6번은 이 형태에 맞춰 다시 쓴 것이다. 새 주제의 결과가 1번보다 못하면 SUBJECT 를 의심한다.
+**4 — 실루엣.** 눈을 가늘게 뜨고 본다. 덩어리 **하나**로 읽히면 통과.
 
-1번이 통과한 조건 네 가지 — 새로 쓸 때도 이 넷을 맞춘다.
+**5 — 주연이 흰색인가.** 주장을 진 사물이 회색으로 채워졌으면 FILL 절이 안 먹은 것이다 (3절).
 
-- 사물이 **둘**이고 둘 다 납작하고 단순하다
-- 접촉이 **동작**이다 (누른다 · 꽂힌다 · 감는다 · 쏟아진다)
-- 놓인 자리(바닥·선반·책상)를 그리지 않는다
-- 글자나 숫자가 없어도 뜻이 읽힌다
+⚠️ **2·3·4를 먼저 보지 말 것.** 잘 그려졌는지부터 보면 주제와 상관없는 예쁜 그림을 통과시킨다.
+   실제로 그렇게 다섯 개를 통과시켰고, 2판에서도 같은 실수를 두 번 더 했다 (7절).
 
 ---
 
-## 9. ⚠️ 주제와 그림을 잇는 자리가 아직 없다
+## 11. ⚠️ 주제와 그림을 잇는 자리가 아직 없다
 
-**프롬프트만 갈아끼우면 여기서 다시 막힌다.** 4절 SUBJECT 는 사람이 손으로 쓴 것이고,
+**프롬프트만 갈아끼우면 여기서 다시 막힌다.** 6절 SUBJECT 는 사람이 손으로 쓴 것이고,
 **지금 앱에는 「주제 → 어떤 사물로 그릴까」를 정하는 자리가 없다.**
 
 ### 지금 흐름
@@ -300,14 +369,7 @@ pure white #FFFFFF background, no shadow, no reflection, no ground plane
 2. 그 **사진 장면**이 `noteIconPrompt()` 에서 `visual motif to draw from:` 으로 픽토그램
    프롬프트에 그대로 붙는다.
 
-사진용 장면을 픽토그램 재료로 주고 있다. 카드 본문(`q`·`a`)을 아무리 고쳐도 해결되지 않는다 —
-그림을 정하는 건 본문이 아니라 `shot` 이다.
-
-### 단순히 outline 을 고칠 수도 없다
-
-"노트형이면 사물을 적어라" 로 바꾸려면 아웃라인이 컨셉을 알아야 하는데, **아웃라인 시점에는
-컨셉이 아직 안 정해져 있다.** 컨셉은 `pages/template.js` 에서 고르고 그건 뒤 단계다.
-`buildPrompt(ctx, retryNote)` 에 conceptId 가 아예 안 들어간다.
+사진용 장면을 픽토그램 재료로 주고 있다.
 
 ### 권하는 방식 — `icon` 필드를 하나 더 받는다
 
@@ -315,13 +377,13 @@ pure white #FFFFFF background, no shadow, no reflection, no ground plane
 
 ```
 "shot": "이 항목에 어울리는 사진 장면 (영문)",
-"icon": "이 항목을 픽토그램 하나로 그린다면 무엇을 그릴지 (영문). 납작하고 단순한 사물 둘,
-         조연은 주연에 닿아 있어야 하고, 관계를 동사로 쓴다. 배경·바닥·글자·숫자는 쓰지 않는다"
+"icon": "이 항목을 그림 하나로 그린다면 무엇을 그릴지 (영문). 납작하고 단순한 사물 둘,
+         조연은 주연에 닿아 있어야 하고, 관계를 동사로 쓴다. 종이는 감지 말고 반쯤 넣는다.
+         흐르는 것은 멈추지 않는다. 배경·바닥·글자·숫자는 쓰지 않는다"
 ```
 
 - 컨셉을 몰라도 된다 — 두 벌을 다 만들어 두고 나중에 고른다
 - **API 호출이 안 늘어난다.** 출력 토큰만 조금 는다
-- 노트형 이미지 프롬프트가 지금처럼 규칙 조립으로 남는다 (API 를 한 번도 안 부르는 장점 유지)
 
 손댈 곳은 네 군데다.
 
@@ -330,6 +392,6 @@ pure white #FFFFFF background, no shadow, no reflection, no ground plane
 | `lib/outline.js` 428행 | 3단계 지시문에 `icon` 항목을 더한다 |
 | `lib/outline.js` 559행 | JSON 스키마에 `icon` 을 더한다 |
 | `lib/outline.js` 861행 근처 | 파싱부 `trim` 목록에 `icon` 을 더한다 |
-| `lib/imageprompt.js` | `noteIconPrompt()` 가 `card.shot` 대신 `card.icon` 을 쓰게 한다 |
+| `lib/imageprompt.js` | `noteIconPrompt()` 를 8절 형태로 교체한다 |
 
 ⚠️ `card.icon` 이 비어 있을 때는 `card.shot` 으로 폴백한다. 기존에 저장된 덱에는 `icon` 이 없다.

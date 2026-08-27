@@ -280,3 +280,37 @@ bright natural documentary photograph, clear even daylight, neutral white balanc
 
 ⚠️ 매거진형 문서의 변경이 **먼저** 들어가야 한다. 순서 뒤집기와 `SPACE` 교체가
    일반 경로에 적용된 뒤라야 이 문서의 `style` 교체가 의미를 갖는다.
+
+---
+
+## 10. 2026-08-27 실측 — 밀도 규칙이 구도를 이길 수 있다
+
+3절(밝은 톤에서는 빈 공간이 안 산다)을 **무조건 적용하면 안 된다**는 것이 확인됐다.
+
+주제 「접수 마감까지 2주 남았습니다」(「시간·기한」 구도)에서 3절 ②의 반복 요소를 썼더니,
+서류 트레이가 프레임 밖까지 줄줄이 이어지면서 **「접수가 많다」는 사진**이 나왔다.
+반복은 `MAGAZINE_IMAGE_PROMPT.md` 4절 표에서 **「범위·규모」 구도가 쓰는 장치**다.
+밀도를 채우려다 구도를 갈아치운 것이다.
+
+### 구도별로 채우는 방법이 다르다
+
+| 구도 | 채우는 방법 |
+|---|---|
+| **범위·규모** | 3절 ②의 반복 요소. 같은 것이 프레임 밖까지 이어진다 |
+| **시간·기한 · 선택 · 비교** | 반복 금지. **그 장소가 돌아가는 데 필요한 집기**로 채운다 |
+| **자리·부착 · 비어 있음** | 접점 주변의 집기. 접점 자체는 하나로 유지한다 |
+
+「필요한 집기」란 개수가 아니라 **종류**로 채우는 것이다 — 접수함 · 양식 더미 · 펜 · 도장.
+같은 것을 여러 개 두는 것과 다른 것을 여러 종류 두는 것은 사진에서 전혀 다른 말을 한다.
+
+### 통과한 장면 — 「접수 마감까지 2주 남았습니다」 (표지)
+
+⚠️ 이 기하(뚜껑에 난 구멍 + 반쯤 들어간 봉투 + 바로 옆에 닿은 시계)는 **매거진형에도 그대로
+   옮겨서 통과했다.** 한쪽이 통과하면 다른 쪽은 재질·조명만 바꿔 베낀다.
+
+```
+bright natural documentary photograph, clear even daylight, neutral white balance, true-to-life colors, high detail, sharp focus, open shadows with clean highlights, no text, no letters, no words, no typography, no watermark, no logo, no signature. shot in South Korea, no people in frame. keep the lower third of the frame free of clutter and important detail so text can be placed there. avoid generic stock-photo scenes: no person posing thoughtfully, no meeting room, no laptop on a desk unless the scene specifically calls for it. vertical 4:5 portrait composition. a dark walnut submissions box with a wide slot cut in its lid standing on a pale reception counter, one sealed cream envelope pushed halfway into the slot and still standing upright out of it, a charcoal desk clock standing right beside the box close enough to touch it, a short stack of blank entry forms and a pen lying next to them, a plain white wall behind, soft even daylight from a window to the left, the pale counter in front left clear and empty, shot close at counter level with even focus. THE SUBJECT IS WHAT MATTERS MOST: the photo must show what this Korean sentence is about: "접수 마감까지 2주 남았습니다". Show the concrete object or action it refers to. If the style above pulls toward a generic mood, the subject wins.
+```
+
+밀도가 **집기 네 종류**(접수함 · 시계 · 양식 더미 · 펜)로 찼고, 반복은 하나도 없다.
+대비는 흰 벽 앞의 dark walnut · charcoal 이 잡았다 (3-3절).
