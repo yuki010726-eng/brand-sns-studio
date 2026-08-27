@@ -137,7 +137,7 @@ no text, no letters, no words, no typography, no watermark, no logo, no signatur
 
 `card.shot` 은 네 조각으로 쓴다. **사진의 품질은 전부 이 칸에서 나온다.** 고정 블록은 톤만 잡는다.
 
-### ① 사물 — 주제가 벌어지는 자리의 물건들
+### ① 사물과 장소 — 주제가 벌어지는 자리
 
 주제에 나오는 명사가 아니라 **그 일이 일어난 흔적**을 담는다. 사물 하나만 미니멀하게 두면
 「정리·보관」으로 읽힌다.
@@ -148,6 +148,27 @@ no text, no letters, no words, no typography, no watermark, no logo, no signatur
 ✓ a stack of clipped document folders, a rubber stamp and a metal award trophy blurred behind
      응모·심사·시상이 한 화면에
 ```
+
+#### 장소를 함께 적는다
+
+**집기만 적고 장소를 비워 두면 모델이 스스로 정한다.** 그리고 가장 흔한 답으로 간다 —
+선반·테이블·수납장은 **집**으로, 사람이 앉는 실내는 **사무실**로.
+
+실제로 걸렸다(카드형) — `a pale wooden display shelf divided into several compartments` 로
+「부문」을 그리려 했더니 화장품·인형·운동화가 놓인 **가정집 수납장**이 나왔다.
+
+**장소와, 그 공간에만 있는 집기를 같이 적는다.**
+
+```
+✗ a display shelf divided into several compartments
+✓ a row of display plinths inside a bright gallery, a low rope barrier along the front
+```
+
+⚠️ **그 공간에만 있는 집기 하나가 가장 세다.** 관람 동선(로프 배리어) · 전시 받침대 ·
+   접수 데스크는 집에 없으므로, 그 하나로 장소가 갈린다.
+
+⚠️ 이건 `avoid generic stock-photo scenes` 절과 짝이다 — 그쪽은 기본값을 막고,
+   이쪽은 **대신 갈 곳을 준다.** 막기만 하면 모델이 다른 기본값으로 옮겨갈 뿐이다.
 
 ### ② 상태 — 무슨 일이 일어나는 중인지
 
@@ -224,6 +245,7 @@ realistic editorial photograph, neutral white balance, no overall warm or amber 
 | 시상식 주제에 `no chandeliers, no spotlights` | 연출 조명까지 막혀 **회의실**이 된다 |
 | 화면·모니터에 단색 지시 (`glowing pale blue`) | **신호 없음 화면**이 되어 미완성으로 보인다 |
 | 구도 재탕 | 그림은 예쁜데 **주제와 딴말**을 한다 |
+| 집기만 적고 장소 생략 | 모델이 가장 흔한 기본값으로 채운다 — **집** 또는 **사무실**. 5절 ① 참고 |
 
 ⚠️ 화면이 나오는 주제는 **화면 내용을 안 그려도 되는 장면으로 우회**하는 게 안전하다 —
    창밖으로 새는 빛, 모니터 뒷면, 꺼진 화면에 비친 반사.

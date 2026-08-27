@@ -103,6 +103,60 @@ a folded programme already placed on every seat
 
 ---
 
+## 3-2. 일상 집기는 장소를 안 적으면 집으로 간다
+
+선반 · 테이블 · 수납장처럼 **집에도 있는 집기**를 쓸 때, 장소를 안 적으면 모델이 스스로 정한다.
+그리고 가장 흔한 답이 **집**이다.
+
+실제로 걸렸다 — `a pale wooden display shelf divided into several compartments` 로 「부문」을
+그리려 했더니 화장품·커피머신·인형·기저귀·운동화가 놓인 **가정집 수납장**이 나왔다.
+`different kind of product` 도 모델은 가장 흔한 해석인 **생활잡화**로 받는다.
+
+**장소와 그 공간에만 있는 집기를 함께 적어 성격을 못박는다.**
+
+| 집으로 가는 말 | 대신 |
+|---|---|
+| `display shelf` · `pale wooden` | `display plinths` · `charcoal grey` |
+| (장소 없음) | `inside a bright gallery` · `in an exhibition hall` |
+| (동선 없음) | `a low rope barrier` · `polished concrete floor` |
+
+⚠️ **공간에만 있는 집기 하나가 가장 세다.** 관람 동선(로프 배리어)이나 전시 받침대는
+   집에 없으므로, 그 하나로 「내 집 선반」과 「전시장」이 갈린다.
+
+> 이 규칙은 매거진형에도 해당한다 — `MAGAZINE_IMAGE_PROMPT.md` 5절 ① 참고.
+
+---
+
+## 3-3. 밝은 배경에는 진한 피사체
+
+카드형은 배경이 밝아야 한다. 그런데 **피사체까지 밝으면 형태가 안 잡힌다.**
+
+2판에서 걸렸다 — `white display plinths` 를 `bright exhibition hall` 에 두었더니
+밝은 것 위에 밝은 것이라 **뭐가 있는지 안 보였다.** 게다가 `tall windows down the far wall` 이
+역광이라 앞의 물체가 더 죽었다.
+
+**밝은 게 문제가 아니라 대비가 없는 게 문제다.** 카드형은 배경을 밝게 유지해야 하므로
+**피사체를 진하게** 가는 쪽이 맞다.
+
+| | 이렇게 |
+|---|---|
+| 피사체 | `charcoal grey` · `dark walnut` · `deep navy` |
+| 배경 | `a plain white wall behind` · `bright gallery` |
+| 조명 | **측광** (`soft daylight from the left`). 정면 창은 역광이 된다 |
+
+### 멀어 보이면 열을 프레임 밖으로 잇는다
+
+「여럿」을 보여주려고 전체를 다 담으면 카메라가 물러나 요소가 작아진다.
+
+```
+✗ a row of plinths, all of them visible
+✓ the row running out past both edges of the frame, the plinths filling most of the frame
+```
+
+몇 개인지 안 세어도 **여럿인 게 읽히면서** 가까이 갈 수 있다.
+
+---
+
 ## 4. 인물 규칙
 
 행사·매장처럼 **사람이 있어야 성립하는 장면**에서는 사람을 넣는다.
@@ -160,9 +214,17 @@ bright natural documentary photograph, clear even daylight, neutral white balanc
 
 ### 3 · 우리 브랜드는 어느 분야일까요? (본문 · 비어 있음 구도)
 
+⚠️ 3-2 · 3-3 절의 규칙이 둘 다 적용된 장면이다. **두 번 실패하고 세 번째에 나온 것**이다.
+
 ```
-bright natural documentary photograph, clear even daylight, neutral white balance, true-to-life colors, high detail, sharp focus, open shadows with clean highlights, no text, no letters, no words, no typography, no watermark, no logo, no signature. shot in South Korea, no people in frame. keep the composition simple with a calm area in the middle of the frame for a text panel. avoid generic stock-photo scenes: no person posing thoughtfully, no meeting room, no laptop on a desk unless the scene specifically calls for it. vertical 4:5 portrait composition. a pale wooden display shelf divided into several equal compartments, each compartment holding a different kind of product, one compartment near the centre standing completely empty, soft even daylight from a window to the left, shot straight on with even focus. THE SUBJECT IS WHAT MATTERS MOST: the photo must show what this Korean sentence is about: "우리 브랜드는 어느 분야일까요?". Show the concrete object or action it refers to. If the style above pulls toward a generic mood, the subject wins.
+bright natural documentary photograph, clear even daylight, neutral white balance, true-to-life colors, high detail, sharp focus, open shadows with clean highlights, no text, no letters, no words, no typography, no watermark, no logo, no signature. shot in South Korea, no people in frame. keep the composition simple with a calm area in the middle of the frame for a text panel. avoid generic stock-photo scenes: no person posing thoughtfully, no meeting room, no laptop on a desk unless the scene specifically calls for it. vertical 4:5 portrait composition. a close view of a row of charcoal grey display plinths in a bright gallery, the row running out past both edges of the frame, each plinth holding one large product from a different industry, the plinth in the centre standing completely empty, the plinths filling most of the frame, soft daylight from the left, a plain white wall behind, shot at eye level with even focus. THE SUBJECT IS WHAT MATTERS MOST: the photo must show what this Korean sentence is about: "우리 브랜드는 어느 분야일까요?". Show the concrete object or action it refers to. If the style above pulls toward a generic mood, the subject wins.
 ```
+
+| 판 | 무엇이 틀렸나 |
+|---|---|
+| 1판 `pale wooden display shelf` | **가정집 수납장**으로 나왔다. 장소를 안 적어 모델이 집으로 채웠고, `different kind of product` 도 생활잡화로 갔다 (3-2절) |
+| 2판 `white plinths` + `exhibition hall` | 장소는 잡혔는데 **너무 멀고 안 보였다.** 흰 받침대 + 밝은 홀이라 대비가 없고, 정면 창이 역광이었다 (3-3절) |
+| 3판 (위) | 열을 **프레임 밖으로 이어지게** 해서 「여럿」을 유지한 채 가까이 갔다 |
 
 ### 4 · 판단하기 어렵다면 무료 상담 받아보세요. (마무리 · 자리 구도)
 
@@ -183,6 +245,9 @@ bright natural documentary photograph, clear even daylight, neutral white balanc
 | 고정부에 여백 지시 | `SPACE[kind]` 와 **같은 말을 두 번** 한다 |
 | 매거진형 장면을 톤만 바꿔 재사용 | **빈 공간이 안 산다.** 3절 참고 |
 | 매거진형 조명(하드라이트·검은 폴오프) | 카드형의 밝은 정체성과 충돌한다 |
+| 일상 집기에 장소를 안 적음 | **가정집**이 된다. 3-2절 참고 |
+| 밝은 배경에 밝은 피사체 | 형태가 안 잡혀 **뭐가 있는지 안 보인다.** 3-3절 참고 |
+| 정면 창(`windows down the far wall`) | **역광**이라 앞의 물체가 죽는다. 측광으로 |
 | 한 벌에 사람 사진 두 장 이상 | 8-20 이 고친 「전부 사람 사진」 문제로 되돌아간다 |
 
 ---
@@ -199,6 +264,7 @@ bright natural documentary photograph, clear even daylight, neutral white balanc
 
 - **파랗지 않은가.** 렌더러 파랑 그라데이션이 얹히므로 사진은 중립이어야 한다.
   사진까지 파랗게 나오면 `cool blue leaning color grading` 이 어디선가 살아 있다.
+- **피사체가 배경에서 떨어져 보이는가.** 밝은 배경에 밝은 피사체를 두면 형태가 안 잡힌다 (3-3절).
 - **하단이 흰 박스에 가려지지 않는가.** 카드형 본문 장은 하단이 흰 박스로 덮인다.
   중요한 것이 거기 들어가면 `SPACE` 를 카드형용으로 따로 두어야 한다 (지금은 공용).
 
