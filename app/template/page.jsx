@@ -54,6 +54,12 @@ import { CardForm } from "./_components/CardForm.jsx";
 import { StylePanel } from "./_components/StylePanel.jsx";
 import { ImagePanel } from "./_components/ImagePanel.jsx";
 import { SaveActions } from "./_components/SaveActions.jsx";
+import { InstagramPublishDialog } from "./_components/InstagramPublishDialog.jsx";
+import {
+  publishInstagramCarousel,
+  removeInstagramCards,
+  uploadInstagramCards,
+} from "../../lib/instagram.js";
 
 const IMAGE_ROLE = {
   note: "아이콘 이미지",
@@ -103,6 +109,8 @@ export default function TemplatePage() {
   const [bitmaps, setBitmaps] = useState([]);
   const [clippedSlots, setClippedSlots] = useState([]);
   const [savingAll, setSavingAll] = useState(false);
+  const [publishingInstagram, setPublishingInstagram] = useState(false);
+  const [instagramDialog, setInstagramDialog] = useState(null);
   const [libraryBusy, setLibraryBusy] = useState(false);
   const [canSaveLibrary, setCanSaveLibrary] = useState(false);
   const [historyRevision, setHistoryRevision] = useState(0);
@@ -518,6 +526,62 @@ export default function TemplatePage() {
     }
   }
 
+  function canvasBlob(canvas) {
+    return new Promise((resolve, reject) => {
+      canvas.toBlob(
+        (blob) => (blob ? resolve(blob) : reject(new Error("카드 이미지를 만들지 못했습니다."))),
+        "image/png",
+      );
+    });
+  }
+
+  async function handleOpenInstagram() {
+    if (deck.length > 10) {
+      toast("Instagram 캐러셀은 최대 10장까지 게시할 수 있습니다.");
+      return;
+    }
+    try {
+      const s = getState();
+      const blobs = [];
+      const previews = [];
+      for (let index = 0; index < deck.length; index += 1) {
+        const canvas = document.createElement("canvas");
+        renderCard(canvas, s.card.texts[index], buildRenderOpts(s, index));
+        const blob = await canvasBlob(canvas);
+        blobs.push(blob);
+        previews.push(URL.createObjectURL(blob));
+      }
+      setInstagramDialog({ blobs, previews, caption: s.drafts?.instagram || "" });
+    } catch (error) {
+      toast(error.message || "게시 이미지를 준비하지 못했습니다.");
+    }
+  }
+
+  function handleCloseInstagram() {
+    if (publishingInstagram) return;
+    instagramDialog?.previews?.forEach((url) => URL.revokeObjectURL(url));
+    setInstagramDialog(null);
+  }
+
+  async function handlePublishInstagram() {
+    if (!instagramDialog || publishingInstagram) return;
+    setPublishingInstagram(true);
+    let uploaded;
+    try {
+      const s = getState();
+      uploaded = await uploadInstagramCards(instagramDialog.blobs, s.postId);
+      const result = await publishInstagramCarousel(uploaded.urls, instagramDialog.caption);
+      toast(`Instagram 게시가 완료되었습니다. (${result.id})`);
+      instagramDialog.previews.forEach((url) => URL.revokeObjectURL(url));
+      setInstagramDialog(null);
+    } catch (error) {
+      toast(error.message || "Instagram 게시에 실패했습니다.");
+    } finally {
+      if (uploaded?.paths) await removeInstagramCards(uploaded.paths);
+      setPublishingInstagram(false);
+    }
+  }
+
   async function makeThumb(s) {
     try {
       const full = document.createElement("canvas");
@@ -833,6 +897,7 @@ export default function TemplatePage() {
                   onFieldChange={handleFieldChange}
                   onExtraTextChange={handleExtraTextChange}
                   onDeleteExtraText={handleDeleteExtraText}
+                  onSelectExtra={setSelectedObj}
                 />
 
                 {selectedLayoutObj?.type === "text" && (
@@ -877,8 +942,10 @@ export default function TemplatePage() {
                 <SaveActions
                   cardCount={deck.length}
                   savingAll={savingAll}
+                  publishing={publishingInstagram}
                   onSaveOne={handleSaveOne}
                   onSaveAll={handleSaveAll}
+                  onInstagram={handleOpenInstagram}
                 />
               </div>
             </div>
@@ -890,6 +957,15 @@ export default function TemplatePage() {
         className="toast-root"
         role="status"
         aria-live="polite"
+      />
+      <InstagramPublishDialog
+        open={Boolean(instagramDialog)}
+        images={instagramDialog?.previews || []}
+        caption={instagramDialog?.caption || ""}
+        busy={publishingInstagram}
+        onCaptionChange={(caption) => setInstagramDialog((current) => current ? { ...current, caption } : current)}
+        onClose={handleCloseInstagram}
+        onPublish={handlePublishInstagram}
       />
     </main>
   );

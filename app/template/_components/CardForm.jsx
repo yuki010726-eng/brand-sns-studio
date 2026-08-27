@@ -134,6 +134,7 @@ export function CardForm({
   onFieldChange,
   onExtraTextChange,
   onDeleteExtraText,
+  onSelectExtra,
 }) {
   const rich = conceptId === "note" || (conceptId === "card" && roleOf("card", kind) !== "outro");
   const bannedText = ["title", "highlight", "body"].map((k) => text[k] || "").join("\n");
@@ -178,6 +179,8 @@ export function CardForm({
             <div
               key={item.id}
               ref={registerField(`extra-${item.id}`)}
+              data-tpl-extra
+              onPointerDown={() => onSelectExtra?.(`extra-${item.id}`)}
               className={`space-y-2 rounded-[12px] p-3 -m-1 transition-colors ${selectedObj === `extra-${item.id}` ? "bg-[#eef5ff] ring-2 ring-[#287aff]" : ""}`}
             >
               <div className="flex items-center justify-between gap-3">

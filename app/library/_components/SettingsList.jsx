@@ -10,7 +10,7 @@ import { SettingsCard } from "./SettingsCard.jsx";
  */
 const SETTINGS = [
   {
-    path: "/profile",
+    path: "/library/profile",
     iconName: "user",
     label: "프로필",
     desc: "인스타 계정 이름·소개·프로필 이미지 프롬프트를 만듭니다.",

@@ -333,3 +333,22 @@ Vercel에 `OPENAI_API_KEY`를 넣지 않으면 그 엔드포인트는 503만 돌
 - 본문 텍스트 명도 대비 4.5:1 이상 (`--sub-strong` 은 흰 배경 5.43:1 / 회색 배경 4.92:1)
 - `:focus-visible` 3px 아웃라인, 시각적으로 숨긴 radio/checkbox 도 label 에 포커스링 전달
 - 본문 바로가기 링크, `aria-live` 토스트, `prefers-reduced-motion` 대응
+# Instagram 카드뉴스 게시 설정
+
+카드뉴스 템플릿의 `Instagram에 게시` 버튼은 Instagram 앱의 작성 화면을 여는 대신, 앱 안에서 이미지와 캡션을 최종 확인한 뒤 공식 Content Publishing API로 게시합니다. Instagram 웹 작성 화면에 로컬 이미지를 미리 첨부하는 기능은 Meta API에서 제공하지 않습니다.
+
+1. Supabase SQL Editor에서 `supabase/011_create_instagram_publish_bucket.sql`과 `supabase/012_create_insta_users.sql`을 순서대로 실행합니다.
+2. 배포 환경에 아래 서버 환경 변수를 등록합니다. 액세스 토큰은 클라이언트 환경 변수(`NEXT_PUBLIC_*`)로 등록하면 안 됩니다.
+
+```text
+INSTAGRAM_APP_ID=Meta app Instagram app ID
+INSTAGRAM_APP_SECRET=Meta app Instagram app secret
+INSTAGRAM_OAUTH_REDIRECT_URI=https://your-domain.com/api/auth/instagram/callback
+SUPABASE_SERVICE_ROLE_KEY=Supabase service role key
+META_GRAPH_VERSION=vXX.X
+META_GRAPH_BASE_URL=https://graph.instagram.com
+```
+
+Meta 개발자 콘솔의 Instagram 로그인 Redirect URI에도 `INSTAGRAM_OAUTH_REDIRECT_URI`와 완전히 같은 주소를 등록합니다. 사용자별 Instagram 토큰은 서버만 접근 가능한 `insta_users`에 저장되며, `users.status`가 `approved`가 되기 전에는 사이트 본문과 게시 API를 사용할 수 없습니다.
+
+Instagram Login 방식은 `instagram_business_basic`, `instagram_business_content_publish` 권한이 필요합니다. Facebook Login 기반 기존 Instagram Graph API 앱이라면 `META_GRAPH_BASE_URL=https://graph.facebook.com`을 사용하고 해당 방식의 게시 권한과 연결된 Facebook Page 설정을 유지합니다. 개발 모드에서는 앱 역할에 추가된 Instagram 계정만 테스트할 수 있으며, 외부 계정 게시 전에는 앱 검수가 필요합니다.

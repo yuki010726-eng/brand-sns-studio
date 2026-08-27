@@ -49,6 +49,11 @@ export default function LoginPage() {
     };
   }, [router]);
 
+  useEffect(() => {
+    const error = new URLSearchParams(window.location.search).get("instagram_error");
+    if (error) toast(`Instagram 로그인에 실패했습니다: ${error}`, 6000);
+  }, []);
+
   async function handleLogin(event) {
     event.preventDefault();
     const values = new FormData(event.currentTarget);
@@ -212,6 +217,15 @@ export default function LoginPage() {
                 </button>
               </form>
             ) : (
+              <div>
+              <button
+                type="button"
+                onClick={() => { window.location.href = "/api/auth/instagram/start"; }}
+                className="mt-7 flex h-[51px] w-full items-center justify-center gap-2 rounded-full border-0 bg-gradient-to-r from-[#833ab4] via-[#e1306c] to-[#f77737] px-5 text-[17px] font-bold text-white transition hover:brightness-110"
+              >
+                Instagram으로 회원가입
+              </button>
+              <div className="my-5 flex items-center gap-3 text-[12px] text-white/50 before:h-px before:flex-1 before:bg-white/20 after:h-px after:flex-1 after:bg-white/20">또는</div>
               <form className="flex flex-col text-left" onSubmit={handleSignup}>
                 <LoginField
                   label="아이디"
@@ -249,6 +263,7 @@ export default function LoginPage() {
                   있습니다.
                 </p>
               </form>
+              </div>
             )}
             {!configured && (
               <p

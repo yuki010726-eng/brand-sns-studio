@@ -81,12 +81,15 @@ export function CanvasPreview({
 
   // 편집 영역 밖을 누르면 점선을 숨긴다 (요청자 지적 2026-08-14 "파란 점점점이 시야에 방해").
   // 캔버스와 숫자 입력 패널(#tpl-layout-slot 대응)은 편집 영역이라 여기서 뺀다.
+  // ⚠️ 추가 텍스트 상자의 입력칸(`data-tpl-extra`, CardForm.jsx)도 편집 영역이다 — 빠지면
+  //    본문을 고치려고 그 칸을 누르는 순간 선택이 풀려 LayoutPanel(글자 크기·굵기)이 사라진다.
   useEffect(() => {
     function onDocDown(e) {
       const inEditor = Boolean(
         e.target.closest?.("[data-tpl-handle]") ||
           e.target.closest?.("[data-canvas-wrap]") ||
-          e.target.closest?.("[data-layout-panel]"),
+          e.target.closest?.("[data-layout-panel]") ||
+          e.target.closest?.("[data-tpl-extra]"),
       );
       if (inEditor) {
         setIdle(false);
