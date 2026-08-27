@@ -116,11 +116,9 @@ function ToneSelect({ value, onChange }) {
 export function TopicSection({
   product,
   presets,
-  topicsLoading,
   state,
   topicRef,
   onUpdate,
-  onShuffle,
   onToggleChannel,
   onClear,
   onSubmit,
@@ -158,18 +156,6 @@ export function TopicSection({
                   추천 주제
                 </p>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    className="inline-flex size-[36px] items-center justify-center rounded-full border border-[#e5e8eb] hover:border-[#d5dae0] disabled:cursor-wait disabled:opacity-50"
-                    aria-label="추천 주제 다시 보기"
-                    onClick={onShuffle}
-                    disabled={topicsLoading}
-                  >
-                    <Icon
-                      name="refresh"
-                      className={`size-[18px] stroke-[1.75] ${topicsLoading ? "animate-spin" : ""}`}
-                    />
-                  </button>
                   {presets.map((preset) => {
                     const isSelected = state.topic === preset;
 

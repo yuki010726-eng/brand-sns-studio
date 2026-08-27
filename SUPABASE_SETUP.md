@@ -10,6 +10,8 @@ Supabase **SQL Editor**에서 다음 파일을 순서대로 실행합니다.
 2. `supabase/004_move_all_products_to_supabase.sql`
 3. `supabase/005_create_copy_selections.sql`
 4. `supabase/006_create_user_copy_preferences.sql`
+5. `supabase/009_create_copy_chat_memory.sql`
+6. `supabase/010_create_openai_usage_logs.sql`
 
 이미 `003`과 `004`를 실행했다면 새 기능을 위해 `005`, `006`만 추가로 실행하면 됩니다. `004`는 `prompt_settings` 열을 추가하고 기존
 4개 상품과 생성 자료를 한 번에 저장합니다. 이후 상품/근거 수정은 Supabase Table Editor에서

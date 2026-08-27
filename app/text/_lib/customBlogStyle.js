@@ -1,5 +1,5 @@
-import { accessToken } from './auth.js';
-import { generateText } from './llm.js';
+import { accessToken } from '../../../lib/auth.js';
+import { generateText } from '../../../lib/llm.js';
 
 const ANALYSIS_TOKENS = 1800;
 
@@ -52,6 +52,7 @@ export async function analyzeCustomBlogStyle(url, options = {}) {
   const article = await collect(value, options.signal);
   const guide = await generateText(analysisPrompt(article), {
     maxOutputTokens: ANALYSIS_TOKENS,
+    usageType: 'style_analysis',
     signal: options.signal,
   });
   if (!guide.trim()) throw new Error('블로그 글 스타일을 분석하지 못했습니다.');

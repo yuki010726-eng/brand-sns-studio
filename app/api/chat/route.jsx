@@ -19,6 +19,7 @@
  * (2026-08-26)로 추가했다. 사실·형식은 손대지 않고 요청한 것만 고친다 — 아래 시스템 프롬프트 참고.
  */
 import { SUPABASE } from '../../../lib/supabase.js';
+import { recordOpenAIUsage } from '../../../lib/openaiusage.js';
 
 const OPENAI_URL = 'https://api.openai.com/v1/responses';
 const MODEL = 'gpt-5.6-terra';
@@ -109,7 +110,20 @@ async function requireApprovedUser(request) {
   if (row?.status !== 'approved') {
     return { ok: false, status: 403, message: '관리자 승인이 완료된 계정만 사용할 수 있습니다.' };
   }
-  return { ok: true, user };
+  return { ok: true, user, token };
+}
+
+async function saveUsage(auth, type, result) {
+  await recordOpenAIUsage({
+    supabaseUrl: process.env.SUPABASE_URL || SUPABASE.url,
+    anonKey: process.env.SUPABASE_ANON_KEY || SUPABASE.anonKey,
+    token: auth.token,
+    userId: auth.user.id,
+    type,
+    model: result.model,
+    responseId: result.responseId,
+    usage: result.usage,
+  });
 }
 
 /** 형태·길이를 검사해 프롬프트 예산과 비용을 서버가 못박는다 — 클라이언트 값을 그대로 믿지 않는다. */
@@ -150,7 +164,8 @@ export async function POST(request) {
 
     try {
       const summary = await callOpenAI({ key, system: SUMMARY_SYSTEM, input, maxOutputTokens: 700 });
-      return Response.json({ summary: summary.trim().slice(0, MAX_SUMMARY_CHARS) });
+      await saveUsage(auth, 'copy_summary', summary);
+      return Response.json({ summary: summary.text.trim().slice(0, MAX_SUMMARY_CHARS) });
     } catch (e) {
       return fail(e.status || 502, e.message || '요약 생성에 실패했습니다.');
     }
@@ -170,7 +185,8 @@ export async function POST(request) {
         input,
         maxOutputTokens: Math.min(6000, draft.length + 1000),
       });
-      return Response.json({ draft: revised.trim() });
+      await saveUsage(auth, 'copy_revision', revised);
+      return Response.json({ draft: revised.text.trim() });
     } catch (e) {
       return fail(e.status || 502, e.message || '원고 반영에 실패했습니다.');
     }
@@ -181,7 +197,8 @@ export async function POST(request) {
 
   try {
     const reply = await callOpenAI({ key, system: CHAT_SYSTEM, input: messages, maxOutputTokens: 600 });
-    return Response.json({ reply: reply.trim() });
+    await saveUsage(auth, 'copy_chat', reply);
+    return Response.json({ reply: reply.text.trim() });
   } catch (e) {
     return fail(e.status || 502, e.message || '대화 생성에 실패했습니다.');
   }
@@ -217,7 +234,12 @@ async function callOpenAI({ key, system, input, maxOutputTokens }) {
     if (data.status === 'incomplete') throw withStatus(502, '출력 상한에 걸려 답이 완성되지 않았습니다.');
     throw withStatus(502, '응답에 내용이 없습니다.');
   }
-  return String(text);
+  return {
+    text: String(text),
+    usage: data.usage,
+    model: data.model || MODEL,
+    responseId: data.id,
+  };
 }
 
 const post = (key, body) => fetch(OPENAI_URL, {

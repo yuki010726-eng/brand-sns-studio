@@ -387,7 +387,10 @@ async function analyze(root) {
   const sourceText = sources.map((item, i) => `[참고 글 ${i + 1}: ${item.title}]\n${item.text.slice(0, 10000)}`).join('\n\n---\n\n');
   const prompt = buildAnalysisPrompt(sourceText);
   try {
-    const styleGuide = await generateText(prompt, { maxOutputTokens: ANALYSIS_TOKENS });
+    const styleGuide = await generateText(prompt, {
+      maxOutputTokens: ANALYSIS_TOKENS,
+      usageType: 'style_analysis',
+    });
     const guide = styleGuide.trim();
     /**
      * ⚠️ **주제에 묶지 않는다** (2026-08-20). 예전에는 `상품|주제` 를 키로 저장해서

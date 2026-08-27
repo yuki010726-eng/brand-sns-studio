@@ -28,7 +28,6 @@ export function ProductSection({ loading, products, selectedId, onSelect }) {
             </p>
           ) : products.length ? (
             <fieldset className="flex min-w-0 flex-1 flex-col gap-1.5 overflow-y-auto border-0 pr-2 [scrollbar-color:#050505_#f2f2f2]">
-              <legend className="sr-only">광고할 상품을 선택하세요</legend>
               {products.map((item) => (
                 <ProductOption
                   key={item.id}

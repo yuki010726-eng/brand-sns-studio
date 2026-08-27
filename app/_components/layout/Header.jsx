@@ -4,12 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import logo from "../../../assets/logos/logo.svg";
-import {
-  getUser,
-  initAuth,
-  onAuth,
-  usernameOf,
-} from "../../../lib/auth.js";
+import { getUser, initAuth, onAuth, usernameOf } from "../../../lib/auth.js";
 import {
   clearLibraryEdit,
   getLibraryEditId,
@@ -29,7 +24,8 @@ function isActive(navPath, currentPath, libraryEditId) {
   if (navPath === "/products-admin") return currentPath === navPath;
   if (currentPath === "/products-admin") return false;
 
-  const isMyPage = MY_PAGE_PATHS.includes(currentPath) || Boolean(libraryEditId);
+  const isMyPage =
+    MY_PAGE_PATHS.includes(currentPath) || Boolean(libraryEditId);
   return navPath === "/library" ? isMyPage : !isMyPage;
 }
 
@@ -40,6 +36,7 @@ export function Header() {
   const [user, setUser] = useState(() => getUser());
   const [isStartingPost, setIsStartingPost] = useState(false);
   const [libraryEditId, setLibraryEditId] = useState(null);
+  const [isScrolled, setIsScrolled] = useState(false);
 
   useEffect(() => {
     setLibraryEditId(getLibraryEditId());
@@ -47,6 +44,14 @@ export function Header() {
     if (!isLoginPage) initAuth();
     return unsubscribe;
   }, [isLoginPage]);
+
+  useEffect(() => {
+    const handleScroll = () => setIsScrolled(window.scrollY > 10);
+
+    handleScroll();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   const navItems =
     user?.role === "admin"
@@ -66,12 +71,16 @@ export function Header() {
       if (getLibraryEditId()) {
         const saved = await saveToLibrary(state);
         if (!saved.ok) {
-          toast(`저장하지 못해 새 게시물로 이동하지 않았습니다. ${saved.error}`, 6000);
+          toast(
+            `저장하지 못해 새 게시물로 이동하지 않았습니다. ${saved.error}`,
+            6000,
+          );
           return;
         }
       }
 
       clearLibraryEdit();
+      setLibraryEditId(null);
       resetFlow();
       router.push("/");
       router.refresh();
@@ -89,8 +98,12 @@ export function Header() {
   if (isLoginPage) return null;
 
   return (
-    <header className="sticky top-0 z-40 bg-[#1a1a1a]">
-      <div className="flex h-[100px] max-w-none items-center gap-6 px-[clamp(20px,3.93vw,76px)] max-[560px]:gap-[10px] [&>*]:max-[560px]:min-w-0">
+    <header className="pointer-events-none sticky top-0 z-40 h-[100px]">
+      <div
+        className={`pointer-events-auto flex max-w-none items-center gap-6 bg-[#1a1a1a] px-[clamp(20px,3.93vw,76px)] transition-[height] duration-200 max-[560px]:gap-[10px] [&>*]:max-[560px]:min-w-0 ${
+          isScrolled ? "h-[60px]" : "h-[100px]"
+        }`}
+      >
         <Link
           href="/"
           onClick={startNewPost}
@@ -100,7 +113,9 @@ export function Header() {
           <img
             src={logo.src}
             alt=""
-            className="block h-5 w-auto"
+            className={`block w-auto transition-[height] duration-200 ${
+              isScrolled ? "h-[15px]" : "h-5"
+            }`}
           />
         </Link>
 
@@ -114,7 +129,11 @@ export function Header() {
                   href={item.path}
                   onClick={item.path === "/" ? startNewPost : undefined}
                   aria-current={active ? "page" : undefined}
-                  className={`whitespace-nowrap rounded-full border px-5 py-[9px] text-[16px] font-bold leading-[22.4px] transition-[background-color,border-color] duration-150 max-[640px]:px-[10px] max-[640px]:py-2 max-[640px]:text-[13px] ${
+                  className={`whitespace-nowrap rounded-full border font-bold leading-[22.4px] transition-[background-color,border-color,font-size] duration-200 max-[640px]:px-[10px] max-[640px]:py-2 max-[640px]:text-[13px] ${
+                    isScrolled
+                      ? "text-[11px] px-4 py-[5px]"
+                      : "px-5 py-[9px] text-[16px]"
+                  } ${
                     active
                       ? "border-transparent bg-[#f2f4f6] text-[#191f28] hover:bg-[#e8ebed]"
                       : "border-white/90 bg-transparent text-white hover:bg-white/10"
@@ -146,7 +165,9 @@ export function Header() {
                 )}
                 <span
                   title={usernameOf(user.email)}
-                  className="max-w-[120px] overflow-hidden text-ellipsis whitespace-nowrap text-[16px] font-normal leading-[21px] text-white max-[560px]:hidden"
+                  className={`max-w-[120px] overflow-hidden text-ellipsis whitespace-nowrap font-normal leading-[21px] text-white transition-[font-size] duration-200 max-[560px]:hidden ${
+                    isScrolled ? "text-[11px]" : "text-[16px]"
+                  }`}
                 >
                   {user.name}
                 </span>
