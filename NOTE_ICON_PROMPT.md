@@ -88,8 +88,9 @@ no text, no letters, no numbers, no watermark, no logo, no signature
 
 ```
 주제: 상은 쓰기 시작하는 순간부터 일합니다
-✗ a trophy standing on a shelf          ← '상'이라는 명사만 옮겼다
-✓ a trophy cup being used as a pen holder  ← '쓴다'는 주장을 그렸다
+✗ a trophy standing on a shelf                        ← '상'이라는 명사만 옮겼다
+✗ a trophy cup being used as a pen holder             ← '쓴다'를 딴 뜻으로 옮긴 말장난
+✓ an award emblem badge fixed at the top of a product page sheet   ← '활용한다'를 그렸다
 ```
 
 검증은 질문 하나로 한다. **그림만 보고 주제의 주장을 되말할 수 있나?**
@@ -97,6 +98,14 @@ no text, no letters, no numbers, no watermark, no logo, no signature
 
 ⚠️ **주장을 뒤집지 말 것.** 실제로 걸렸다 — "상은 쓰면 일한다" 에 거미줄 낀 트로피를 그려서
    *안 쓰면 방치된다* 는 정반대 그림이 나왔다. 주장의 반대편은 부정문이지 그 주제가 아니다.
+
+⚠️ **낱말의 다른 뜻으로 옮기지 말 것.** 이것도 실제로 걸렸다 — "상을 **쓴다**"(활용한다)를
+   "펜을 **쓴다**"(필기한다)로 옮겨 트로피에 펜을 꽂았다. 그림은 주장을 그린 것처럼 보이지만
+   뜻이 다른 낱말을 그린 것이다. **주제 문장이 어느 뜻으로 쓴 낱말인지 먼저 정하고 그린다.**
+
+⚠️ **상품을 하찮게 만드는 그림은 주장을 맞혀도 실패다.** 위의 펜꽂이는 트로피를 용도 외로
+   굴리는 그림이라, 인증 자산을 파는 글에 붙으면 그 자산의 값을 깎는다.
+   되물을 것 하나 — **이 그림이 상품을 사고 싶게 만드는가, 우습게 만드는가.**
 
 ### ② 사물을 나열하지 않는다
 
@@ -151,8 +160,8 @@ SUBJECT: a round certification stamp pressed down onto a checklist sheet,
 the sheet curling up slightly at one corner under the pressure
 
 2. 상은 쓰기 시작하는 순간부터 일합니다
-SUBJECT: a trophy cup being used as a pen holder,
-three pens standing upright inside it
+SUBJECT: an award emblem badge fixed at the top of a long product page sheet,
+the sheet hanging down below it
 
 3. 월 100만원이 비싼지 싼지는 CPV를 봐야 압니다
 SUBJECT: a single large coin sliced into many thin equal slices,
@@ -177,7 +186,7 @@ a small trophy emerging out of its horn
 
 | | 주제의 주장 | 처음 그린 것 | 무엇이 어긋났나 |
 |---|---|---|---|
-| 2 | 상은 **쓰면** 일한다 | 선반 위 트로피 + 거미줄 | 주장의 **정반대**(안 쓰면 방치된다)를 그렸다 |
+| 2 | 상을 **활용하면** 일한다 | ① 선반 위 트로피 + 거미줄 ② 트로피 펜꽂이 | ①은 주장의 **정반대**(방치)를 그렸고, ②는 「쓴다」를 **딴 뜻**으로 옮겨 상까지 하찮게 만들었다 |
 | 3 | 나눠 봐야 **판단**된다 | 계산기 + 동전 + 재생 버튼 | 주제에 나온 명사만 늘어놨다. 나눈다는 주장이 없다 |
 | 4 | 주장에 **근거가 없다** | 1위 말풍선 + 점선 꼬리 | 주장만 그리고 근거가 없다는 대목을 안 그렸다 |
 | 5 | 2주 안에 **옮겨 붙여라** | 날짜에 동그라미 친 달력 | 일정만 그렸다. 옮긴다는 행위가 없다 |
@@ -206,6 +215,8 @@ function noteIconPrompt(card, title, subject) {
 
     // ⚠️ 아래 첫 줄이 「주제와 상관없는 그림」을 막는다. 이 줄이 제일 중요하다. 빼지 말 것.
     'draw what the sentence CLAIMS, not the objects it mentions. the picture must let a viewer restate the claim. never draw the opposite of the claim',
+    'if a Korean word in the sentence has more than one meaning, use the meaning the sentence intends. never picture a different sense of the word',
+    'never depict the award, certificate or product being used casually, as a joke, or for an unintended purpose. it must look valuable',
     // ⚠️ 아래 두 줄이 「나열된 아이콘」을 막는다. 빼지 말 것.
     'draw ONE main object with at most one secondary element, and the secondary element must physically touch, overlap, wrap or rest on the main object',
     'describe them as a single action, never as a list of separate props',
