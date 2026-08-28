@@ -9,7 +9,6 @@ import {
   initAuth,
   onAuth,
   signOut,
-  usernameOf,
 } from "../../../lib/auth.js";
 import {
   clearLibraryEdit,
@@ -185,7 +184,7 @@ export function Header() {
                   </span>
                 )}
                 <span
-                  title={usernameOf(user.email)}
+                  title={user.name}
                   className={`max-w-[120px] overflow-hidden text-ellipsis whitespace-nowrap font-normal leading-[21px] text-white transition-[font-size] duration-200 max-[560px]:hidden ${
                     isScrolled ? "text-[11px]" : "text-[16px]"
                   }`}

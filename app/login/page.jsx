@@ -11,7 +11,6 @@ import {
   signIn,
   signOut,
   signUp,
-  usernameOf,
 } from "../../lib/auth.js";
 import { isConfigured } from "../../lib/supabase.js";
 import { toast } from "../../components/toast.js";
@@ -50,8 +49,17 @@ export default function LoginPage() {
   }, [router]);
 
   useEffect(() => {
-    const error = new URLSearchParams(window.location.search).get("instagram_error");
+    const params = new URLSearchParams(window.location.search);
+    const error = params.get("instagram_error");
     if (error) toast(`Instagram 로그인에 실패했습니다: ${error}`, 6000);
+    if (params.get("instagram_already_registered") === "1") {
+      setActiveTab("login");
+      modal("이미 가입된 계정입니다.");
+    }
+    if (params.get("instagram_signup_required") === "1") {
+      setActiveTab("signup");
+      modal("가입된 계정이 아닙니다. 회원가입을 먼저 진행해 주세요.");
+    }
   }, []);
 
   async function handleLogin(event) {
@@ -178,6 +186,9 @@ export default function LoginPage() {
             </div>
 
             {activeTab === "login" ? (
+              <div>
+              <InstagramAuthButton intent="login" />
+              <AuthDivider />
               <form
                 className="flex flex-col text-left"
                 onSubmit={handleLogin}
@@ -216,16 +227,11 @@ export default function LoginPage() {
                   {loginBusy ? "로그인 중…" : "로그인"}
                 </button>
               </form>
+              </div>
             ) : (
               <div>
-              <button
-                type="button"
-                onClick={() => { window.location.href = "/api/auth/instagram/start"; }}
-                className="mt-7 flex h-[51px] w-full items-center justify-center gap-2 rounded-full border-0 bg-gradient-to-r from-[#833ab4] via-[#e1306c] to-[#f77737] px-5 text-[17px] font-bold text-white transition hover:brightness-110"
-              >
-                Instagram으로 회원가입
-              </button>
-              <div className="my-5 flex items-center gap-3 text-[12px] text-white/50 before:h-px before:flex-1 before:bg-white/20 after:h-px after:flex-1 after:bg-white/20">또는</div>
+              <InstagramAuthButton intent="signup" />
+              <AuthDivider />
               <form className="flex flex-col text-left" onSubmit={handleSignup}>
                 <LoginField
                   label="아이디"
@@ -286,6 +292,23 @@ export default function LoginPage() {
   );
 }
 
+function InstagramAuthButton({ intent }) {
+  const isSignup = intent === "signup";
+  return (
+    <button
+      type="button"
+      onClick={() => { window.location.href = `/api/auth/instagram/start?intent=${intent}`; }}
+      className="mt-7 flex h-[51px] w-full items-center justify-center gap-2 rounded-full border-0 bg-gradient-to-r from-[#833ab4] via-[#e1306c] to-[#f77737] px-5 text-[17px] font-bold text-white transition hover:brightness-110"
+    >
+      Instagram으로 {isSignup ? "회원가입하기" : "로그인하기"}
+    </button>
+  );
+}
+
+function AuthDivider() {
+  return <div className="my-5 flex items-center gap-3 text-[12px] text-white/50 before:h-px before:flex-1 before:bg-white/20 after:h-px after:flex-1 after:bg-white/20">또는</div>;
+}
+
 function AccountStatus({ user }) {
   const rejected = user.status === "rejected";
   const profileError = Boolean(user.profileError);
@@ -309,7 +332,7 @@ function AccountStatus({ user }) {
         {description}
       </p>
       <p className="mt-[18px] font-bold [overflow-wrap:anywhere]">
-        {usernameOf(user.email)}
+        {user.name}
       </p>
       <div className="mt-7 flex flex-col gap-2.5">
         <button

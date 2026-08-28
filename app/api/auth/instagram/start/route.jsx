@@ -2,8 +2,9 @@ import crypto from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { requireInstagramConfig } from '../../../../../lib/instagram-server.js';
 
-export async function GET() {
+export async function GET(request) {
   try {
+    const intent = new URL(request.url).searchParams.get('intent') === 'signup' ? 'signup' : 'login';
     const config = requireInstagramConfig();
     const state = crypto.randomBytes(32).toString('base64url');
     const authorize = new URL('https://www.instagram.com/oauth/authorize');
@@ -18,6 +19,13 @@ export async function GET() {
     });
     const response = NextResponse.redirect(authorize);
     response.cookies.set('instagram_oauth_state', state, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 600,
+    });
+    response.cookies.set('instagram_oauth_intent', intent, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',

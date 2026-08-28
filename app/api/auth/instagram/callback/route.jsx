@@ -18,6 +18,7 @@ export async function GET(request) {
   const code = url.searchParams.get('code') || '';
   const state = url.searchParams.get('state') || '';
   const savedState = request.cookies.get('instagram_oauth_state')?.value || '';
+  const intent = request.cookies.get('instagram_oauth_intent')?.value === 'signup' ? 'signup' : 'login';
   console.log(
     '[instagram-debug] callback hit',
     'fullUrl:', request.url,
@@ -43,6 +44,20 @@ export async function GET(request) {
       .eq('instagram_user_id', profile.instagramUserId)
       .maybeSingle();
     if (lookupError) throw lookupError;
+
+    if (existing?.user_id && intent === 'signup') {
+      const response = NextResponse.redirect(loginUrl(request, { instagram_already_registered: '1' }));
+      response.cookies.delete('instagram_oauth_state');
+      response.cookies.delete('instagram_oauth_intent');
+      return response;
+    }
+
+    if (!existing?.user_id && intent === 'login') {
+      const response = NextResponse.redirect(loginUrl(request, { instagram_signup_required: '1' }));
+      response.cookies.delete('instagram_oauth_state');
+      response.cookies.delete('instagram_oauth_intent');
+      return response;
+    }
 
     let userId = existing?.user_id;
     const syntheticEmail = `instagram_${profile.instagramUserId}@users.invalid`;
@@ -80,10 +95,12 @@ export async function GET(request) {
     complete.searchParams.set('token_hash', link.properties.hashed_token);
     const response = NextResponse.redirect(complete);
     response.cookies.delete('instagram_oauth_state');
+    response.cookies.delete('instagram_oauth_intent');
     return response;
   } catch (error) {
     const response = NextResponse.redirect(loginUrl(request, { instagram_error: error.message || 'Instagram 로그인에 실패했습니다.' }));
     response.cookies.delete('instagram_oauth_state');
+    response.cookies.delete('instagram_oauth_intent');
     return response;
   }
 }
