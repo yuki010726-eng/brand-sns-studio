@@ -4,12 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import logo from "../../../assets/logos/logo.svg";
-import {
-  getUser,
-  initAuth,
-  onAuth,
-  signOut,
-} from "../../../lib/auth.js";
+import { getUser, initAuth, onAuth, signOut } from "../../../lib/auth.js";
 import {
   clearLibraryEdit,
   getLibraryEditId,
@@ -72,7 +67,10 @@ export function Header() {
   }, []);
 
   useEffect(() => {
-    if (!user) { setInstagramAccounts([]); return undefined; }
+    if (!user) {
+      setInstagramAccounts([]);
+      return undefined;
+    }
     let cancelled = false;
     const loadAccounts = async () => {
       try {
@@ -80,19 +78,31 @@ export function Header() {
         if (cancelled) return;
         setInstagramAccounts(accounts);
         const saved = getActiveInstagramAccountId();
-        setActiveInstagramIdState(accounts.some((item) => item.instagram_user_id === saved) ? saved : '');
-      } catch { if (!cancelled) setInstagramAccounts([]); }
+        setActiveInstagramIdState(
+          accounts.some((item) => item.instagram_user_id === saved)
+            ? saved
+            : "",
+        );
+      } catch {
+        if (!cancelled) setInstagramAccounts([]);
+      }
     };
     loadAccounts();
     window.addEventListener(INSTAGRAM_ACCOUNTS_CHANGED, loadAccounts);
-    return () => { cancelled = true; window.removeEventListener(INSTAGRAM_ACCOUNTS_CHANGED, loadAccounts); };
+    return () => {
+      cancelled = true;
+      window.removeEventListener(INSTAGRAM_ACCOUNTS_CHANGED, loadAccounts);
+    };
   }, [user?.id, pathname]);
 
   useEffect(() => {
     if (!accountMenuOpen) return undefined;
-    const close = (event) => { if (!accountMenuRef.current?.contains(event.target)) setAccountMenuOpen(false); };
-    document.addEventListener('pointerdown', close);
-    return () => document.removeEventListener('pointerdown', close);
+    const close = (event) => {
+      if (!accountMenuRef.current?.contains(event.target))
+        setAccountMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
   }, [accountMenuOpen]);
 
   const navItems =
@@ -145,14 +155,21 @@ export function Header() {
       router.replace("/login");
       router.refresh();
     } catch (error) {
-      toast(error?.message || "로그아웃하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+      toast(
+        error?.message ||
+          "로그아웃하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+      );
       setIsSigningOut(false);
     }
   }
 
   const initial = (user?.name || "?").trim().charAt(0);
-  const activeInstagram = instagramAccounts.find((item) => item.instagram_user_id === activeInstagramId);
-  const displayName = activeInstagram ? `@${activeInstagram.username}` : user?.name;
+  const activeInstagram = instagramAccounts.find(
+    (item) => item.instagram_user_id === activeInstagramId,
+  );
+  const displayName = activeInstagram
+    ? `@${activeInstagram.username}`
+    : user?.name;
 
   function selectAccount(id) {
     setActiveInstagramAccountId(id);
@@ -238,7 +255,10 @@ export function Header() {
                     isScrolled ? "text-[11px]" : "text-[16px]"
                   }`}
                 >
-                  {displayName} <span aria-hidden="true" className="ml-1 text-white/55">⌄</span>
+                  {displayName}{" "}
+                  <p aria-hidden="true" className="text-white/55">
+                    ⌄
+                  </p>
                 </button>
                 <button
                   type="button"
@@ -254,21 +274,70 @@ export function Header() {
                 </button>
               </div>
               {accountMenuOpen && (
-                <div role="menu" className="absolute right-0 top-[calc(100%+12px)] z-50 w-[260px] overflow-hidden rounded-[14px] border border-white/15 bg-[#262626] p-2 text-white shadow-2xl">
-                  <p className="px-3 pb-2 pt-1 text-[11px] font-bold uppercase tracking-[0.08em] text-white/40">사용할 계정</p>
-                  <button type="button" role="menuitemradio" aria-checked={!activeInstagramId} onClick={() => selectAccount('')} className="flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-left hover:bg-white/10">
-                    <span className="flex size-8 items-center justify-center rounded-full bg-white text-[13px] font-bold text-black">{initial}</span>
-                    <span className="min-w-0 flex-1 truncate text-[13px]">{user.name}</span>
-                    {!activeInstagramId && <span className="text-[#4ade80]">✓</span>}
+                <div
+                  role="menu"
+                  className="absolute right-0 top-[calc(100%+12px)] z-50 w-[260px] overflow-hidden rounded-[14px] border border-white/15 bg-[#262626] p-2 text-white shadow-2xl"
+                >
+                  <p className="px-3 pb-2 pt-1 text-[11px] font-bold uppercase tracking-[0.08em] text-white/40">
+                    사용할 계정
+                  </p>
+                  <button
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={!activeInstagramId}
+                    onClick={() => selectAccount("")}
+                    className="flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-left hover:bg-white/10"
+                  >
+                    <span className="flex size-8 items-center justify-center rounded-full bg-white text-[13px] font-bold text-black">
+                      {initial}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-[13px]">
+                      {user.name}
+                    </span>
+                    {!activeInstagramId && (
+                      <span className="text-[#4ade80]">✓</span>
+                    )}
                   </button>
                   {instagramAccounts.map((account) => (
-                    <button key={account.instagram_user_id} type="button" role="menuitemradio" aria-checked={activeInstagramId === account.instagram_user_id} onClick={() => selectAccount(account.instagram_user_id)} className="flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-left hover:bg-white/10">
-                      {account.profile_picture_url ? <img src={account.profile_picture_url} alt="" referrerPolicy="no-referrer" className="size-8 rounded-full object-cover" /> : <span className="flex size-8 items-center justify-center rounded-full bg-white/15 text-[12px] font-bold">{account.username.charAt(0).toUpperCase()}</span>}
-                      <span className="min-w-0 flex-1 truncate text-[13px]">@{account.username}</span>
-                      {activeInstagramId === account.instagram_user_id && <span className="text-[#4ade80]">✓</span>}
+                    <button
+                      key={account.instagram_user_id}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={
+                        activeInstagramId === account.instagram_user_id
+                      }
+                      onClick={() => selectAccount(account.instagram_user_id)}
+                      className="flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-left hover:bg-white/10"
+                    >
+                      {account.profile_picture_url ? (
+                        <img
+                          src={account.profile_picture_url}
+                          alt=""
+                          referrerPolicy="no-referrer"
+                          className="size-8 rounded-full object-cover"
+                        />
+                      ) : (
+                        <span className="flex size-8 items-center justify-center rounded-full bg-white/15 text-[12px] font-bold">
+                          {account.username.charAt(0).toUpperCase()}
+                        </span>
+                      )}
+                      <span className="min-w-0 flex-1 truncate text-[13px]">
+                        @{account.username}
+                      </span>
+                      {activeInstagramId === account.instagram_user_id && (
+                        <span className="text-[#4ade80]">✓</span>
+                      )}
                     </button>
                   ))}
-                  {!instagramAccounts.length && <Link href="/library/profile" onClick={() => setAccountMenuOpen(false)} className="block rounded-[10px] px-3 py-3 text-center text-[12px] font-semibold text-white/60 hover:bg-white/10 hover:text-white">Instagram 계정 연결하기</Link>}
+                  {!instagramAccounts.length && (
+                    <Link
+                      href="/library/profile"
+                      onClick={() => setAccountMenuOpen(false)}
+                      className="block rounded-[10px] px-3 py-3 text-center text-[12px] font-semibold text-white/60 hover:bg-white/10 hover:text-white"
+                    >
+                      Instagram 계정 연결하기
+                    </Link>
+                  )}
                 </div>
               )}
             </div>

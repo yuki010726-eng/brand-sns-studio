@@ -27,7 +27,14 @@ import {
  *    (요청자 지시 2026-08-26). 채널·현재 시안·적용 콜백을 부모(app/text/page.jsx →
  *    CopyEditor)로부터 props 로 받는다 — 그래야 어느 채널·어느 시안을 고치는지 안다.
  */
-export function CopyChatPanel({ channelId, channelName, draftValue, onApplyToDraft }) {
+export function CopyChatPanel({
+  channelId,
+  channelName,
+  contextKey,
+  draftLabel,
+  draftValue,
+  onApplyToDraft,
+}) {
   const [loggedIn, setLoggedIn] = useState(Boolean(getUser()));
   const [messages, setMessages] = useState([]);
   const [summary, setSummary] = useState(null);
@@ -46,7 +53,12 @@ export function CopyChatPanel({ channelId, channelName, draftValue, onApplyToDra
     }
     let cancelled = false;
     setReady(false);
-    Promise.all([loadMessages(), getMemorySummary()]).then(([history, mem]) => {
+    if (!contextKey) {
+      setMessages([]);
+      setReady(true);
+      return;
+    }
+    Promise.all([loadMessages(contextKey), getMemorySummary()]).then(([history, mem]) => {
       if (cancelled) return;
       setMessages(
         history.map((m) => ({ id: m.id, role: m.role, content: m.content })),
@@ -57,7 +69,7 @@ export function CopyChatPanel({ channelId, channelName, draftValue, onApplyToDra
     return () => {
       cancelled = true;
     };
-  }, [loggedIn]);
+  }, [contextKey, loggedIn]);
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
@@ -71,7 +83,7 @@ export function CopyChatPanel({ channelId, channelName, draftValue, onApplyToDra
     const withUser = [...messages, userMsg];
     setMessages(withUser);
     setSending(true);
-    saveMessage("user", text);
+    saveMessage("user", text, contextKey);
 
     // 지금 보고 있는 시안이 있으면, 요약과는 별개로 이 요청을 그 시안에도 바로 반영해 본다.
     // 챗봇 답변과 동시에 부르는 이유는 둘이 서로 다른 자료(대화 vs 원고)를 보고 하는
@@ -93,7 +105,7 @@ export function CopyChatPanel({ channelId, channelName, draftValue, onApplyToDra
       };
       const withReply = [...withUser, botMsg];
       setMessages(withReply);
-      saveMessage("assistant", reply);
+      saveMessage("assistant", reply, contextKey);
 
       if (revisedDraft) {
         onApplyToDraft?.(revisedDraft);
@@ -117,21 +129,20 @@ export function CopyChatPanel({ channelId, channelName, draftValue, onApplyToDra
   }
 
   async function handleReset() {
-    if (!messages.length && !summary?.summary) return;
+    if (!messages.length) return;
     if (
       !window.confirm(
-        "대화 이력과 스타일 메모를 모두 지울까요? 되돌릴 수 없습니다.",
+        `${draftLabel || "현재 시안"}의 대화 이력을 지울까요? 되돌릴 수 없습니다.`,
       )
     )
       return;
-    const result = await clearMemory();
+    const result = await clearMemory(contextKey);
     if (!result.ok && !result.skipped) {
       toast(`초기화 실패 · ${result.error}`);
       return;
     }
     setMessages([]);
-    setSummary(null);
-    toast("스타일 메모를 초기화했습니다.");
+    toast(`${draftLabel || "현재 시안"}의 대화를 초기화했습니다.`);
   }
 
   function handleKeyDown(event) {
@@ -149,6 +160,11 @@ export function CopyChatPanel({ channelId, channelName, draftValue, onApplyToDra
             <Icon name="chat" className="size-4 text-[#287aff]" />
             글쓰기 스타일 챗봇
           </p>
+          {draftLabel && (
+            <p className="mt-1 text-xs font-semibold text-[#287aff]">
+              {draftLabel} 전용 대화
+            </p>
+          )}
           <p className="mt-1 text-xs leading-5 text-[#8b95a1]">
             지금 보고 있는 시안에 바로 반영되고, 다음 AI 글 생성에도 참고됩니다.
           </p>
@@ -156,7 +172,7 @@ export function CopyChatPanel({ channelId, channelName, draftValue, onApplyToDra
         <button
           type="button"
           onClick={handleReset}
-          aria-label="스타일 메모 초기화"
+          aria-label={`${draftLabel || "현재 시안"} 대화 초기화`}
           className="shrink-0 rounded-full p-1.5 text-[#8b95a1] hover:bg-[#f2f4f6] hover:text-[#4e5968]"
         >
           <Icon name="trash" className="size-4" />

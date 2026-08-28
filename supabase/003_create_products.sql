@@ -33,6 +33,7 @@ create table if not exists public.products (
   handle text,
   summary text,
   site text,
+  proposal_url text,
   facts jsonb not null default '[]'::jsonb,
   benefits jsonb not null default '[]'::jsonb,
   -- 상품별 선택 정보: { host, packages, events, criteria }

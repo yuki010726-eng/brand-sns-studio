@@ -4,6 +4,19 @@ import { Events } from "./Events.jsx";
 import { InfoList } from "./InfoList.jsx";
 import { Tags } from "./Tags.jsx";
 
+function externalUrl(value) {
+  const url = String(value || "").trim();
+  if (!url) return "";
+  return /^https?:\/\//i.test(url) ? url : `https://${url}`;
+}
+
+function instagramUrl(handle) {
+  const value = String(handle || "").trim();
+  if (!value) return "";
+  if (/^https?:\/\//i.test(value)) return value;
+  return `https://www.instagram.com/${value.replace(/^@/, "").replace(/^\/+|\/+$/g, "")}/`;
+}
+
 export function ProductDetail({ product }) {
   const panel =
     "relative z-0 -ml-[15px] grid min-h-[337px] grid-cols-[minmax(340px,1fr)_minmax(430px,1.2fr)] content-start gap-x-14 gap-y-4 rounded-r-[15px] bg-white/20 pb-9 pl-10 pr-3.5 pt-[25px] text-white max-[1024px]:-mt-[15px] max-[1024px]:ml-0 max-[1024px]:grid-cols-1 max-[1024px]:rounded-b-[15px] max-[1024px]:rounded-t-none max-[1024px]:px-7 max-[1024px]:pb-7 max-[1024px]:pt-[43px]";
@@ -21,14 +34,30 @@ export function ProductDetail({ product }) {
     );
   }
 
+  const siteUrl = externalUrl(product.site);
+  const handleUrl = instagramUrl(product.handle);
+  const proposalUrl = externalUrl(product.proposal_url);
+
   return (
     <article className={panel} aria-labelledby="brief-title">
       <div className="col-span-full -ml-[30px] -mr-1 flex min-w-0 items-center justify-between pl-[42px] pr-[21px] max-[1024px]:mx-[-18px] max-[1024px]:px-[18px]">
         <h2 className="text-[18px] font-bold text-white">상품 정보</h2>
         <div className="flex items-center gap-5 text-white">
-          <Icon name="house" className="size-6 !stroke-2" />
-          <Icon name="instagram" className="size-6 !stroke-2" />
-          <Icon name="download" className="size-6 !stroke-2" />
+          {siteUrl && (
+            <a href={siteUrl} target="_blank" rel="noreferrer" aria-label={`${product.name} 홈페이지 열기`} title="홈페이지">
+              <Icon name="house" className="size-6 !stroke-2" />
+            </a>
+          )}
+          {handleUrl && (
+            <a href={handleUrl} target="_blank" rel="noreferrer" aria-label={`${product.name} 인스타그램 열기`} title="인스타그램">
+              <Icon name="instagram" className="size-6 !stroke-2" />
+            </a>
+          )}
+          {proposalUrl && (
+            <a href={proposalUrl} target="_blank" rel="noreferrer" download aria-label={`${product.name} 제안서 다운로드`} title="제안서 다운로드">
+              <Icon name="download" className="size-6 !stroke-2" />
+            </a>
+          )}
         </div>
       </div>
       <div className="col-span-full -ml-1.5 mr-1 -mt-px mb-3 h-px bg-white/55 max-[1024px]:mx-[-18px]" />

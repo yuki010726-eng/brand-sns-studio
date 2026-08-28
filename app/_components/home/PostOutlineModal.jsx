@@ -9,7 +9,6 @@ const fieldClass =
   "min-h-[50px] w-full resize-none overflow-hidden rounded-[12px] border border-[#e5e8eb] bg-white px-4 py-[14px] text-[15px] leading-[1.45] text-[#4e5968] shadow-[0_0_4px_rgba(0,30,78,0.07)] outline-none transition focus:border-[#287aff] focus:ring-2 focus:ring-[#287aff]/15";
 
 function makeOutline(state, product) {
-  const topic = state.topic.trim();
   const focus = String(state.focusPoint || "").trim();
   const bodyCount = Math.max(1, Math.min(3, Number(state.cardCount || 3) - 2));
   const focusParts = focus
@@ -17,19 +16,19 @@ function makeOutline(state, product) {
     .map((item) => item.trim())
     .filter(Boolean);
   const fallback = [
-    `${topic}의 핵심 내용과 알아두어야 할 정보를 정리합니다.`,
+    "독자가 알아두어야 할 핵심 정보와 배경을 구체적으로 설명합니다.",
     `${product?.name || "선택한 상품"}과 주제가 연결되는 지점을 구체적으로 살펴봅니다.`,
-    `${topic}을 실제 콘텐츠에 활용할 때 놓치기 쉬운 부분을 짚습니다.`,
+    "실제 콘텐츠에 적용하는 방법과 놓치기 쉬운 부분을 짚습니다.",
   ];
 
   return {
-    intro: `${topic}에 관심을 가져야 하는 이유와 글에서 다룰 내용을 소개합니다.`,
+    intro: "독자가 공감할 만한 상황을 제시하고 글에서 다룰 내용을 소개합니다.",
     bodies: Array.from({ length: bodyCount }, (_, index) =>
       focusParts[index]
         ? `${focusParts[index]}을 중심으로 설명합니다.`
         : fallback[index],
     ),
-    conclusion: `${topic}의 핵심을 다시 짚고 자연스러운 다음 행동으로 마무리합니다.`,
+    conclusion: "앞서 다룬 핵심을 간결하게 정리하고 자연스러운 다음 행동을 제안합니다.",
   };
 }
 

@@ -113,6 +113,8 @@ export function CopyEditor({
   onToggleMode,
   onCopy,
   showChat,
+  chatContextKey,
+  draftLabel,
 }) {
   const over = value.length > channel.limit;
   const bodyCount = value
@@ -195,8 +197,11 @@ export function CopyEditor({
 
         {showChat && (
           <CopyChatPanel
+            key={chatContextKey}
             channelId={channel.id}
             channelName={channel.name}
+            contextKey={chatContextKey}
+            draftLabel={draftLabel}
             draftValue={value}
             onApplyToDraft={onChange}
           />

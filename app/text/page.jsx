@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BANNED_PHRASES } from "../../data/banned-phrases.js";
 import { CHANNELS } from "../../data/channels.js";
@@ -52,7 +52,10 @@ const outlineJobs = new Map();
  *    각도·항목을 짤 때 반영하는 재료다. 초안이 바뀌면(`contentOutlineKey`) 캐시된 뼈대를
  *    다시 만든다.
  */
-async function ensureOutline(state, { round = 0, researchStyle = "" } = {}) {
+async function ensureOutline(
+  state,
+  { round = 0, researchStyle = "", signal, waitIfPaused } = {},
+) {
   const key = outlineKeyOf(state);
   const contentOutlineKey = contentOutlineKeyOf(state.contentOutline);
   if (
@@ -78,17 +81,20 @@ async function ensureOutline(state, { round = 0, researchStyle = "" } = {}) {
     ]),
   ].filter(Boolean);
 
-  const job = coreWithOutline({
-    product: getProduct(state.productId),
-    topic: state.topic.trim(),
-    focusPoint: String(state.focusPoint || "").trim(),
-    tone: state.tone,
-    cardCount: state.cardCount,
-    round,
-    avoid,
-    researchStyle,
-    contentOutline: state.contentOutline || null,
-  })
+  const job = coreWithOutline(
+    {
+      product: getProduct(state.productId),
+      topic: state.topic.trim(),
+      focusPoint: String(state.focusPoint || "").trim(),
+      tone: state.tone,
+      cardCount: state.cardCount,
+      round,
+      avoid,
+      researchStyle,
+      contentOutline: state.contentOutline || null,
+    },
+    { signal, waitIfPaused },
+  )
     .then(({ core, error }) => {
       const latest = getState();
       if (
@@ -112,7 +118,11 @@ export default function CopyPage() {
   const [activeId, setActiveId] = useState("");
   const [readMode, setReadMode] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [generation, setGeneration] = useState(null);
   const [productsReady, setProductsReady] = useState(false);
+  const generationController = useRef(null);
+  const pausedRef = useRef(false);
+  const pauseWaiters = useRef([]);
 
   useEffect(() => {
     setViewState(getState());
@@ -122,6 +132,31 @@ export default function CopyPage() {
     );
     return unsubscribe;
   }, []);
+
+  useEffect(() => () => generationController.current?.abort(), []);
+
+  function waitIfPaused() {
+    if (!pausedRef.current) return Promise.resolve();
+    return new Promise((resolve) => pauseWaiters.current.push(resolve));
+  }
+
+  function toggleGenerationPause() {
+    if (!busy) return;
+    pausedRef.current = !pausedRef.current;
+    setGeneration((current) =>
+      current ? { ...current, paused: pausedRef.current } : current,
+    );
+    if (!pausedRef.current) {
+      pauseWaiters.current.splice(0).forEach((resolve) => resolve());
+    }
+  }
+
+  function cancelGeneration() {
+    if (!busy) return;
+    pausedRef.current = false;
+    pauseWaiters.current.splice(0).forEach((resolve) => resolve());
+    generationController.current?.abort();
+  }
 
   const channels = useMemo(
     () => CHANNELS.filter((channel) => state?.channels?.includes(channel.id)),
@@ -149,6 +184,10 @@ export default function CopyPage() {
     typeof state?.activeAiRun === "object"
       ? (state.activeAiRun?.[activeId] ?? null)
       : (state?.activeAiRun ?? null);
+  const activeRunEntry = matchingRuns[activeRun];
+  const chatContextKey = activeRunEntry
+    ? `${state.aiRuns.key}|${activeId}|${activeRunEntry.index}`
+    : "";
 
   function updateDraft(value) {
     const current = getState();
@@ -169,6 +208,10 @@ export default function CopyPage() {
 
   async function generate(channelIds) {
     if (!product || busy) return;
+    const controller = new AbortController();
+    generationController.current = controller;
+    pausedRef.current = false;
+    setGeneration({ current: 0, total: channelIds.length, paused: false });
     setBusy(true);
     try {
       const current = getState();
@@ -204,6 +247,8 @@ export default function CopyPage() {
       const { core, error: outlineError } = await ensureOutline(current, {
         round,
         researchStyle,
+        signal: controller.signal,
+        waitIfPaused,
       });
       if (outlineError) {
         toast(`AI 주제 구성을 만들지 못했습니다 — ${outlineError}`, 5000);
@@ -214,19 +259,38 @@ export default function CopyPage() {
       const memory = await getMemorySummary().catch(() => null);
 
       const drafts = {};
-      for (const channelId of channelIds) {
-        drafts[channelId] = await generateWithAI(channelId, {
-          product,
-          topic: current.topic.trim(),
-          focusPoint: String(current.focusPoint || "").trim(),
-          tone: current.tone,
-          variant: (current.variants?.[channelId] || 0) + 1,
-          cardCount: current.cardCount,
-          core,
-          contentOutline: current.contentOutline || null,
-          researchStyle,
-          userMemory: memory?.summary || "",
-        });
+      for (let index = 0; index < channelIds.length; index++) {
+        await waitIfPaused();
+        if (controller.signal.aborted) {
+          throw new DOMException("취소되었습니다.", "AbortError");
+        }
+        const channelId = channelIds[index];
+        setGeneration((current) => ({
+          ...current,
+          current: index + 1,
+          channelName:
+            CHANNELS.find((channel) => channel.id === channelId)?.name ||
+            channelId,
+        }));
+        drafts[channelId] = await generateWithAI(
+          channelId,
+          {
+            product,
+            topic: current.topic.trim(),
+            focusPoint: String(current.focusPoint || "").trim(),
+            tone: current.tone,
+            variant: (current.variants?.[channelId] || 0) + 1,
+            cardCount: current.cardCount,
+            core,
+            contentOutline: current.contentOutline || null,
+            researchStyle,
+            userMemory: memory?.summary || "",
+          },
+          {
+            signal: controller.signal,
+            waitIfPaused,
+          },
+        );
       }
       const latest = getState();
       const run = { drafts, generated: { ...drafts } };
@@ -267,9 +331,17 @@ export default function CopyPage() {
       if (!saved.ok) toast(`자동 저장 실패 · ${saved.error}`, 6000);
       toast(`${channelIds.length}개 채널 글을 만들었습니다.`);
     } catch (error) {
+      if (error?.name === "AbortError") {
+        toast("AI 생성을 취소했습니다.");
+        return;
+      }
       console.error(error);
       toast(error?.message || "AI 글 생성에 실패했습니다.");
     } finally {
+      generationController.current = null;
+      pausedRef.current = false;
+      pauseWaiters.current.splice(0).forEach((resolve) => resolve());
+      setGeneration(null);
       setBusy(false);
     }
   }
@@ -337,16 +409,17 @@ export default function CopyPage() {
                     activeId={activeId}
                     onSelect={setActiveId}
                   />
-                  <div className="flex flex-wrap gap-2.5">
-                    <button
+                  <div className="flex min-w-[310px] flex-col items-end gap-3 max-[640px]:w-full max-[640px]:items-stretch">
+                    <div className="flex flex-wrap justify-end gap-2.5">
+                      <button
                       disabled={busy}
                       onClick={() => generate([activeId])}
                       className="inline-flex h-[45px] items-center gap-[5px] rounded-full border border-[#e5e8eb] bg-white px-[19px] text-[15px] font-medium text-[#4e5968] disabled:opacity-40"
                     >
                       <Icon name="sparkles" className="size-[18px]" />
                       현재 채널만 AI 생성
-                    </button>
-                    <button
+                      </button>
+                      <button
                       disabled={busy}
                       onClick={() =>
                         generate(channels.map((channel) => channel.id))
@@ -355,7 +428,50 @@ export default function CopyPage() {
                     >
                       <Icon name="sparkles" className="size-[18px]" />
                       전체 채널 AI 생성
-                    </button>
+                      </button>
+                    </div>
+                    {busy && generation && (
+                      <div
+                        className="w-full rounded-xl border border-white/15 bg-black/20 px-4 py-3 text-white"
+                        role="status"
+                        aria-live="polite"
+                      >
+                        <div className="flex items-center justify-between gap-4 text-[13px]">
+                          <span className="font-semibold">
+                            {generation.paused
+                              ? "AI 생성 일시정지 중"
+                              : `${generation.channelName || "AI 결과"} 생성 중…`}
+                          </span>
+                          <span className="text-white/60">
+                            {generation.current}/{generation.total}
+                          </span>
+                        </div>
+                        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/15">
+                          <div
+                            className="h-full rounded-full bg-[#287aff] transition-[width] duration-300"
+                            style={{
+                              width: `${Math.max(8, (generation.current / generation.total) * 100)}%`,
+                            }}
+                          />
+                        </div>
+                        <div className="mt-3 flex justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={toggleGenerationPause}
+                            className="rounded-full border border-white/25 px-3 py-1.5 text-[13px] font-semibold hover:bg-white/10"
+                          >
+                            {generation.paused ? "계속하기" : "일시정지"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={cancelGeneration}
+                            className="rounded-full border border-[#ff6b6b]/60 px-3 py-1.5 text-[13px] font-semibold text-[#ff9b9b] hover:bg-[#ff6b6b]/10"
+                          >
+                            취소
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
                 <CopyEditor
@@ -365,6 +481,8 @@ export default function CopyPage() {
                   readMode={readMode}
                   banned={findBanned(value, BANNED_PHRASES)}
                   showChat={Boolean(state.aiRuns?.list?.length)}
+                  chatContextKey={chatContextKey}
+                  draftLabel={activeRun == null ? "" : `시안 ${activeRun + 1}`}
                   runSelector={
                     <AiRunSelector
                       runs={matchingRuns}
