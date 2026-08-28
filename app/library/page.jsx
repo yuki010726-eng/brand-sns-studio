@@ -29,6 +29,10 @@ import { LibraryGrid } from "./_components/LibraryGrid.jsx";
 import { LibraryNoResults } from "./_components/LibraryNoResults.jsx";
 import { LibraryToolbar } from "./_components/LibraryToolbar.jsx";
 import { SettingsList } from "./_components/SettingsList.jsx";
+import {
+  getActiveInstagramAccountId,
+  INSTAGRAM_ACCOUNTS_CHANGED,
+} from "../../lib/instagram-accounts.js";
 
 /** 주제·상품명뿐 아니라 글 내용까지 뒤진다. 주제를 잊어도 문장 한 조각으로 찾을 수 있어야 한다. */
 function haystack(item) {
@@ -52,6 +56,7 @@ export default function LibraryPage() {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState("recent");
   const [productFilter, setProductFilter] = useState("all");
+  const [activeInstagramId, setActiveInstagramId] = useState("");
 
   useEffect(() => {
     setViewState(getState());
@@ -60,19 +65,34 @@ export default function LibraryPage() {
     return unsubscribe;
   }, []);
 
+  useEffect(() => {
+    const syncActiveAccount = () => setActiveInstagramId(getActiveInstagramAccountId());
+    syncActiveAccount();
+    window.addEventListener(INSTAGRAM_ACCOUNTS_CHANGED, syncActiveAccount);
+    return () => window.removeEventListener(INSTAGRAM_ACCOUNTS_CHANGED, syncActiveAccount);
+  }, []);
+
   const all = useMemo(
     () => (Array.isArray(state?.library) ? state.library : []),
     [state],
   );
 
+  const accountItems = useMemo(
+    () => all.filter(
+      (item) => !activeInstagramId
+        || String(item.instagramAccountId || "") === activeInstagramId,
+    ),
+    [all, activeInstagramId],
+  );
+
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
-    let list = all.filter(
+    let list = accountItems.filter(
       (it) => productFilter === "all" || it.productId === productFilter,
     );
     if (q) list = list.filter((it) => haystack(it).includes(q));
     return list.slice().sort(SORT_COMPARATORS[sort] || SORT_COMPARATORS.recent);
-  }, [all, query, productFilter, sort]);
+  }, [accountItems, query, productFilter, sort]);
 
   function clearFilters() {
     setQuery("");
@@ -151,9 +171,9 @@ export default function LibraryPage() {
           <h2 className="mb-4 text-[20px] font-bold text-white">
             저장한 게시물
           </h2>
-          {all.length > 0 && (
+          {accountItems.length > 0 && (
             <LibraryToolbar
-              items={all}
+              items={accountItems}
               query={query}
               sort={sort}
               productFilter={productFilter}
@@ -162,7 +182,7 @@ export default function LibraryPage() {
               onFilterChange={setProductFilter}
             />
           )}
-          {!all.length ? (
+          {!accountItems.length ? (
             <LibraryEmptyState />
           ) : !visible.length ? (
             <LibraryNoResults onClearFilters={clearFilters} />

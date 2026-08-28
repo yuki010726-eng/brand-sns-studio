@@ -73,6 +73,10 @@ import {
   removeInstagramCards,
   uploadInstagramCards,
 } from "../../lib/instagram.js";
+import {
+  getActiveInstagramAccountId,
+  getInstagramAccounts,
+} from "../../lib/instagram-accounts.js";
 
 const IMAGE_ROLE = {
   note: "아이콘 이미지",
@@ -622,6 +626,12 @@ export default function TemplatePage() {
     }
     try {
       const s = getState();
+      const accounts = await getInstagramAccounts();
+      if (!accounts.length) {
+        toast("연결된 Instagram 계정이 없습니다. 마이페이지에서 계정을 먼저 연결해 주세요.");
+        return;
+      }
+      const activeAccountId = getActiveInstagramAccountId();
       const blobs = [];
       const previews = [];
       for (let index = 0; index < deck.length; index += 1) {
@@ -631,7 +641,14 @@ export default function TemplatePage() {
         blobs.push(blob);
         previews.push(URL.createObjectURL(blob));
       }
-      setInstagramDialog({ blobs, previews, caption: s.drafts?.instagram || "" });
+      setInstagramDialog({
+        blobs,
+        previews,
+        caption: s.drafts?.instagram || "",
+        accounts,
+        accountId: activeAccountId || (accounts.length === 1 ? accounts[0].instagram_user_id : ""),
+        accountLocked: Boolean(activeAccountId),
+      });
     } catch (error) {
       toast(error.message || "게시 이미지를 준비하지 못했습니다.");
     }
@@ -645,12 +662,20 @@ export default function TemplatePage() {
 
   async function handlePublishInstagram() {
     if (!instagramDialog || publishingInstagram) return;
+    if (!instagramDialog.accountId) {
+      toast("게시할 Instagram 계정을 선택해 주세요.");
+      return;
+    }
     setPublishingInstagram(true);
     let uploaded;
     try {
       const s = getState();
       uploaded = await uploadInstagramCards(instagramDialog.blobs, s.postId);
-      const result = await publishInstagramCarousel(uploaded.urls, instagramDialog.caption);
+      const result = await publishInstagramCarousel(
+        uploaded.urls,
+        instagramDialog.caption,
+        instagramDialog.accountId,
+      );
       toast(`Instagram 게시가 완료되었습니다. (${result.id})`);
       instagramDialog.previews.forEach((url) => URL.revokeObjectURL(url));
       setInstagramDialog(null);
@@ -1103,7 +1128,11 @@ export default function TemplatePage() {
         open={Boolean(instagramDialog)}
         images={instagramDialog?.previews || []}
         caption={instagramDialog?.caption || ""}
+        accounts={instagramDialog?.accounts || []}
+        accountId={instagramDialog?.accountId || ""}
+        accountLocked={Boolean(instagramDialog?.accountLocked)}
         busy={publishingInstagram}
+        onAccountChange={(accountId) => setInstagramDialog((current) => current ? { ...current, accountId } : current)}
         onCaptionChange={(caption) => setInstagramDialog((current) => current ? { ...current, caption } : current)}
         onClose={handleCloseInstagram}
         onPublish={handlePublishInstagram}

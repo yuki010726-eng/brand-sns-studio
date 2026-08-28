@@ -45,7 +45,7 @@ export function CardTabs({ deck, active, onSelect }) {
             onKeyDown={(e) => onKeyDown(e, i)}
             className={`inline-flex items-center gap-1.5 rounded-full border px-[18px] py-[10px] text-[15px] font-bold transition ${on ? "border-[#287aff] bg-[#287aff] text-white" : "border-[#e5e8eb] bg-white text-[#5f6b7a] hover:bg-[#f7f8fa]"}`}
           >
-            <span>{String(i + 1).padStart(2, "0")}</span>
+            <span>{String(i + 1)}</span>
             <span>{KIND_LABEL[card.kind] || "본문"}</span>
           </button>
         );
