@@ -18,6 +18,14 @@ export async function GET(request) {
   const code = url.searchParams.get('code') || '';
   const state = url.searchParams.get('state') || '';
   const savedState = request.cookies.get('instagram_oauth_state')?.value || '';
+  console.log(
+    '[instagram-debug] callback hit',
+    'fullUrl:', request.url,
+    'codePrefix:', code.slice(0, 12),
+    'codeLength:', code.length,
+    'stateMatches:', Boolean(savedState) && state === savedState,
+    'at:', new Date().toISOString(),
+  );
   if (!code || !state || !savedState || state !== savedState) {
     return NextResponse.redirect(loginUrl(request, { instagram_error: 'Instagram 인증 요청이 만료되었거나 올바르지 않습니다.' }));
   }
