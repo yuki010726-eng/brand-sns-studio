@@ -7,6 +7,8 @@ const root = () => document.getElementById('toast-root');
  * @param {number} [ms] 유지 시간
  */
 export function toast(message, ms = 2200) {
+  console.log('[toast]', message);
+
   const el = document.createElement('div');
   el.className = 'toast';
   el.textContent = message;
