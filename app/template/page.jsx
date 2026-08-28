@@ -7,7 +7,11 @@
  * 템플릿 3종 선택, 카드 탭, 캔버스 미리보기, 슬롯별 문구 편집, 색상·마크·종이 선택,
  * 금지표현/글자잘림 경고, PNG 저장, 보관함 저장 + 자동저장, 오브젝트 자유 배치(드래그·리사이즈,
  * `CanvasPreview.jsx`) 와 되돌리기/다시실행 히스토리.
- * ⚠️ 직관형(D, `promptOnly`)은 이미지 프롬프트 생성 화면이 아직 없어 안내만 보여준다.
+ *
+ * 직관형(D, `concept.promptOnly`)은 캔버스를 아예 타지 않는다 — 옛 `pages/template.js` 의
+ * `renderAdPage()` 를 그대로 옮겨, 컨셉(인물·색·화풍)을 고르면 카드 대신 이미지 프롬프트
+ * 묶음을 만들어 준다 (`lib/adprompt.js`). 카드를 그리지 않으므로 슬롯 편집·PNG 저장·
+ * Instagram 게시는 여기서 쓰지 않는다 — 보관함 저장(`saveToArchive`)만 캔버스 화면과 공유한다.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -33,6 +37,12 @@ import {
   H,
 } from "../../lib/cardrender.js";
 import { buildPrompt } from "../../lib/imageprompt.js";
+import {
+  buildAdPrompts,
+  getAdConcept,
+  adConceptForTone,
+  roleLabel,
+} from "../../lib/adprompt.js";
 import { saveToLibrary, hasLibraryChanges } from "../../lib/librarystore.js";
 import { getState, setState, subscribe, STEPS } from "../../store.js";
 import { toast } from "../../components/toast.js";
@@ -55,6 +65,9 @@ import { StylePanel } from "./_components/StylePanel.jsx";
 import { ImagePanel } from "./_components/ImagePanel.jsx";
 import { SaveActions } from "./_components/SaveActions.jsx";
 import { InstagramPublishDialog } from "./_components/InstagramPublishDialog.jsx";
+import { ContextBar } from "./_components/ContextBar.jsx";
+import { AdConceptPicker } from "./_components/AdConceptPicker.jsx";
+import { AdCard } from "./_components/AdCard.jsx";
 import {
   publishInstagramCarousel,
   removeInstagramCards,
@@ -66,6 +79,12 @@ const IMAGE_ROLE = {
   magazine: "배경 이미지",
   card: "배경 이미지",
 };
+
+/** 직관형 프롬프트를 들고 갈 곳 — 한글을 그릴 수 있는 도구여야 한다 */
+const AD_TOOLS = [
+  { name: "ChatGPT", url: "https://chatgpt.com/" },
+  { name: "Gemini", url: "https://gemini.google.com/app" },
+];
 
 const usesImage = (conceptId, kind) =>
   !(conceptId === "card" && roleOf("card", kind) === "outro");
@@ -80,6 +99,35 @@ function isFieldEdited(card, index, conceptId, kind) {
 const fileName = (s, i) =>
   `${s.productId}-${s.concept}-${String(i + 1).padStart(2, "0")}.png`;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * 직관형(D) 컨셉 — **1단계 톤앤매너가 정한다** (요청자 지시: "톤앤매너 선택에서 ~형에 따라
+ * 알맞은 스타일이 직관형에 적용되도록"). 직접 고른 것은 그 톤인 동안만 유지한다 —
+ * `adConceptTone` 이 지금 톤과 같을 때만 `adConcept` 를 믿는다. 옛 pages/template.js 의
+ * `effectiveAdConcept()`.
+ */
+const effectiveAdConcept = (s) =>
+  s.adConceptTone === s.tone ? s.adConcept : adConceptForTone(s.tone);
+
+/** 클립보드 복사 — 권한이 막힌 환경을 위해 execCommand 폴백을 둔다 */
+async function copyText(text, okMessage) {
+  if (!String(text).trim()) {
+    toast("복사할 내용이 없습니다.");
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+    toast(okMessage);
+  } catch {
+    const tmp = document.createElement("textarea");
+    tmp.value = text;
+    document.body.appendChild(tmp);
+    tmp.select();
+    document.execCommand("copy");
+    tmp.remove();
+    toast(okMessage);
+  }
+}
 
 const EDITOR_STATE_KEYS = [
   "concept",
@@ -322,6 +370,38 @@ export default function TemplatePage() {
     setActive(0);
     setSelectedObj(null);
     toast(`${getConcept(id).name} 템플릿으로 바꿨습니다.`);
+  }
+
+  // 컨셉을 바꾸면 전 장을 다시 만든다 — 한 벌이 통째로 갈리는 값이라 부분 갱신이 없다.
+  // 톤과 함께 남긴다 — 톤이 바뀌면 이 선택은 버리고 새 톤의 컨셉으로 돌아간다.
+  function handleAdConceptChange(id) {
+    setState({ adConcept: id, adConceptTone: getState().tone });
+    toast(`${getAdConcept(id).name} 컨셉으로 전 장을 다시 만들었습니다.`);
+  }
+
+  function handleCopyAdPrompt(item) {
+    copyText(item.prompt, `${item.n}번 프롬프트를 복사했습니다.`);
+  }
+
+  function handleCopyAllAdPrompts(adPrompts) {
+    // ⚠️ 한 번에 다 붙여 넣으면 4분할 한 장이 나온다 — 반드시 따로따로 생성하라고 못박는다
+    // (lib/adprompt.js 의 promptOf() SINGLE 줄과 두 겹으로 막는다).
+    const n = adPrompts.length;
+    const head = [
+      `⚠️ 아래는 서로 다른 프롬프트 ${n}개입니다. 한 번에 다 붙여 넣지 마세요.`,
+      `한 덩어리씩 따로 붙여 넣어 ${n}번 생성하면 ${n}장이 나옵니다.`,
+      "한꺼번에 넣으면 한 장이 여러 칸으로 쪼개져 나옵니다.",
+      "",
+    ].join("\n");
+    const all =
+      head +
+      adPrompts
+        .map(
+          (x) =>
+            `━━━━━━ ${x.n} / ${n} · ${roleLabel(x.role)} — 여기부터 한 장 ━━━━━━\n\n${x.prompt}`,
+        )
+        .join("\n\n");
+    copyText(all, `${n}장을 모두 복사했습니다. 한 덩어리씩 따로 생성하세요.`);
   }
 
   function handleFieldChange(slotId, value) {
@@ -644,22 +724,128 @@ export default function TemplatePage() {
   }
 
   if (concept.promptOnly) {
+    const adConceptId = effectiveAdConcept(state);
+    const adPrompts = buildAdPrompts({
+      product,
+      topic: state.topic.trim(),
+      deck,
+      conceptId: adConceptId,
+    });
+
     return (
-      <main className="min-h-dvh bg-[#1a1a1a] pb-[140px] pt-[54px] text-white">
-        <div className="mx-auto max-w-[560px] px-5 text-center">
-          <h1 className="text-[24px] font-bold">직관형은 곧 지원됩니다</h1>
-          <p className="mt-3 text-white/60">
-            직관형(D) 이미지 프롬프트 생성 화면은 아직 마이그레이션 중입니다.
-            다른 템플릿을 골라 주세요.
-          </p>
-          <button
-            type="button"
-            onClick={() => setState({ concept: "magazine" })}
-            className="mt-6 inline-flex items-center gap-1.5 rounded-full border border-[#287aff] bg-[#287aff] px-5 py-2.5 text-[15px] font-bold text-white transition hover:border-[#1b64da] hover:bg-[#1b64da]"
-          >
-            매거진형으로 전환
-          </button>
+      <main className="min-h-dvh bg-[#1a1a1a] pb-[40px] text-[#4e5968]">
+        <div className="w-full px-[clamp(20px,3.85vw,74px)]">
+          <div className="flex min-h-[1050px] items-stretch rounded-[15px] bg-white/10 max-[860px]:min-h-0 max-[860px]:flex-col max-[860px]:overflow-clip">
+            <TextStepper steps={STEPS} activeIndex={2} />
+            <div className="min-w-0 flex-1 px-[clamp(24px,calc((39/1920)*100vw),39px)] py-14">
+              <header className="mb-6">
+                <p className="text-[25px] font-bold leading-[22.4px] text-white">
+                  직관형 — 이미지 프롬프트를 만듭니다
+                </p>
+                <p className="mt-3 max-w-[720px] text-[15px] leading-[1.6] text-white/60">
+                  직관형은 카드를 그리지 않습니다. 글자까지 이미지 안에 들어가는 광고
+                  배너라 나중에 문구를 얹을 자리가 없기 때문입니다. 대신 원하는
+                  장수만큼 프롬프트를 만들어 드리니, 복사해서 이미지 생성 도구에서
+                  뽑으면 됩니다.
+                </p>
+              </header>
+
+              <ContextBar
+                product={product}
+                topic={state.topic}
+                focusPoint={state.focusPoint}
+                toneLabel={TONE_LABEL[state.tone] || state.tone}
+                onEditText={() => router.push("/text")}
+                onSave={() => saveToArchive()}
+                saveDisabled={libraryBusy || !canSaveLibrary}
+                saveBusy={libraryBusy}
+              />
+
+              <ConceptPicker
+                concepts={CONCEPTS}
+                value={state.concept}
+                onChange={handleConceptChange}
+              />
+
+              <div className="space-y-5 rounded-[15px] border border-[#e5e8eb] bg-white p-5">
+                <AdConceptPicker
+                  value={adConceptId}
+                  toneLabel={TONE_LABEL[state.tone] || state.tone}
+                  isManualPick={state.adConceptTone === state.tone}
+                  count={adPrompts.length}
+                  onChange={handleAdConceptChange}
+                />
+
+                <div className="flex flex-wrap items-center gap-4 border-t border-[#e5e8eb] pt-4">
+                  <button
+                    type="button"
+                    onClick={() => handleCopyAllAdPrompts(adPrompts)}
+                    aria-label={`프롬프트 ${adPrompts.length}장 모두 복사하기`}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-[#e5e8eb] bg-white px-[18px] py-[10px] text-[15px] font-bold text-[#5f6b7a] transition hover:bg-[#f7f8fa]"
+                  >
+                    <Icon name="copy" className="size-4" />
+                    {adPrompts.length}장 모두 복사
+                  </button>
+                  {AD_TOOLS.map((t) => (
+                    <a
+                      key={t.name}
+                      href={t.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={`${t.name} 를 새 탭에서 열기`}
+                      className="inline-flex items-center gap-1.5 text-[14px] font-bold text-[#333d4b] transition hover:text-[#287aff]"
+                    >
+                      <Icon name="external" className="size-[15px]" />
+                      {t.name}
+                    </a>
+                  ))}
+                </div>
+
+                <p className="text-[13px] leading-[1.6] text-[#5f6b7a]">
+                  글자까지 그림 안에 들어갑니다 —{" "}
+                  <strong className="text-[#333d4b]">한글을 그리는 모델</strong>
+                  에서 쓰세요. <strong className="text-[#333d4b]">프롬프트는 한 장씩 따로 넣습니다</strong>{" "}
+                  — 한꺼번에 넣으면 한 장이 여러 칸으로 쪼개집니다. 뽑은 이미지는 이
+                  화면에 담기지 않습니다.
+                </p>
+              </div>
+
+              <div className="mt-6 grid grid-cols-2 gap-4 max-[720px]:grid-cols-1">
+                {adPrompts.map((item) => (
+                  <AdCard key={item.n} item={item} onCopy={handleCopyAdPrompt} />
+                ))}
+              </div>
+
+              <div className="mt-8 flex flex-wrap justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => router.push("/text")}
+                  aria-label="글귀 단계로 돌아가기"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-white/20 px-5 py-2.5 text-[15px] font-bold text-white transition hover:bg-white/10"
+                >
+                  <Icon name="arrowLeft" className="size-4" />글귀 단계로
+                </button>
+                <button
+                  type="button"
+                  onClick={() => saveToArchive()}
+                  disabled={libraryBusy || !canSaveLibrary}
+                  aria-label="지금 게시물 저장하기"
+                  aria-busy={libraryBusy}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-[#287aff] bg-[#287aff] px-5 py-2.5 text-[15px] font-bold text-white transition hover:border-[#1b64da] hover:bg-[#1b64da] disabled:opacity-40"
+                >
+                  <Icon name="archive" className="size-4" />
+                  저장
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
+        <div
+          id="toast-root"
+          className="toast-root"
+          role="status"
+          aria-live="polite"
+        />
       </main>
     );
   }
@@ -694,61 +880,16 @@ export default function TemplatePage() {
               </p>
             </header>
 
-            <section
-              aria-label="글 생성 조건 요약"
-              className="mb-[30px] flex min-h-[66px] items-center gap-6 overflow-hidden rounded-[15px] border border-[#e5e8eb] bg-white px-8 py-[17px] max-[1100px]:flex-wrap max-[1100px]:py-4 max-sm:px-5"
-            >
-              <dl className="grid min-w-0 flex-1 grid-cols-[minmax(150px,0.7fr)_minmax(220px,1fr)_minmax(220px,1.15fr)_minmax(220px,1.15fr)] items-center gap-x-8 gap-y-3 max-[1380px]:grid-cols-2 max-[700px]:grid-cols-1">
-                {[
-                  { label: "상품", value: product.name },
-                  { label: "주제", value: state.topic },
-                  ...(state.focusPoint?.trim()
-                    ? [{ label: "강조 할 내용", value: state.focusPoint }]
-                    : []),
-                  {
-                    label: "글 스타일",
-                    value: TONE_LABEL[state.tone] || state.tone,
-                  },
-                ].map(({ label, value }) => (
-                  <div
-                    key={label}
-                    className="flex min-w-0 items-center gap-[15px] text-[15px] leading-[1.3]"
-                  >
-                    <dt className="shrink-0 whitespace-nowrap font-bold text-black">
-                      {label}
-                    </dt>
-                    <dd
-                      className="min-w-0 truncate font-normal text-[#8e8e8e]"
-                      title={value || "-"}
-                    >
-                      {value || "-"}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-
-              <div className="ml-auto flex shrink-0 items-center gap-[10px]">
-                <button
-                  type="button"
-                  onClick={() => router.push("/text")}
-                  aria-label="글귀 단계로 돌아가 글 수정하기"
-                  className="inline-flex h-[42px] items-center justify-center gap-[5px] rounded-full border border-[#e5e8eb] bg-white px-[19px] text-[15px] font-medium leading-[22.4px] text-[#4e5968] transition hover:bg-[#f7f8fa]"
-                >
-                  <Icon name="arrowLeft" className="size-[18px]" />글 수정
-                </button>
-                <button
-                  type="button"
-                  onClick={() => saveToArchive()}
-                  disabled={libraryBusy || !canSaveLibrary}
-                  aria-label="지금 게시물을 마이페이지에 저장하기"
-                  aria-busy={libraryBusy}
-                  className="inline-flex h-[42px] items-center justify-center gap-[5px] rounded-full border border-[#287aff] bg-[#287aff] px-[19px] text-[15px] font-bold leading-[22.4px] text-white transition hover:border-[#1b64da] hover:bg-[#1b64da] disabled:opacity-40"
-                >
-                  <Icon name="archive" className="size-[18px]" />
-                  저장
-                </button>
-              </div>
-            </section>
+            <ContextBar
+              product={product}
+              topic={state.topic}
+              focusPoint={state.focusPoint}
+              toneLabel={TONE_LABEL[state.tone] || state.tone}
+              onEditText={() => router.push("/text")}
+              onSave={() => saveToArchive()}
+              saveDisabled={libraryBusy || !canSaveLibrary}
+              saveBusy={libraryBusy}
+            />
 
             <ConceptPicker
               concepts={CONCEPTS}
