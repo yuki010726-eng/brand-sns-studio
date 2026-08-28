@@ -1,7 +1,7 @@
 import { AD_CONCEPTS, adThumbSvg } from "../../../lib/adprompt.js";
 
 /**
- * 직관형(D) 전용 — **인물·색·화풍 컨셉** 선택. 카드뉴스 템플릿(A·B·C·D)과는 다른 축이다.
+ * 광고형(D) 전용 — **인물·색·화풍 컨셉** 선택. 카드뉴스 템플릿(A·B·C·D)과는 다른 축이다.
  *
  * ⚠️ 컨셉은 주제 하나에 하나다 (`lib/adprompt.js` 머리말 참고). 여기서 고르면 전 장이
  *    한꺼번에 다시 만들어진다 — 장마다 다른 컨셉을 고르는 UI 를 만들지 말 것.
@@ -62,7 +62,14 @@ export function AdConceptPicker({ value, toneLabel, isManualPick, count, onChang
           }}
         />
         <p className="text-[13px] leading-[1.6] text-[#5f6b7a]">
-          {selected.who} · {selected.when}
+          <strong className="text-[#333d4b]">{selected.name}</strong> — {selected.who} · {selected.when}
+          <br />
+          {/*
+            ⚠️ 컨셉마다 다른 설명(`desc`)이다. 넷이 서로 어떻게 다른지, 언제 이걸 고르면
+               안 되는지까지 적혀 있다 (요청자 요구 2026-08-28). 여기서 빼면 알약 이름만
+               남아 8-31 ③ 의 「컨셉을 저렇게 말해주면 누가 알아듣겠냐」로 되돌아간다.
+          */}
+          {selected.desc}
           <br />
           <strong className="text-[#333d4b]">{count}장</strong>을 같은 사람·색·그림체로 만듭니다.{" "}
           {isManualPick
