@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getClient } from '../../../../lib/supabase.js';
 import { initAuth } from '../../../../lib/auth.js';
+import { clearLibraryEdit } from '../../../../lib/librarystore.js';
+import { resetFlow } from '../../../../store.js';
 
 export default function InstagramLoginCompletePage() {
   const router = useRouter();
@@ -20,7 +22,13 @@ export default function InstagramLoginCompletePage() {
         if (error) throw error;
         const user = await initAuth();
         if (cancelled) return;
-        router.replace(user?.status === 'approved' ? '/' : '/login?instagram=connected');
+        if (user?.status === 'approved') {
+          clearLibraryEdit();
+          resetFlow();
+          router.replace('/');
+        } else {
+          router.replace('/login?instagram=connected');
+        }
       } catch (error) {
         if (!cancelled) {
           setMessage(error.message || 'Instagram 로그인에 실패했습니다.');

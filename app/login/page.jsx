@@ -15,6 +15,8 @@ import {
 import { isConfigured } from "../../lib/supabase.js";
 import { toast } from "../../components/toast.js";
 import { modal } from "../../components/modal.js";
+import { clearLibraryEdit } from "../../lib/librarystore.js";
+import { resetFlow } from "../../store.js";
 import { LoginField } from "./_components/LoginField.jsx";
 
 const SIGNUP_COMPLETE_MESSAGE =
@@ -39,7 +41,11 @@ export default function LoginPage() {
   useEffect(() => {
     const unsubscribe = onAuth((nextUser) => {
       setUser(nextUser);
-      if (nextUser?.status === "approved") router.replace("/");
+      if (nextUser?.status === "approved") {
+        clearLibraryEdit();
+        resetFlow();
+        router.replace("/");
+      }
     });
 
     initAuth().finally(() => setAuthReady(true));

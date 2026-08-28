@@ -25,12 +25,13 @@ const NAV_ITEMS = [
 
 const MY_PAGE_PATHS = ["/library", "/library/profile", "/research"];
 
-function isActive(navPath, currentPath, libraryEditId) {
+function isActive(navPath, currentPath) {
   if (navPath === "/products-admin") return currentPath === navPath;
   if (currentPath === "/products-admin") return false;
 
-  const isMyPage =
-    MY_PAGE_PATHS.includes(currentPath) || Boolean(libraryEditId);
+  const isMyPage = MY_PAGE_PATHS.some(
+    (path) => currentPath === path || currentPath.startsWith(`${path}/`),
+  );
   return navPath === "/library" ? isMyPage : !isMyPage;
 }
 
@@ -41,12 +42,13 @@ export function Header() {
   const [user, setUser] = useState(() => getUser());
   const [isStartingPost, setIsStartingPost] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
-  const [libraryEditId, setLibraryEditId] = useState(null);
   const [isScrolled, setIsScrolled] = useState(false);
 
   useEffect(() => {
-    setLibraryEditId(getLibraryEditId());
-    const unsubscribe = onAuth(setUser);
+    const unsubscribe = onAuth((nextUser) => {
+      setUser(nextUser);
+      if (nextUser || isLoginPage) setIsSigningOut(false);
+    });
     if (!isLoginPage) initAuth();
     return unsubscribe;
   }, [isLoginPage]);
@@ -72,9 +74,11 @@ export function Header() {
     const state = getState();
     const started =
       Boolean(state.productId) || Boolean(String(state.topic || "").trim());
+    const canSave =
+      Boolean(state.productId) && Boolean(String(state.topic || "").trim());
 
     try {
-      if (getLibraryEditId()) {
+      if (getLibraryEditId() && canSave) {
         const saved = await saveToLibrary(state);
         if (!saved.ok) {
           toast(
@@ -86,7 +90,6 @@ export function Header() {
       }
 
       clearLibraryEdit();
-      setLibraryEditId(null);
       resetFlow();
       router.push("/");
       router.refresh();
@@ -142,7 +145,7 @@ export function Header() {
         <div className="ml-auto flex items-center gap-[10px] max-[560px]:min-w-0 max-[560px]:gap-2">
           <nav className="flex items-center gap-2" aria-label="주요 메뉴">
             {navItems.map((item) => {
-              const active = isActive(item.path, pathname, libraryEditId);
+              const active = isActive(item.path, pathname);
               return (
                 <Link
                   key={item.path}
