@@ -64,11 +64,13 @@ export async function POST(request) {
   let connection;
   try {
     const admin = instagramAdmin(requireInstagramConfig());
-    const { data, error } = await admin
+    const selectedAccountId = request.headers.get('x-instagram-account-id') || '';
+    let query = admin
       .from('insta_users')
       .select('instagram_user_id,access_token,token_expires_at')
-      .eq('user_id', auth.user.id)
-      .maybeSingle();
+      .eq('user_id', auth.user.id);
+    if (selectedAccountId) query = query.eq('instagram_user_id', selectedAccountId);
+    const { data, error } = await query.order('created_at', { ascending: true }).limit(1).maybeSingle();
     if (error) throw error;
     connection = data;
   } catch (error) {

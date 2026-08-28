@@ -34,6 +34,7 @@ import { LoadingScreen } from "../../_components/LoadingScreen.jsx";
 import { InstagramPreview } from "./_components/InstagramPreview.jsx";
 import { ProfileDraftPanel } from "./_components/ProfileDraftPanel.jsx";
 import { ProfileTypePicker } from "./_components/ProfileTypePicker.jsx";
+import { InstagramAccounts } from "./_components/InstagramAccounts.jsx";
 
 /**
  * 미리보기 아바타에 쓸 이미지.
@@ -201,6 +202,8 @@ export default function ProfilePage() {
             「다시 뽑기」를 눌러 주세요.
           </p>
         </header>
+
+        <InstagramAccounts />
 
         <section className="mb-12">
           <h2 className="mb-4 text-[20px] font-bold text-white">1. 계정 유형</h2>

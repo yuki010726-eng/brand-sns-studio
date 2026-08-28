@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import logo from "../../../assets/logos/logo.svg";
 import {
   getUser,
@@ -17,6 +17,12 @@ import {
 } from "../../../lib/librarystore.js";
 import { getState, resetFlow } from "../../../store.js";
 import { toast } from "../../../components/toast.js";
+import {
+  getActiveInstagramAccountId,
+  getInstagramAccounts,
+  INSTAGRAM_ACCOUNTS_CHANGED,
+  setActiveInstagramAccountId,
+} from "../../../lib/instagram-accounts.js";
 
 const NAV_ITEMS = [
   { path: "/", label: "새 게시물" },
@@ -43,6 +49,10 @@ export function Header() {
   const [isStartingPost, setIsStartingPost] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+  const [instagramAccounts, setInstagramAccounts] = useState([]);
+  const [activeInstagramId, setActiveInstagramIdState] = useState("");
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const accountMenuRef = useRef(null);
 
   useEffect(() => {
     const unsubscribe = onAuth((nextUser) => {
@@ -60,6 +70,30 @@ export function Header() {
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
+
+  useEffect(() => {
+    if (!user) { setInstagramAccounts([]); return undefined; }
+    let cancelled = false;
+    const loadAccounts = async () => {
+      try {
+        const accounts = await getInstagramAccounts();
+        if (cancelled) return;
+        setInstagramAccounts(accounts);
+        const saved = getActiveInstagramAccountId();
+        setActiveInstagramIdState(accounts.some((item) => item.instagram_user_id === saved) ? saved : '');
+      } catch { if (!cancelled) setInstagramAccounts([]); }
+    };
+    loadAccounts();
+    window.addEventListener(INSTAGRAM_ACCOUNTS_CHANGED, loadAccounts);
+    return () => { cancelled = true; window.removeEventListener(INSTAGRAM_ACCOUNTS_CHANGED, loadAccounts); };
+  }, [user?.id, pathname]);
+
+  useEffect(() => {
+    if (!accountMenuOpen) return undefined;
+    const close = (event) => { if (!accountMenuRef.current?.contains(event.target)) setAccountMenuOpen(false); };
+    document.addEventListener('pointerdown', close);
+    return () => document.removeEventListener('pointerdown', close);
+  }, [accountMenuOpen]);
 
   const navItems =
     user?.role === "admin"
@@ -117,6 +151,14 @@ export function Header() {
   }
 
   const initial = (user?.name || "?").trim().charAt(0);
+  const activeInstagram = instagramAccounts.find((item) => item.instagram_user_id === activeInstagramId);
+  const displayName = activeInstagram ? `@${activeInstagram.username}` : user?.name;
+
+  function selectAccount(id) {
+    setActiveInstagramAccountId(id);
+    setActiveInstagramIdState(id);
+    setAccountMenuOpen(false);
+  }
 
   if (isLoginPage) return null;
 
@@ -169,11 +211,11 @@ export function Header() {
           </nav>
 
           {user && (
-            <div className="flex items-center">
+            <div className="relative flex items-center" ref={accountMenuRef}>
               <div className="flex items-center gap-[11px]">
-                {user.avatar ? (
+                {activeInstagram?.profile_picture_url || user.avatar ? (
                   <img
-                    src={user.avatar}
+                    src={activeInstagram?.profile_picture_url || user.avatar}
                     alt=""
                     referrerPolicy="no-referrer"
                     className="h-9 w-9 shrink-0 rounded-full bg-[#f2f4f6] object-cover"
@@ -186,14 +228,18 @@ export function Header() {
                     {initial}
                   </span>
                 )}
-                <span
-                  title={user.name}
+                <button
+                  type="button"
+                  onClick={() => setAccountMenuOpen((open) => !open)}
+                  aria-expanded={accountMenuOpen}
+                  aria-haspopup="menu"
+                  title={displayName}
                   className={`max-w-[120px] overflow-hidden text-ellipsis whitespace-nowrap font-normal leading-[21px] text-white transition-[font-size] duration-200 max-[560px]:hidden ${
                     isScrolled ? "text-[11px]" : "text-[16px]"
                   }`}
                 >
-                  {user.name}
-                </span>
+                  {displayName} <span aria-hidden="true" className="ml-1 text-white/55">⌄</span>
+                </button>
                 <button
                   type="button"
                   onClick={handleSignOut}
@@ -207,6 +253,24 @@ export function Header() {
                   {isSigningOut ? "로그아웃 중..." : "로그아웃"}
                 </button>
               </div>
+              {accountMenuOpen && (
+                <div role="menu" className="absolute right-0 top-[calc(100%+12px)] z-50 w-[260px] overflow-hidden rounded-[14px] border border-white/15 bg-[#262626] p-2 text-white shadow-2xl">
+                  <p className="px-3 pb-2 pt-1 text-[11px] font-bold uppercase tracking-[0.08em] text-white/40">사용할 계정</p>
+                  <button type="button" role="menuitemradio" aria-checked={!activeInstagramId} onClick={() => selectAccount('')} className="flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-left hover:bg-white/10">
+                    <span className="flex size-8 items-center justify-center rounded-full bg-white text-[13px] font-bold text-black">{initial}</span>
+                    <span className="min-w-0 flex-1 truncate text-[13px]">{user.name}</span>
+                    {!activeInstagramId && <span className="text-[#4ade80]">✓</span>}
+                  </button>
+                  {instagramAccounts.map((account) => (
+                    <button key={account.instagram_user_id} type="button" role="menuitemradio" aria-checked={activeInstagramId === account.instagram_user_id} onClick={() => selectAccount(account.instagram_user_id)} className="flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-left hover:bg-white/10">
+                      {account.profile_picture_url ? <img src={account.profile_picture_url} alt="" referrerPolicy="no-referrer" className="size-8 rounded-full object-cover" /> : <span className="flex size-8 items-center justify-center rounded-full bg-white/15 text-[12px] font-bold">{account.username.charAt(0).toUpperCase()}</span>}
+                      <span className="min-w-0 flex-1 truncate text-[13px]">@{account.username}</span>
+                      {activeInstagramId === account.instagram_user_id && <span className="text-[#4ade80]">✓</span>}
+                    </button>
+                  ))}
+                  {!instagramAccounts.length && <Link href="/library/profile" onClick={() => setAccountMenuOpen(false)} className="block rounded-[10px] px-3 py-3 text-center text-[12px] font-semibold text-white/60 hover:bg-white/10 hover:text-white">Instagram 계정 연결하기</Link>}
+                </div>
+              )}
             </div>
           )}
         </div>
