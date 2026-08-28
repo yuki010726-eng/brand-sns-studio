@@ -8,7 +8,7 @@
  * 금지표현/글자잘림 경고, PNG 저장, 보관함 저장 + 자동저장, 오브젝트 자유 배치(드래그·리사이즈,
  * `CanvasPreview.jsx`) 와 되돌리기/다시실행 히스토리.
  *
- * 직관형(D, `concept.promptOnly`)은 캔버스를 아예 타지 않는다 — 옛 `pages/template.js` 의
+ * 광고형(D, `concept.promptOnly`)은 캔버스를 아예 타지 않는다 — 옛 `pages/template.js` 의
  * `renderAdPage()` 를 그대로 옮겨, 컨셉(인물·색·화풍)을 고르면 카드 대신 이미지 프롬프트
  * 묶음을 만들어 준다 (`lib/adprompt.js`). 카드를 그리지 않으므로 슬롯 편집·PNG 저장·
  * Instagram 게시는 여기서 쓰지 않는다 — 보관함 저장(`saveToArchive`)만 캔버스 화면과 공유한다.
@@ -84,7 +84,7 @@ const IMAGE_ROLE = {
   card: "배경 이미지",
 };
 
-/** 직관형 프롬프트를 들고 갈 곳 — 한글을 그릴 수 있는 도구여야 한다 */
+/** 광고형 프롬프트를 들고 갈 곳 — 한글을 그릴 수 있는 도구여야 한다 */
 const AD_TOOLS = [
   { name: "ChatGPT", url: "https://chatgpt.com/" },
   { name: "Gemini", url: "https://gemini.google.com/app" },
@@ -105,8 +105,8 @@ const fileName = (s, i) =>
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /**
- * 직관형(D) 컨셉 — **1단계 톤앤매너가 정한다** (요청자 지시: "톤앤매너 선택에서 ~형에 따라
- * 알맞은 스타일이 직관형에 적용되도록"). 직접 고른 것은 그 톤인 동안만 유지한다 —
+ * 광고형(D) 컨셉 — **1단계 톤앤매너가 정한다** (요청자 지시: "톤앤매너 선택에서 ~형에 따라
+ * 알맞은 스타일이 광고형에 적용되도록"). 직접 고른 것은 그 톤인 동안만 유지한다 —
  * `adConceptTone` 이 지금 톤과 같을 때만 `adConcept` 를 믿는다. 옛 pages/template.js 의
  * `effectiveAdConcept()`.
  */
@@ -765,10 +765,10 @@ export default function TemplatePage() {
             <div className="min-w-0 flex-1 px-[clamp(24px,calc((39/1920)*100vw),39px)] py-14">
               <header className="mb-6">
                 <p className="text-[25px] font-bold leading-[22.4px] text-white">
-                  직관형 — 이미지 프롬프트를 만듭니다
+                  광고형 — 이미지 프롬프트를 만듭니다
                 </p>
                 <p className="mt-3 max-w-[720px] text-[15px] leading-[1.6] text-white/60">
-                  직관형은 카드를 그리지 않습니다. 글자까지 이미지 안에 들어가는 광고
+                  광고형은 카드를 그리지 않습니다. 글자까지 이미지 안에 들어가는 광고
                   배너라 나중에 문구를 얹을 자리가 없기 때문입니다. 대신 원하는
                   장수만큼 프롬프트를 만들어 드리니, 복사해서 이미지 생성 도구에서
                   뽑으면 됩니다.

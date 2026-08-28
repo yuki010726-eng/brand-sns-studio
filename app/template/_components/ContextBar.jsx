@@ -2,7 +2,7 @@ import { Icon } from "../../_components/Icon.jsx";
 
 /**
  * 상품·주제·톤 요약 바 + 「글 수정」·「저장」 바로가기.
- * 캔버스 편집(A·B·C)과 직관형 프롬프트(D) 화면이 함께 쓴다 — 옛 pages/template.js 의
+ * 캔버스 편집(A·B·C)과 광고형 프롬프트(D) 화면이 함께 쓴다 — 옛 pages/template.js 의
  * `ctxbar` 를 그대로 옮긴 것이라 두 화면에서 같은 자리에 같은 모양으로 뜬다.
  */
 export function ContextBar({

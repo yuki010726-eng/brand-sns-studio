@@ -2,7 +2,7 @@ import { Icon } from "../../_components/Icon.jsx";
 import { roleLabel } from "../../../lib/adprompt.js";
 
 /**
- * 직관형 프롬프트 한 장 — 무엇이 찍히는지(헤드라인) 먼저 보이고, 전문은 접어 둔다.
+ * 광고형 프롬프트 한 장 — 무엇이 찍히는지(헤드라인) 먼저 보이고, 전문은 접어 둔다.
  * 옛 pages/template.js 의 `adCardHTML()` 을 그대로 옮긴 것이다.
  */
 export function AdCard({ item, onCopy }) {
