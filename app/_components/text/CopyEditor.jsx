@@ -115,6 +115,9 @@ export function CopyEditor({
   showChat,
   chatContextKey,
   draftLabel,
+  generation,
+  onToggleGenerationPause,
+  onCancelGeneration,
 }) {
   const over = value.length > channel.limit;
   const bodyCount = value
@@ -163,7 +166,50 @@ export function CopyEditor({
       <div className="flex items-start gap-5 max-[1100px]:flex-col">
         <div className="min-w-0 flex-1">
           <div className="rounded-xl border border-[#e5e8eb] bg-white shadow-[0_0_2px_rgba(0,30,78,0.07)]">
-            {readMode ? (
+            {generation ? (
+              <div
+                className="flex min-h-[200px] flex-col justify-center px-6 py-12"
+                role="status"
+                aria-live="polite"
+              >
+                <div className="mx-auto w-full max-w-md rounded-xl border border-[#e5e8eb] bg-[#f8f9fa] px-5 py-4 text-[#4e5968]">
+                  <div className="flex items-center justify-between gap-4 text-[13px]">
+                    <span className="font-semibold">
+                      {generation.paused
+                        ? "AI 생성 일시정지 중"
+                        : `${generation.channelName || "AI 결과"} 생성 중…`}
+                    </span>
+                    <span className="text-[#8b95a1]">
+                      {generation.current}/{generation.total}
+                    </span>
+                  </div>
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#e5e8eb]">
+                    <div
+                      className="h-full rounded-full bg-[#287aff] transition-[width] duration-300"
+                      style={{
+                        width: `${Math.max(8, (generation.current / generation.total) * 100)}%`,
+                      }}
+                    />
+                  </div>
+                  <div className="mt-3 flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={onToggleGenerationPause}
+                      className="rounded-full border border-[#d1d6db] bg-white px-3 py-1.5 text-[13px] font-semibold hover:bg-[#f2f4f6]"
+                    >
+                      {generation.paused ? "계속하기" : "일시정지"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={onCancelGeneration}
+                      className="rounded-full border border-[#ff6b6b]/60 bg-white px-3 py-1.5 text-[13px] font-semibold text-[#e5484d] hover:bg-[#fff0f0]"
+                    >
+                      취소
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : readMode ? (
               <article className="min-h-[200px] break-words px-6 py-6 sm:px-[25px] sm:py-[25px]">
                 <Preview value={value} />
               </article>

@@ -35,7 +35,8 @@ export function CopyChatPanel({
   draftValue,
   onApplyToDraft,
 }) {
-  const [loggedIn, setLoggedIn] = useState(Boolean(getUser()));
+  const [authUserId, setAuthUserId] = useState(getUser()?.id || null);
+  const loggedIn = Boolean(authUserId);
   const [messages, setMessages] = useState([]);
   const [summary, setSummary] = useState(null);
   const [showSummary, setShowSummary] = useState(false);
@@ -44,14 +45,21 @@ export function CopyChatPanel({
   const [sending, setSending] = useState(false);
   const listRef = useRef(null);
 
-  useEffect(() => onAuth((user) => setLoggedIn(Boolean(user))), []);
+  useEffect(() => onAuth((user) => setAuthUserId(user?.id || null)), []);
 
   useEffect(() => {
     if (!loggedIn) {
+      setMessages([]);
+      setSummary(null);
+      setSending(false);
       setReady(true);
       return;
     }
     let cancelled = false;
+    // 계정 또는 대화 범위가 바뀌면 이전 사용자의 내용을 새 조회가 끝날 때까지 남겨두지 않는다.
+    setMessages([]);
+    setSummary(null);
+    setSending(false);
     setReady(false);
     if (!contextKey) {
       setMessages([]);
@@ -71,7 +79,7 @@ export function CopyChatPanel({
     return () => {
       cancelled = true;
     };
-  }, [contextKey, loggedIn]);
+  }, [contextKey, authUserId, loggedIn]);
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
@@ -80,6 +88,8 @@ export function CopyChatPanel({
   async function handleSend() {
     const text = input.trim();
     if (!text || sending) return;
+    const requestUserId = getUser()?.id;
+    if (!requestUserId) return;
     setInput("");
     const userMsg = { id: `local-${Date.now()}`, role: "user", content: text };
     const withUser = [...messages, userMsg];
@@ -102,6 +112,8 @@ export function CopyChatPanel({
         sendChat(withUser),
         revisePromise,
       ]);
+      // 응답을 기다리는 동안 계정이 바뀌었다면 이전 사용자의 결과를 화면이나 DB에 반영하지 않는다.
+      if (getUser()?.id !== requestUserId) return;
       const botMsg = {
         id: `local-${Date.now()}-a`,
         role: "assistant",
@@ -122,8 +134,9 @@ export function CopyChatPanel({
       // 요약은 화면을 막지 않고 뒤에서 갱신한다 — 다음 AI 생성부터 반영되면 충분하다.
       refreshSummary(summary?.summary || "", withReply)
         .then((nextSummary) => {
+          if (getUser()?.id !== requestUserId) return null;
           setSummary({ summary: nextSummary, message_count: withReply.length });
-          return saveMemorySummary(nextSummary, withReply.length);
+          return saveMemorySummary(nextSummary, withReply.length, requestUserId);
         })
         .catch((error) => console.warn("[copy-chat] 요약 갱신 실패", error));
     } catch (error) {
@@ -174,14 +187,6 @@ export function CopyChatPanel({
             지금 보고 있는 시안에 바로 반영됩니다.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={handleReset}
-          aria-label={`${draftLabel || "현재 시안"} 대화 초기화`}
-          className="shrink-0 rounded-full p-1.5 text-[#8b95a1] hover:bg-[#f2f4f6] hover:text-[#4e5968]"
-        >
-          <Icon name="trash" className="size-4" />
-        </button>
       </header>
 
       <div className="border-b border-[#e5e8eb] px-4 py-2.5">

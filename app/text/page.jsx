@@ -430,48 +430,6 @@ export default function CopyPage() {
                         전체 채널 AI 생성
                       </button>
                     </div>
-                    {busy && generation && (
-                      <div
-                        className="w-full rounded-xl border border-white/15 bg-black/20 px-4 py-3 text-white"
-                        role="status"
-                        aria-live="polite"
-                      >
-                        <div className="flex items-center justify-between gap-4 text-[13px]">
-                          <span className="font-semibold">
-                            {generation.paused
-                              ? "AI 생성 일시정지 중"
-                              : `${generation.channelName || "AI 결과"} 생성 중…`}
-                          </span>
-                          <span className="text-white/60">
-                            {generation.current}/{generation.total}
-                          </span>
-                        </div>
-                        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/15">
-                          <div
-                            className="h-full rounded-full bg-[#287aff] transition-[width] duration-300"
-                            style={{
-                              width: `${Math.max(8, (generation.current / generation.total) * 100)}%`,
-                            }}
-                          />
-                        </div>
-                        <div className="mt-3 flex justify-end gap-2">
-                          <button
-                            type="button"
-                            onClick={toggleGenerationPause}
-                            className="rounded-full border border-white/25 px-3 py-1.5 text-[13px] font-semibold hover:bg-white/10"
-                          >
-                            {generation.paused ? "계속하기" : "일시정지"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={cancelGeneration}
-                            className="rounded-full border border-[#ff6b6b]/60 px-3 py-1.5 text-[13px] font-semibold text-[#ff9b9b] hover:bg-[#ff6b6b]/10"
-                          >
-                            취소
-                          </button>
-                        </div>
-                      </div>
-                    )}
                   </div>
                 </div>
                 <CopyEditor
@@ -483,6 +441,9 @@ export default function CopyPage() {
                   showChat={Boolean(state.aiRuns?.list?.length)}
                   chatContextKey={chatContextKey}
                   draftLabel={activeRun == null ? "" : `시안 ${activeRun + 1}`}
+                  generation={busy ? generation : null}
+                  onToggleGenerationPause={toggleGenerationPause}
+                  onCancelGeneration={cancelGeneration}
                   runSelector={
                     <AiRunSelector
                       runs={matchingRuns}
