@@ -28,7 +28,7 @@ import { LibraryEmptyState } from "./_components/LibraryEmptyState.jsx";
 import { LibraryGrid } from "./_components/LibraryGrid.jsx";
 import { LibraryNoResults } from "./_components/LibraryNoResults.jsx";
 import { LibraryToolbar } from "./_components/LibraryToolbar.jsx";
-import { SettingsList } from "./_components/SettingsList.jsx";
+import { MyPageSidebar } from "./_components/MyPageSidebar.jsx";
 import {
   getActiveInstagramAccountId,
   INSTAGRAM_ACCOUNTS_CHANGED,
@@ -150,8 +150,11 @@ export default function LibraryPage() {
   if (!state || !productsReady) return <LoadingScreen />;
 
   return (
-    <main className="min-h-dvh bg-[#1a1a1a] pb-[140px] pt-[54px] text-[#4e5968]">
+    <main className="min-h-dvh bg-[#1a1a1a] pb-[170px] pt-0 text-[#4e5968]">
       <div className="w-full px-[clamp(20px,3.85vw,74px)]">
+        <div className="flex min-h-[1170px] items-stretch overflow-hidden rounded-[15px] bg-white/10 max-[860px]:min-h-0 max-[860px]:flex-col">
+        <MyPageSidebar />
+        <div className="min-w-0 flex-1 px-[39px] pb-20 pl-[49px] pt-[61px] max-[860px]:px-6 max-[860px]:pb-[54px] max-[860px]:pt-[34px]">
         <header className="mb-10">
           <h1 className="text-[32px] font-bold tracking-[-0.04em] text-white">
             마이페이지
@@ -161,11 +164,6 @@ export default function LibraryPage() {
             불러오면 글귀·템플릿·카드 문구가 그대로 되살아납니다.
           </p>
         </header>
-
-        <section className="mb-12">
-          <h2 className="mb-4 text-[20px] font-bold text-white">설정</h2>
-          <SettingsList />
-        </section>
 
         <section>
           <h2 className="mb-4 text-[20px] font-bold text-white">
@@ -194,6 +192,8 @@ export default function LibraryPage() {
             />
           )}
         </section>
+        </div>
+        </div>
       </div>
       <div
         id="toast-root"

@@ -45,6 +45,7 @@ const INITIAL = {
   libraryTitle: "",
   tone: "",
   customStyleUrl: "", // 직접 추가한 참고 블로그 글 URL
+  customStyleSaveRequested: false,
   customStyleGuide: "", // URL에서 분석해 재사용하는 문체 가이드
   customStyleGuideUrl: "", // 위 가이드를 분석한 원본 URL
   channels: [],

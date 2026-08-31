@@ -183,6 +183,9 @@ export function CopyEditor({
                       {generation.current}/{generation.total}
                     </span>
                   </div>
+                  <p className="mt-3 text-[13px] leading-5 text-[#6b7684]">
+                    조금만 기다려주세요. 다른 곳으로 이동할 경우 생성이 취소됩니다.
+                  </p>
                   <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#e5e8eb]">
                     <div
                       className="h-full rounded-full bg-[#287aff] transition-[width] duration-300"

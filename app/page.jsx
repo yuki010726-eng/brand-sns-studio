@@ -68,6 +68,7 @@ export default function HomePage() {
       customStyleUrl: "",
       customStyleGuide: "",
       customStyleGuideUrl: "",
+      customStyleSaveRequested: false,
       cardCount: 0,
       channels: [],
       libraryTitle: "",
@@ -93,6 +94,7 @@ export default function HomePage() {
       customStyleUrl: "",
       customStyleGuide: "",
       customStyleGuideUrl: "",
+      customStyleSaveRequested: false,
       cardCount: 0,
       channels: [],
       libraryTitle: "",
@@ -177,7 +179,7 @@ export default function HomePage() {
   return (
     <main className="min-h-dvh bg-[#1a1a1a] pb-[170px] pt-0 text-[#4e5968]">
       <div className="w-full px-[clamp(20px,3.85vw,74px)]">
-        <div className="flex min-h-[1170px] items-stretch overflow-hidden rounded-[15px] bg-white/10 max-[860px]:min-h-0 max-[860px]:flex-col">
+        <div className="flex items-stretch overflow-hidden rounded-[15px] bg-white/10 max-[860px]:min-h-0 max-[860px]:flex-col">
           <WorkshopStepper steps={STEPS} />
           <div className="flex min-w-0 flex-1 flex-col gap-12 px-[39px] pb-20 pl-[49px] pt-[61px] max-[860px]:px-6 max-[860px]:pb-[54px] max-[860px]:pt-[34px]">
             <ProductSection
@@ -200,9 +202,8 @@ export default function HomePage() {
                   toast("먼저 참고할 블로그 글 링크를 입력해 주세요.");
                   return;
                 }
-                toast(
-                  "스타일 보관함은 마이페이지 마이그레이션 후 연결될 예정입니다.",
-                );
+                setState({ customStyleSaveRequested: true });
+                toast("AI 글을 생성할 때 이 스타일을 마이페이지에 함께 저장합니다.");
               }}
             />
           </div>

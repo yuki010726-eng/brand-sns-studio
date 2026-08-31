@@ -16,7 +16,6 @@
  *    `app/library/_components/SettingsList.jsx` 의 링크도 함께 고쳐야 한다.
  */
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "../../../components/toast.js";
 import { deleteImage, getImage, objectUrl, putImage } from "../../../lib/imagestore.js";
@@ -35,6 +34,7 @@ import { InstagramPreview } from "./_components/InstagramPreview.jsx";
 import { ProfileDraftPanel } from "./_components/ProfileDraftPanel.jsx";
 import { ProfileTypePicker } from "./_components/ProfileTypePicker.jsx";
 import { InstagramAccounts } from "./_components/InstagramAccounts.jsx";
+import { MyPageSidebar } from "../_components/MyPageSidebar.jsx";
 
 /**
  * 미리보기 아바타에 쓸 이미지.
@@ -185,17 +185,12 @@ export default function ProfilePage() {
   const profile = state.profile;
 
   return (
-    <main className="min-h-dvh bg-[#1a1a1a] pb-[140px] pt-[54px] text-[#4e5968]">
+    <main className="min-h-dvh bg-[#1a1a1a] pb-[170px] pt-0 text-[#4e5968]">
       <div className="w-full px-[clamp(20px,3.85vw,74px)]">
-        <Link
-          href="/library"
-          aria-label="마이페이지로 돌아가기"
-          className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-white/60 transition hover:text-white"
-        >
-          <Icon name="arrowLeft" className="size-4" /> 마이페이지
-        </Link>
-
-        <header className="mb-10 mt-5">
+        <div className="flex min-h-[1170px] items-stretch overflow-hidden rounded-[15px] bg-white/10 max-[860px]:min-h-0 max-[860px]:flex-col">
+        <MyPageSidebar />
+        <div className="min-w-0 flex-1 px-[39px] pb-20 pl-[49px] pt-[61px] max-[860px]:px-6 max-[860px]:pb-[54px] max-[860px]:pt-[34px]">
+        <header className="mb-10">
           <h1 className="text-[32px] font-bold tracking-[-0.04em] text-white">계정 프로필을 설정해 보세요</h1>
           <p className="mt-2 max-w-[560px] text-white/55">
             유형을 고르면 이름·소개·프로필 이미지 초안을 만들어 드립니다. 마음에 들지 않으면 아래
@@ -253,6 +248,8 @@ export default function ProfilePage() {
           >
             상품·주제 선택하기 <Icon name="arrowRight" className="size-4" />
           </button>
+        </div>
+        </div>
         </div>
       </div>
       <div id="toast-root" className="toast-root" role="status" aria-live="polite" />

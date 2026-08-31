@@ -172,6 +172,7 @@ export function TopicSection({
                             customStyleUrl: "",
                             customStyleGuide: "",
                             customStyleGuideUrl: "",
+                            customStyleSaveRequested: false,
                             cardCount: 0,
                             channels: [],
                             libraryTitle: "",
@@ -199,6 +200,7 @@ export function TopicSection({
                       customStyleUrl: "",
                       customStyleGuide: "",
                       customStyleGuideUrl: "",
+                      customStyleSaveRequested: false,
                       cardCount: 0,
                       channels: [],
                       libraryTitle: "",
@@ -250,6 +252,7 @@ export function TopicSection({
                             customStyleUrl: "",
                             customStyleGuide: "",
                             customStyleGuideUrl: "",
+                            customStyleSaveRequested: false,
                           }),
                     })
                   }
@@ -266,6 +269,7 @@ export function TopicSection({
                           customStyleUrl: event.target.value,
                           customStyleGuide: "",
                           customStyleGuideUrl: "",
+                          customStyleSaveRequested: false,
                         })
                       }
                       placeholder="참고할 네이버 블로그 글 링크를 입력하세요."
@@ -276,7 +280,9 @@ export function TopicSection({
                       className="ml-auto mt-2 block rounded-md px-1 py-1 text-[13px] font-semibold text-[#4e5968] underline decoration-[#b0b8c1] underline-offset-4 transition hover:text-[#1b64da] hover:decoration-[#1b64da]"
                       onClick={onSaveCustomStyle}
                     >
-                      스타일 저장하기
+                      {state.customStyleSaveRequested
+                        ? "스타일 저장 예약됨"
+                        : "스타일 저장하기"}
                     </button>
                   </span>
                 )}

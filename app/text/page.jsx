@@ -239,6 +239,46 @@ export default function CopyPage() {
             customStyleGuideUrl: customUrl,
           });
         }
+        if (current.customStyleSaveRequested) {
+          const latest = getState();
+          const existing = (latest.styles || []).find((item) =>
+            (item.sources || []).includes(customUrl),
+          );
+          if (existing) {
+            setState({
+              styles: (latest.styles || []).map((item) =>
+                item.id === existing.id
+                  ? { ...item, guide: researchStyle, at: Date.now() }
+                  : item,
+              ),
+              styleId: existing.id,
+              customStyleSaveRequested: false,
+            });
+            toast("이미 저장된 글 스타일을 최신 분석으로 업데이트했습니다.");
+          } else {
+            const used = new Set(
+              (latest.styles || []).map((item) => {
+                const match = String(item.name || "").match(/^\((\d+)\)$/);
+                return match ? Number(match[1]) : 0;
+              }),
+            );
+            let number = 1;
+            while (used.has(number)) number += 1;
+            const entry = {
+              id: `st_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+              name: `(${number})`,
+              guide: researchStyle,
+              at: Date.now(),
+              sources: [customUrl],
+            };
+            setState({
+              styles: [entry, ...(latest.styles || [])].slice(0, 12),
+              styleId: entry.id,
+              customStyleSaveRequested: false,
+            });
+            toast(`글 스타일 ${entry.name}을 마이페이지에 저장했습니다.`);
+          }
+        }
       }
 
       // 채널 글을 쓰기 전에 주제 뼈대(core)를 먼저 만든다 — 세 채널이 같은 뼈대를 봐야
@@ -378,6 +418,17 @@ export default function CopyPage() {
     }
   }
 
+  function moveToTemplate() {
+    const hasGeneratedPost = channels.some((channel) =>
+      String(getState().generated?.[channel.id] || "").trim(),
+    );
+    if (!hasGeneratedPost) {
+      toast("글 생성 후 이동할 수 있습니다.");
+      return;
+    }
+    router.push("/template");
+  }
+
   if (!state || !productsReady || !activeChannel) return <LoadingScreen />;
   const value = state.drafts?.[activeId] || "";
   return (
@@ -403,7 +454,7 @@ export default function CopyPage() {
                 focusPoint={state.focusPoint}
                 writingStyle={TONE_LABEL[state.tone] || state.tone}
                 onEditConditions={() => router.push("/")}
-                onNext={() => router.push("/template")}
+                onNext={moveToTemplate}
               />
               <div className="overflow-clip rounded-[15px] bg-[#595959]">
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-[21px] py-[33px]">
