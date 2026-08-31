@@ -136,7 +136,8 @@ export function CardForm({
   onDeleteExtraText,
   onSelectExtra,
 }) {
-  const rich = conceptId === "note" || (conceptId === "card" && roleOf("card", kind) !== "outro");
+  // 노트형은 2026-08-31 재설계로 본문이 검정 박스 안 평문 한두 줄이 됐다 — 서식 도구가 필요 없다.
+  const rich = conceptId === "card" && roleOf("card", kind) !== "outro";
   const bannedText = ["title", "highlight", "body"].map((k) => text[k] || "").join("\n");
   const banned = findBanned(bannedText, BANNED_PHRASES);
 

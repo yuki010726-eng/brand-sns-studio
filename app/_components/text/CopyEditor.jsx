@@ -1,5 +1,6 @@
 import { Icon } from "../Icon.jsx";
 import { CopyChatPanel } from "./CopyChatPanel.jsx";
+import { CompliancePanel } from "./CompliancePanel.jsx";
 
 const QUOTE_RE = /^\[[^\]]*인용구\]$/;
 const SLOT_RE = /^📷\s*\[이미지\s*(\d+)\s*·\s*([^\]]+)\]/;
@@ -107,7 +108,7 @@ export function CopyEditor({
   value,
   generatedValue,
   readMode,
-  banned,
+  compliance,
   runSelector,
   onChange,
   onToggleMode,
@@ -227,21 +228,7 @@ export function CopyEditor({
             )}
           </div>
 
-          {(banned.length > 0 || over) && (
-            <div
-              role="alert"
-              className="mt-4 flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
-            >
-              <Icon name="alert" className="mt-0.5 size-5" />
-              <div>
-                <strong>게시 전 확인이 필요합니다.</strong>
-                {banned.map((phrase) => (
-                  <p key={phrase}>금지 표현 포함: “{phrase}”</p>
-                ))}
-                {over && <p>{channel.name} 권장 글자 수를 초과했습니다.</p>}
-              </div>
-            </div>
-          )}
+          <CompliancePanel report={compliance} />
         </div>
 
         {showChat && (

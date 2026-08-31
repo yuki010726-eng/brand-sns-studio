@@ -1,3 +1,4 @@
+import { Icon } from "../../_components/Icon.jsx";
 import { SectionDivider } from "./SectionDivider.jsx";
 
 /**
@@ -49,6 +50,7 @@ export function SwatchPicker({
                   aria-hidden="true"
                 />
               )}
+              {o.icon && <Icon name={o.icon} className="size-4" />}
               {o.name}
             </label>
           );

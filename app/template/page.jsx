@@ -78,7 +78,7 @@ import {
 } from "../../lib/instagram-accounts.js";
 
 const IMAGE_ROLE = {
-  note: "아이콘 이미지",
+  note: "카드 이미지",
   magazine: "배경 이미지",
   card: "배경 이미지",
 };
@@ -89,8 +89,8 @@ const AD_TOOLS = [
   { name: "Gemini", url: "https://gemini.google.com/app" },
 ];
 
-const usesImage = (conceptId, kind) =>
-  !(conceptId === "card" && roleOf("card", kind) === "outro");
+// 팔로우 장(role === 'outro')은 카드형·노트형 공통으로 사진을 쓰지 않는다.
+const usesImage = (conceptId, kind) => roleOf(conceptId, kind) !== "outro";
 
 function isFieldEdited(card, index, conceptId, kind) {
   const ids = slotsFor(conceptId, kind).map((s) => s.id);

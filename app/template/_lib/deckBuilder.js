@@ -154,9 +154,12 @@ export function blogCardSource(state) {
   return out;
 }
 
-/** 카드형 팔로우 카드를 한 장 더한다 (`withFollowCard`, 2026-08-21 결정 그대로) */
+/**
+ * 카드형·노트형 팔로우 카드를 한 장 더한다 (`withFollowCard`, 2026-08-21 결정 그대로 ·
+ * 2026-08-31 노트형까지 확장).
+ */
 export function withFollowCard(cards, conceptId, product) {
-  if (conceptId !== 'card' || !cards.length) return cards;
+  if ((conceptId !== 'card' && conceptId !== 'note') || !cards.length) return cards;
   const total = cards.length + 1;
   const pad = (n) => String(n).padStart(2, '0');
   const numbered = cards.map((card, i) => (card.eyebrow && card.eyebrow.includes('/')

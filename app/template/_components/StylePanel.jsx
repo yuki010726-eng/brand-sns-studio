@@ -65,8 +65,8 @@ export function StylePanel({ concept, values, onChange }) {
           <SwatchPicker
             legend="우상단 마크"
             name="mark"
-            options={MARKS.map((m) => ({ id: m.id, name: m.name }))}
-            value={mark || "asterisk"}
+            options={MARKS.map((m) => ({ id: m.id, name: m.name, icon: m.id === "none" ? undefined : m.id }))}
+            value={mark || "newspaper"}
             onChange={(v) => onChange({ mark: v })}
             hint="모든 장의 오른쪽 위에 함께 적용됩니다."
           />
@@ -115,12 +115,12 @@ export function StylePanel({ concept, values, onChange }) {
             </p>
           </div>
           <SwatchPicker
-            legend="좌상단 심볼 (본문·마무리)"
+            legend="상단 심볼 (본문·팔로우)"
             name="notesymbol"
             options={NOTE_SYMBOLS.map((s) => ({ id: s.id, name: s.name }))}
             value={noteSymbol || "flask"}
             onChange={(v) => onChange({ noteSymbol: v })}
-            hint="모든 본문 장의 왼쪽 위에 함께 들어갑니다. 이미지를 넣으면 그 이미지가 대신 그려집니다."
+            hint="모든 본문·팔로우 장 위쪽 가운데에 함께 들어갑니다. 카드 이미지와는 별개입니다."
           />
         </>
       )}

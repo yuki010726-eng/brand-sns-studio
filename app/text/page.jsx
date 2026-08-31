@@ -2,16 +2,16 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { BANNED_PHRASES } from "../../data/banned-phrases.js";
 import { CHANNELS } from "../../data/channels.js";
 import { generateWithAI } from "../../lib/copyai.js";
+import { reviewCompliance } from "../../lib/compliance.js";
 import { analyzeCustomBlogStyle } from "./_lib/customBlogStyle.js";
 import {
   copyChatContextKey,
   getMemorySummary,
 } from "../../lib/copymemory.js";
 import { coreWithOutline, outlineKeyOf } from "../../lib/outline.js";
-import { findBanned, TONE_LABEL } from "../../lib/copywriter.js";
+import { TONE_LABEL } from "../../lib/copywriter.js";
 import { saveToLibrary } from "../../lib/librarystore.js";
 import { loadLocalConfig } from "../../lib/localconfig.js";
 import { getProduct, loadProducts } from "../../lib/products.js";
@@ -419,11 +419,20 @@ export default function CopyPage() {
   }
 
   function moveToTemplate() {
+    const current = getState();
     const hasGeneratedPost = channels.some((channel) =>
-      String(getState().generated?.[channel.id] || "").trim(),
+      String(current.generated?.[channel.id] || "").trim(),
     );
     if (!hasGeneratedPost) {
       toast("글 생성 후 이동할 수 있습니다.");
+      return;
+    }
+    const blockedChannel = channels.find((channel) =>
+      reviewCompliance(current.drafts?.[channel.id], channel, product).errors.length,
+    );
+    if (blockedChannel) {
+      setActiveId(blockedChannel.id);
+      toast(`${blockedChannel.name} 게시글에 수정이 필요한 컴플라이언스 항목이 있습니다.`, 5000);
       return;
     }
     router.push("/template");
@@ -431,6 +440,7 @@ export default function CopyPage() {
 
   if (!state || !productsReady || !activeChannel) return <LoadingScreen />;
   const value = state.drafts?.[activeId] || "";
+  const compliance = reviewCompliance(value, activeChannel, product);
   return (
     <main className="min-h-dvh bg-[#1a1a1a] pb-[140px] text-[#4e5968]">
       <div className="w-full px-[clamp(20px,3.85vw,74px)]">
@@ -491,7 +501,7 @@ export default function CopyPage() {
                   value={value}
                   generatedValue={state.generated?.[activeId] || ""}
                   readMode={readMode}
-                  banned={findBanned(value, BANNED_PHRASES)}
+                  compliance={compliance}
                   showChat={Boolean(state.aiRuns?.list?.length)}
                   chatContextKey={chatContextKey}
                   draftLabel={activeRun == null ? "" : `시안 ${activeRun + 1}`}
