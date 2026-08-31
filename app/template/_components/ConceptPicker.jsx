@@ -1,3 +1,4 @@
+import Image from "next/image.js";
 import { Icon } from "../../_components/Icon.jsx";
 
 /**
@@ -79,17 +80,19 @@ export function ConceptPicker({ concepts, value, onChange }) {
             {previewSlots.map((src, i) => (
               <div
                 key={i}
-                className="aspect-[225/282] w-[clamp(140px,14.85cqw,184px)] shrink-0 overflow-hidden rounded-[15px] bg-[#d9d9d9] shadow-[5px_5px_15px_0px_rgba(0,30,78,0.15)]"
+                className="w-[clamp(140px,14.85cqw,184px)] h-[clamp(187px,14.85cqw,231px)] shrink-0 overflow-hidden rounded-[15px] bg-[#d9d9d9] shadow-[5px_5px_15px_0px_rgba(0,30,78,0.15)]"
                 style={{
                   zIndex: previewSlots.length - i,
                 }}
               >
                 {src && (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img
+                  <Image
+                    width={400}
+                    height={400}
                     src={src}
                     alt=""
-                    className="block h-full w-full scale-[1.08] object-cover object-center"
+                    className="block h-full w-full object-cover object-center"
                   />
                 )}
               </div>

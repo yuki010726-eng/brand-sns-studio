@@ -58,14 +58,16 @@ export function CopyChatPanel({
       setReady(true);
       return;
     }
-    Promise.all([loadMessages(contextKey), getMemorySummary()]).then(([history, mem]) => {
-      if (cancelled) return;
-      setMessages(
-        history.map((m) => ({ id: m.id, role: m.role, content: m.content })),
-      );
-      setSummary(mem || null);
-      setReady(true);
-    });
+    Promise.all([loadMessages(contextKey), getMemorySummary()]).then(
+      ([history, mem]) => {
+        if (cancelled) return;
+        setMessages(
+          history.map((m) => ({ id: m.id, role: m.role, content: m.content })),
+        );
+        setSummary(mem || null);
+        setReady(true);
+      },
+    );
     return () => {
       cancelled = true;
     };
@@ -96,7 +98,10 @@ export function CopyChatPanel({
       : Promise.resolve(null);
 
     try {
-      const [reply, revisedDraft] = await Promise.all([sendChat(withUser), revisePromise]);
+      const [reply, revisedDraft] = await Promise.all([
+        sendChat(withUser),
+        revisePromise,
+      ]);
       const botMsg = {
         id: `local-${Date.now()}-a`,
         role: "assistant",
@@ -153,12 +158,12 @@ export function CopyChatPanel({
   }
 
   return (
-    <aside className="flex w-[320px] shrink-0 flex-col rounded-xl border border-[#e5e8eb] bg-white max-[1100px]:w-full">
+    <aside className="flex w-[320px] shrink-0 flex-col rounded-xl border border-[#e5e8eb] bg-white max-[1100px]:w-full min-[1101px]:sticky min-[1101px]:top-[calc(var(--header-h)+20px)]">
       <header className="flex items-start justify-between gap-2 border-b border-[#e5e8eb] px-4 py-3.5">
         <div className="min-w-0">
           <p className="flex items-center gap-1.5 text-sm font-bold text-[#333d4b]">
             <Icon name="chat" className="size-4 text-[#287aff]" />
-            글쓰기 스타일 챗봇
+            글쓰기 도우미
           </p>
           {draftLabel && (
             <p className="mt-1 text-xs font-semibold text-[#287aff]">
@@ -166,7 +171,7 @@ export function CopyChatPanel({
             </p>
           )}
           <p className="mt-1 text-xs leading-5 text-[#8b95a1]">
-            지금 보고 있는 시안에 바로 반영되고, 다음 AI 글 생성에도 참고됩니다.
+            지금 보고 있는 시안에 바로 반영됩니다.
           </p>
         </div>
         <button
@@ -221,7 +226,12 @@ export function CopyChatPanel({
               </p>
             ) : (
               messages.map((m) => (
-                <div key={m.id} className={m.role === "user" ? "ml-auto max-w-[92%]" : "max-w-[92%]"}>
+                <div
+                  key={m.id}
+                  className={
+                    m.role === "user" ? "ml-auto max-w-[92%]" : "max-w-[92%]"
+                  }
+                >
                   <div
                     className={`rounded-xl px-3 py-2 text-[13px] leading-[21px] ${
                       m.role === "user"

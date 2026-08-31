@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { Icon } from "../Icon.jsx";
 import { useEffect, useRef, useState } from "react";
 import logo from "../../../assets/logos/logo.svg";
 import { getUser, initAuth, onAuth, signOut } from "../../../lib/auth.js";
@@ -240,7 +241,7 @@ export function Header() {
                 ) : (
                   <span
                     aria-hidden="true"
-                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-[15px] font-bold text-[#1a1a1a]"
+                    className={`${isScrolled ? "text-[11px] h-7 w-7" : "text-[15px] h-9 w-9"} inline-flex shrink-0 items-center justify-center rounded-full bg-white font-bold text-[#1a1a1a]`}
                   >
                     {initial}
                   </span>
@@ -251,14 +252,12 @@ export function Header() {
                   aria-expanded={accountMenuOpen}
                   aria-haspopup="menu"
                   title={displayName}
-                  className={`max-w-[120px] overflow-hidden text-ellipsis whitespace-nowrap font-normal leading-[21px] text-white transition-[font-size] duration-200 max-[560px]:hidden ${
+                  className={`max-w-[120px] flex gap-3 overflow-hidden text-ellipsis whitespace-nowrap font-normal leading-[21px] text-white transition-[font-size] duration-200 max-[560px]:hidden ${
                     isScrolled ? "text-[11px]" : "text-[16px]"
                   }`}
                 >
                   {displayName}{" "}
-                  <p aria-hidden="true" className="text-white/55">
-                    ⌄
-                  </p>
+                  <Icon name="chevronDown" />
                 </button>
                 <button
                   type="button"

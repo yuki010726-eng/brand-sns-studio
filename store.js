@@ -3,10 +3,10 @@
  * 프레임워크 없이 쓰므로 상태 변경은 반드시 setState() 를 통해서만 한다.
  */
 
-import { CONCEPTS } from './lib/concepts.js';
-import { scheduleSync, isApplying } from './lib/sync.js';
+import { CONCEPTS } from "./lib/concepts.js";
+import { scheduleSync, isApplying } from "./lib/sync.js";
 
-const KEY = 'bboggl.sns-studio.v1';
+const KEY = "bboggl.sns-studio.v1";
 const CONCEPT_IDS = CONCEPTS.map((c) => c.id);
 
 /**
@@ -26,8 +26,8 @@ const CONCEPT_IDS = CONCEPTS.map((c) => c.id);
 /** @type {AppState} */
 const INITIAL = {
   // 프로필 탭 설정 — 게시물이 아니라 **계정** 정보라 resetFlow() 에서 지우지 않는다
-  profile: null,       // { typeId, name, bio, slug, link, imagePrompt }
-  profileSeed: 0,      // 「다시 뽑기」 횟수 — 누를 때마다 다른 조합이 나온다
+  profile: null, // { typeId, name, bio, slug, link, imagePrompt }
+  profileSeed: 0, // 「다시 뽑기」 횟수 — 누를 때마다 다른 조합이 나온다
   productId: null,
   /**
    * 지금 만들고 있는 **게시물의 신원** (2026-08-21). 카드 이미지 키에 들어간다
@@ -37,18 +37,18 @@ const INITIAL = {
    *    옛 키(`상품-템플릿-번호`)로 이미지를 갖고 있다. 여기서 값을 채워 버리면 그 이미지가
    *    통째로 안 보인다. 그래서 `load()` 는 채우지 않고 **새 게시물을 시작할 때만** 만든다.
    */
-  postId: '',
-  topic: '',
-  focusPoint: '',     // 이번 게시물에서 특히 강조할 내용 (선택 입력)
+  postId: "",
+  topic: "",
+  focusPoint: "", // 이번 게시물에서 특히 강조할 내용 (선택 입력)
   contentOutline: null, // 뼈대잡기 모달에서 사용자가 확정·수정한 서론/본론/결론
   // "다른 이름으로 저장" 때 보관함에서만 쓰는 이름. 글 생성 주제와 분리한다.
-  libraryTitle: '',
-  tone: '',
-  customStyleUrl: '', // 직접 추가한 참고 블로그 글 URL
-  customStyleGuide: '', // URL에서 분석해 재사용하는 문체 가이드
-  customStyleGuideUrl: '', // 위 가이드를 분석한 원본 URL
+  libraryTitle: "",
+  tone: "",
+  customStyleUrl: "", // 직접 추가한 참고 블로그 글 URL
+  customStyleGuide: "", // URL에서 분석해 재사용하는 문체 가이드
+  customStyleGuideUrl: "", // 위 가이드를 분석한 원본 URL
   channels: [],
-  cardCount: 0,        // 카드뉴스 장수 1~6 — API 비용을 줄이려고 요청자가 고르게 했다
+  cardCount: 0, // 카드뉴스 장수 1~6 — API 비용을 줄이려고 요청자가 고르게 했다
   /**
    * ⚠️ **`adCount` 는 없앴다** (2026-08-20). 직관형 장수는 `cardCount` 하나가 정한다 —
    * 선택지를 두 곳에 두면 덱과 장수가 어긋난다 (`lib/adprompt.js` 머리말 참고).
@@ -57,16 +57,16 @@ const INITIAL = {
    * 직관형(D) 컨셉 — 인물·색·화풍 (2026-08-20). **주제 하나에 하나만 고른다.**
    * 장마다 돌리지 않는다 — 카드뉴스는 한 벌로 읽혀야 한다 (`lib/adprompt.js` 머리말 참고).
    */
-  adConcept: 'woman-yellow',
+  adConcept: "woman-yellow",
   /**
    * `adConcept` 를 **직접 고른 시점의 톤** (2026-08-21). 지금 톤과 같을 때만 그 선택을 쓴다.
    * 비어 있으면 톤이 컨셉을 정한다 (`adConceptForTone`, `lib/adprompt.js`).
    */
-  adConceptTone: '',
+  adConceptTone: "",
   drafts: {},
   generated: {},
-  variants: {},        // 채널별 재생성 횟수 — 누를 때마다 다른 후킹·근거 조합이 나온다
-  sources: {},         // 채널별 생성 방식 { [채널]: 'rule' | 'ai' } — 화면에 표시만 한다
+  variants: {}, // 채널별 재생성 횟수 — 누를 때마다 다른 후킹·근거 조합이 나온다
+  sources: {}, // 채널별 생성 방식 { [채널]: 'rule' | 'ai' } — 화면에 표시만 한다
   // autoAI 토글은 없앴다(2026-08-03). 키가 있으면 항상 AI 가 쓴다 — 요청자 지시.
   /**
    * AI가 마지막으로 쓴 시점의 프롬프트 지문 — **채널별로** 따로 둔다 (자동 재실행 방지).
@@ -103,26 +103,27 @@ const INITIAL = {
    * 새 지문으로 결과 목록을 시작한다 — 결과 묶음은 **주제 단위**다.
    * @type {{key:string, groupId?:string, list:Array<{drafts:object, generated:object, core?:object, outlineRound?:number}>}}
    */
-  aiRuns: { key: '', list: [] },
+  aiRuns: { key: "", list: [] },
   /** 지금 화면에 보이는 게 aiRuns.list 의 몇 번째인지 (0-based) — 규칙 기반을 보고 있으면 null */
   activeAiRun: null,
-  draftKey: '',
-  concept: 'magazine', // 카드뉴스 템플릿 id (lib/concepts.js)
-  accent: '#B9F73E',   // 매거진형 강조 색상 (lib/concepts.js 의 DEFAULT_ACCENT)
-  mark: 'asterisk',    // 카드형 우상단 마크 (lib/concepts.js 의 MARKS)
-  cardTheme: 'blue',   // 카드형 테마 색 — 한 곳에만 둔다. 바꾸면 모든 장이 함께 바뀐다.
-  noteSymbol: 'flask',  // 노트형 좌상단 실험실 심볼 (lib/concepts.js 의 NOTE_SYMBOLS)
-  notePaper: 'white',  // 노트형 종이 색
-  noteInk: 'black',    // 노트형 글씨 색 (lib/concepts.js 의 NOTE_INKS · #RRGGBB 직접 입력도 받는다)
-  noteGrain: 35,       // 종이 결 강도 0~100 (예전 0~3 값은 getNoteGrain 이 올려 준다)
-  image: null,         // { variant, at } — 카드 문구 조합
-  images: {},          // { [카드번호]: { source:'ai'|'upload', at } } · 실제 Blob 은 IndexedDB
+  draftKey: "",
+  concept: "magazine", // 카드뉴스 템플릿 id (lib/concepts.js)
+  accent: "#B9F73E", // 매거진형 강조 색상 (lib/concepts.js 의 DEFAULT_ACCENT)
+  mark: "asterisk", // 카드형 우상단 마크 (lib/concepts.js 의 MARKS)
+  cardTheme: "blue", // 카드형 테마 색 — 한 곳에만 둔다. 바꾸면 모든 장이 함께 바뀐다.
+  noteSymbol: "flask", // 노트형 좌상단 실험실 심볼 (lib/concepts.js 의 NOTE_SYMBOLS)
+  notePaper: "white", // 노트형 종이 색
+  noteInk: "black", // 노트형 글씨 색 (lib/concepts.js 의 NOTE_INKS · #RRGGBB 직접 입력도 받는다)
+  noteGrain: 35, // 종이 결 강도 0~100 (예전 0~3 값은 getNoteGrain 이 올려 준다)
+  image: null, // { variant, at } — 카드 문구 조합
+  images: {}, // { [카드번호]: { source:'ai'|'upload', at } } · 실제 Blob 은 IndexedDB
   card: null,
   library: [],
 };
 
 /** 현재 입력 조합의 지문 — 상품·주제·톤이 바뀌면 초안이 낡았다고 판단한다 */
-export const draftKeyOf = (s) => `${s.productId}|${s.topic.trim()}|${String(s.focusPoint || '').trim()}|${s.tone}|${s.cardCount}`;
+export const draftKeyOf = (s) =>
+  `${s.productId}|${s.topic.trim()}|${String(s.focusPoint || "").trim()}|${s.tone}|${s.cardCount}`;
 
 /**
  * 3단계 게시물 제작 흐름 정의 — 스테퍼·라우터 가드가 함께 사용.
@@ -140,9 +141,9 @@ export const draftKeyOf = (s) => `${s.productId}|${s.topic.trim()}|${String(s.fo
  *    그래서 `/research` 는 단계에서 빠지고 헤더 메뉴로 옮겼다.
  */
 export const STEPS = [
-  { n: 1, path: '/',         label: '상품·주제 선택',  icon: 'sparkles' },
-  { n: 2, path: '/copy',     label: '아이디어 문서화', icon: 'fileText' },
-  { n: 3, path: '/template', label: '카드뉴스 템플릿', icon: 'layout' },
+  { n: 1, path: "/", label: "상품·주제 선택", icon: "sparkles" },
+  { n: 2, path: "/copy", label: "게시글 생성", icon: "fileText" },
+  { n: 3, path: "/template", label: "카드뉴스 제작", icon: "layout" },
 ];
 
 /**
@@ -154,7 +155,15 @@ function migrateStyle(s) {
   if (Array.isArray(s.styles) && s.styles.length) return s;
   return {
     ...s,
-    styles: [{ id: 'st_legacy', name: '이전에 수집한 스타일', guide: s.researchStyle.guide, at: s.researchStyle.at || Date.now(), sources: [] }],
+    styles: [
+      {
+        id: "st_legacy",
+        name: "이전에 수집한 스타일",
+        guide: s.researchStyle.guide,
+        at: s.researchStyle.at || Date.now(),
+        sources: [],
+      },
+    ],
   };
 }
 
@@ -176,9 +185,11 @@ function load() {
      * 낭비를 줄이려는 변경이 도리어 호출을 만드는 셈이라, 형태만 바꿔서 옮긴다.
      * 옛 키 = `상품|주제|톤|장수` 이고 블로그의 새 키와 정확히 같다. 나머지 둘은 장수를 뗀 것이다.
      */
-    if (typeof s.aiKey === 'string') {
-      const short = s.aiKey.split('|').slice(0, 3).join('|');
-      s.aiKey = s.aiKey ? { blog: s.aiKey, instagram: short, threads: short } : {};
+    if (typeof s.aiKey === "string") {
+      const short = s.aiKey.split("|").slice(0, 3).join("|");
+      s.aiKey = s.aiKey
+        ? { blog: s.aiKey, instagram: short, threads: short }
+        : {};
     }
     return migrateStyle(s);
   } catch {
@@ -232,15 +243,36 @@ export function subscribe(fn) {
  * 새 게시물의 id — 이미지 키가 게시물마다 갈리게 하는 값이다.
  * ⚠️ 결정적일 필요가 없다. 겹치지만 않으면 된다.
  */
-export const newPostId = () => `p${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+export const newPostId = () =>
+  `p${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
 export function resetFlow() {
   setState({
     postId: newPostId(),
-    productId: null, topic: '', focusPoint: '', contentOutline: null, libraryTitle: '', tone: '', customStyleUrl: '', customStyleGuide: '', customStyleGuideUrl: '', channels: [], cardCount: 0, drafts: {}, generated: {}, variants: {}, sources: {},
-    draftKey: '', aiKey: {}, outline: null, researchStyle: null,
-    aiRuns: { key: '', list: [] }, activeAiRun: null,
-    image: null, images: {}, card: null,
+    productId: null,
+    topic: "",
+    focusPoint: "",
+    contentOutline: null,
+    libraryTitle: "",
+    tone: "",
+    customStyleUrl: "",
+    customStyleGuide: "",
+    customStyleGuideUrl: "",
+    channels: [],
+    cardCount: 0,
+    drafts: {},
+    generated: {},
+    variants: {},
+    sources: {},
+    draftKey: "",
+    aiKey: {},
+    outline: null,
+    researchStyle: null,
+    aiRuns: { key: "", list: [] },
+    activeAiRun: null,
+    image: null,
+    images: {},
+    card: null,
   });
 }
 

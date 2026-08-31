@@ -380,16 +380,16 @@ export default function CopyPage() {
   return (
     <main className="min-h-dvh bg-[#1a1a1a] pb-[140px] text-[#4e5968]">
       <div className="w-full px-[clamp(20px,3.85vw,74px)]">
-        <div className="flex min-h-[1050px] items-stretch overflow-hidden rounded-[15px] bg-white/10 max-[860px]:min-h-0 max-[860px]:flex-col">
+        <div className="flex min-h-[1050px] items-stretch overflow-clip rounded-[15px] bg-white/10 max-[860px]:min-h-0 max-[860px]:flex-col">
           <TextStepper steps={STEPS} activeIndex={1} />
           <div className="min-w-0 flex-1 px-[clamp(24px,4vw,56px)] py-14">
-            <header className="mb-8">
+            <header className="flex items-end gap-[14px] mb-8">
               <h1 className="text-[32px] font-bold tracking-[-0.04em] text-white">
                 {Object.keys(state.drafts || {}).length
-                  ? "추천 글귀가 준비됐습니다"
-                  : "아래 조건으로 글귀를 만들어 보세요"}
+                  ? "상품의 글을 생성해보세요."
+                  : "상품의 글을 생성해보세요."}
               </h1>
-              <p className="mt-2 text-white/55">
+              <p className="mb-2 text-white/55">
                 AI 생성 결과는 주제와 채널별로 계속 쌓입니다.
               </p>
             </header>
@@ -402,7 +402,7 @@ export default function CopyPage() {
                 onEditConditions={() => router.push("/")}
                 onNext={() => router.push("/template")}
               />
-              <div className="overflow-hidden rounded-[15px] bg-[#595959]">
+              <div className="overflow-clip rounded-[15px] bg-[#595959]">
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-[21px] py-[33px]">
                   <ChannelTabs
                     channels={channels}
@@ -412,22 +412,22 @@ export default function CopyPage() {
                   <div className="flex min-w-[310px] flex-col items-end gap-3 max-[640px]:w-full max-[640px]:items-stretch">
                     <div className="flex flex-wrap justify-end gap-2.5">
                       <button
-                      disabled={busy}
-                      onClick={() => generate([activeId])}
-                      className="inline-flex h-[45px] items-center gap-[5px] rounded-full border border-[#e5e8eb] bg-white px-[19px] text-[15px] font-medium text-[#4e5968] disabled:opacity-40"
-                    >
-                      <Icon name="sparkles" className="size-[18px]" />
-                      현재 채널만 AI 생성
+                        disabled={busy}
+                        onClick={() => generate([activeId])}
+                        className="inline-flex h-[45px] items-center gap-[5px] rounded-full border border-[#e5e8eb] bg-white px-[19px] text-[15px] font-medium text-[#4e5968] disabled:opacity-40"
+                      >
+                        <Icon name="sparkles" className="size-[18px]" />
+                        현재 채널만 AI 생성
                       </button>
                       <button
-                      disabled={busy}
-                      onClick={() =>
-                        generate(channels.map((channel) => channel.id))
-                      }
-                      className="inline-flex h-[45px] items-center gap-[5px] rounded-full border border-[#287aff] bg-[#287aff] px-[19px] text-[15px] font-bold text-white disabled:opacity-40"
-                    >
-                      <Icon name="sparkles" className="size-[18px]" />
-                      전체 채널 AI 생성
+                        disabled={busy}
+                        onClick={() =>
+                          generate(channels.map((channel) => channel.id))
+                        }
+                        className="inline-flex h-[45px] items-center gap-[5px] rounded-full border border-[#287aff] bg-[#287aff] px-[19px] text-[15px] font-bold text-white disabled:opacity-40"
+                      >
+                        <Icon name="sparkles" className="size-[18px]" />
+                        전체 채널 AI 생성
                       </button>
                     </div>
                     {busy && generation && (
