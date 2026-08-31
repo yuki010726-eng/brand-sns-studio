@@ -10,7 +10,7 @@
  * 확인하지 못해 지어내지 않았다. 같은 배민 계열 중 Google Fonts에 정식 등록된 '도현체'로
  * 대체했다 — 실제 폰트 파일을 구하면 이 줄과 cardrender.js 의 상수만 바꾸면 된다.
  */
-@import url("https://fonts.googleapis.com/css2?family=Do+Hyeon&display=swap");
+/* @import url("https://fonts.googleapis.com/css2?family=Do+Hyeon&display=swap"); */
 /**
  * 카드형(card) 제목·소제목 전용 서체 — 요청자가 public/font/BMEULJIROTTF.ttf 를 직접 넣어 줬다.
  * Next.js 는 public/ 을 루트에 그대로 서빙하므로 public/font/BMEULJIROTTF.ttf → /font/BMEULJIROTTF.ttf.
@@ -19,8 +19,8 @@
  * weight:900 으로 그린다 — 범위를 안 열면 900 요청이 이 얼굴과 안 맞다고 판단해 폴백으로 빠질 수 있다.
  */
 @font-face {
-  font-family: 'BM Euljiro';
-  src: url('/font/BMEULJIROTTF.ttf') format('truetype');
+  font-family: "BM Euljiro";
+  src: url("/font/BMEULJIROTTF.ttf") format("truetype");
   font-weight: 400 900;
   font-style: normal;
   font-display: swap;
