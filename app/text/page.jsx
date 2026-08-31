@@ -6,7 +6,10 @@ import { BANNED_PHRASES } from "../../data/banned-phrases.js";
 import { CHANNELS } from "../../data/channels.js";
 import { generateWithAI } from "../../lib/copyai.js";
 import { analyzeCustomBlogStyle } from "./_lib/customBlogStyle.js";
-import { getMemorySummary } from "../../lib/copymemory.js";
+import {
+  copyChatContextKey,
+  getMemorySummary,
+} from "../../lib/copymemory.js";
 import { coreWithOutline, outlineKeyOf } from "../../lib/outline.js";
 import { findBanned, TONE_LABEL } from "../../lib/copywriter.js";
 import { saveToLibrary } from "../../lib/librarystore.js";
@@ -186,7 +189,7 @@ export default function CopyPage() {
       : (state?.activeAiRun ?? null);
   const activeRunEntry = matchingRuns[activeRun];
   const chatContextKey = activeRunEntry
-    ? `${state.aiRuns.key}|${activeId}|${activeRunEntry.index}`
+    ? copyChatContextKey(state.aiRuns.key, activeId, activeRun)
     : "";
 
   function updateDraft(value) {

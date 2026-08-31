@@ -1428,7 +1428,9 @@ function deckFromBlog(cards, s) {
     if (card.kind === 'outro') return card;
     return {
       ...card,
-      title: slot.head || card.title,
+      // 소제목 복사 대신, 생성된 글에서 그 대목을 요약한 캡션을 카드 문구로 쓴다.
+      // 캡션이 없는 예전 원고만 소제목으로 폴백한다.
+      title: slot.caption || slot.head || card.title,
       body: slot.para || slot.caption || card.body,
     };
   });

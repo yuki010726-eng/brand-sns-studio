@@ -41,8 +41,11 @@ const fitLayout = (layout, deck) => deck.map((_, i) => ({ ...(layout?.[i] || {})
  */
 export function reconcileCard(state, deck, product) {
   const key = draftKeyOf(state);
-  const source = blogFingerprint(state);
   const base = baseOf(state.concept, deck, product);
+  // 카드 문구는 블로그뿐 아니라 cardCopy, outline, 상품 정보에서도 만들어진다.
+  // 블로그만 지문으로 삼으면 cardCopy가 바뀌었을 때 기존 texts는 그대로인데
+  // base만 새 값이 되어, 손대지 않은 문구가 사용자 편집으로 오인된다.
+  const source = cardBaseFingerprint(base);
   const card = state.card;
 
   let next;
@@ -187,7 +190,10 @@ export function deckFromBlog(cards, state) {
     if (card.kind === 'outro') return card;
     return {
       ...card,
-      title: slot.head || card.title,
+      // 블로그 소제목을 그대로 복사하지 않는다. 글 생성 단계가 각 이미지에 붙인 캡션은
+      // 해당 소제목 아래 내용을 압축한 "핵심 한 줄"이므로 카드의 제목·강조 문구 재료로 쓴다.
+      // 예전 원고처럼 캡션이 없는 경우에만 소제목으로 폴백한다.
+      title: slot.caption || slot.head || card.title,
       body: slot.para || slot.caption || card.body,
     };
   });
@@ -199,4 +205,12 @@ export function blogFingerprint(state) {
   let h = 0;
   for (let i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) | 0;
   return `${t.length}:${h}`;
+}
+
+/** 카드 편집기의 실제 자동 생성 문구 전체를 식별한다. */
+export function cardBaseFingerprint(base) {
+  const text = JSON.stringify(base || []);
+  let hash = 0;
+  for (let i = 0; i < text.length; i++) hash = (hash * 31 + text.charCodeAt(i)) | 0;
+  return `card:${text.length}:${hash}`;
 }

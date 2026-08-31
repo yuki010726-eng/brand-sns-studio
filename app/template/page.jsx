@@ -41,7 +41,6 @@ import {
   buildAdPrompts,
   getAdConcept,
   adConceptForTone,
-  roleLabel,
 } from "../../lib/adprompt.js";
 import { saveToLibrary, hasLibraryChanges } from "../../lib/librarystore.js";
 import { getState, setState, subscribe, STEPS } from "../../store.js";
@@ -67,7 +66,7 @@ import { SaveActions } from "./_components/SaveActions.jsx";
 import { InstagramPublishDialog } from "./_components/InstagramPublishDialog.jsx";
 import { ContextBar } from "./_components/ContextBar.jsx";
 import { AdConceptPicker } from "./_components/AdConceptPicker.jsx";
-import { AdCard } from "./_components/AdCard.jsx";
+import { AdPromptPanel } from "./_components/AdPromptPanel.jsx";
 import {
   publishInstagramCarousel,
   removeInstagramCards,
@@ -384,28 +383,7 @@ export default function TemplatePage() {
   }
 
   function handleCopyAdPrompt(item) {
-    copyText(item.prompt, `${item.n}번 프롬프트를 복사했습니다.`);
-  }
-
-  function handleCopyAllAdPrompts(adPrompts) {
-    // ⚠️ 한 번에 다 붙여 넣으면 4분할 한 장이 나온다 — 반드시 따로따로 생성하라고 못박는다
-    // (lib/adprompt.js 의 promptOf() SINGLE 줄과 두 겹으로 막는다).
-    const n = adPrompts.length;
-    const head = [
-      `⚠️ 아래는 서로 다른 프롬프트 ${n}개입니다. 한 번에 다 붙여 넣지 마세요.`,
-      `한 덩어리씩 따로 붙여 넣어 ${n}번 생성하면 ${n}장이 나옵니다.`,
-      "한꺼번에 넣으면 한 장이 여러 칸으로 쪼개져 나옵니다.",
-      "",
-    ].join("\n");
-    const all =
-      head +
-      adPrompts
-        .map(
-          (x) =>
-            `━━━━━━ ${x.n} / ${n} · ${roleLabel(x.role)} — 여기부터 한 장 ━━━━━━\n\n${x.prompt}`,
-        )
-        .join("\n\n");
-    copyText(all, `${n}장을 모두 복사했습니다. 한 덩어리씩 따로 생성하세요.`);
+    copyText(item.prompt, "프롬프트를 복사했습니다.");
   }
 
   function handleFieldChange(slotId, value) {
@@ -792,53 +770,29 @@ export default function TemplatePage() {
                 onChange={handleConceptChange}
               />
 
-              <div className="space-y-5 rounded-[15px] border border-[#e5e8eb] bg-white p-5">
-                <AdConceptPicker
-                  value={adConceptId}
-                  toneLabel={TONE_LABEL[state.tone] || state.tone}
-                  isManualPick={state.adConceptTone === state.tone}
-                  count={adPrompts.length}
-                  onChange={handleAdConceptChange}
-                />
-
-                <div className="flex flex-wrap items-center gap-4 border-t border-[#e5e8eb] pt-4">
-                  <button
-                    type="button"
-                    onClick={() => handleCopyAllAdPrompts(adPrompts)}
-                    aria-label={`프롬프트 ${adPrompts.length}장 모두 복사하기`}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-[#e5e8eb] bg-white px-[18px] py-[10px] text-[15px] font-bold text-[#5f6b7a] transition hover:bg-[#f7f8fa]"
-                  >
-                    <Icon name="copy" className="size-4" />
-                    {adPrompts.length}장 모두 복사
-                  </button>
-                  {AD_TOOLS.map((t) => (
-                    <a
-                      key={t.name}
-                      href={t.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      aria-label={`${t.name} 를 새 탭에서 열기`}
-                      className="inline-flex items-center gap-1.5 text-[14px] font-bold text-[#333d4b] transition hover:text-[#287aff]"
-                    >
-                      <Icon name="external" className="size-[15px]" />
-                      {t.name}
-                    </a>
-                  ))}
+              <div className="grid grid-cols-1 gap-8 rounded-[15px] border border-[#e5e8eb] bg-white p-5 lg:grid-cols-[minmax(0,1fr)_1px_minmax(0,1.15fr)] lg:gap-10 lg:p-6">
+                <div>
+                  <h2 className="mb-5 h-[47px] border-b border-[#e5e8eb] text-[18px] font-bold text-black lg:-mr-5 lg:pr-5">
+                    광고 컨셉
+                  </h2>
+                  <AdConceptPicker
+                    value={adConceptId}
+                    toneLabel={TONE_LABEL[state.tone] || state.tone}
+                    isManualPick={state.adConceptTone === state.tone}
+                    onChange={handleAdConceptChange}
+                  />
                 </div>
 
-                <p className="text-[13px] leading-[1.6] text-[#5f6b7a]">
-                  글자까지 그림 안에 들어갑니다 —{" "}
-                  <strong className="text-[#333d4b]">한글을 그리는 모델</strong>
-                  에서 쓰세요. <strong className="text-[#333d4b]">프롬프트는 한 장씩 따로 넣습니다</strong>{" "}
-                  — 한꺼번에 넣으면 한 장이 여러 칸으로 쪼개집니다. 뽑은 이미지는 이
-                  화면에 담기지 않습니다.
-                </p>
-              </div>
+                <div
+                  className="hidden bg-[#e5e8eb] lg:block"
+                  aria-hidden="true"
+                />
 
-              <div className="mt-6 grid grid-cols-2 gap-4 max-[720px]:grid-cols-1">
-                {adPrompts.map((item) => (
-                  <AdCard key={item.n} item={item} onCopy={handleCopyAdPrompt} />
-                ))}
+                <AdPromptPanel
+                  item={adPrompts[0]}
+                  tools={AD_TOOLS}
+                  onCopy={handleCopyAdPrompt}
+                />
               </div>
 
               <div className="mt-8 flex flex-wrap justify-between gap-3">

@@ -129,7 +129,16 @@ export function CanvasPreview({
     setIdle(false);
     selectObj(objId);
     const rect = wrap.getBoundingClientRect();
-    const startBox = { x: cur.x / W, y: cur.y / H, w: cur.w / W, h: cur.h / H };
+    // Keep the saved text style in the draft layout while dragging.  The renderer
+    // replaces a layout entry as a whole, so a geometry-only draft temporarily
+    // fell back to the default font size/weight until pointerup committed the box.
+    const startBox = {
+      ...(opts.layout?.[objId] || {}),
+      x: cur.x / W,
+      y: cur.y / H,
+      w: cur.w / W,
+      h: cur.h / H,
+    };
     dragRef.current = {
       objId,
       grip: grip || null,

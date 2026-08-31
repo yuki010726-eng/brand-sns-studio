@@ -80,7 +80,11 @@ export function ConceptPicker({ concepts, value, onChange }) {
             {previewSlots.map((src, i) => (
               <div
                 key={i}
-                className="w-[clamp(140px,14.85cqw,184px)] h-[clamp(187px,14.85cqw,231px)] shrink-0 overflow-hidden rounded-[15px] bg-[#d9d9d9] shadow-[5px_5px_15px_0px_rgba(0,30,78,0.15)]"
+                className={`${
+                  selected.promptOnly
+                    ? "size-[184px]"
+                    : "w-[clamp(140px,14.85cqw,184px)] h-[clamp(187px,14.85cqw,231px)]"
+                } shrink-0 overflow-hidden rounded-[15px] bg-[#d9d9d9] shadow-[5px_5px_15px_0px_rgba(0,30,78,0.15)]`}
                 style={{
                   zIndex: previewSlots.length - i,
                 }}

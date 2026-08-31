@@ -2,20 +2,24 @@ import { AD_CONCEPTS, adThumbSvg } from "../../../lib/adprompt.js";
 
 /**
  * 광고형(D) 전용 — **인물·색·화풍 컨셉** 선택. 카드뉴스 템플릿(A·B·C·D)과는 다른 축이다.
+ * 피그마: https://www.figma.com/design/jRjBo4LUHkohSoPRqSaEAv/sns?node-id=146-949
  *
- * ⚠️ 컨셉은 주제 하나에 하나다 (`lib/adprompt.js` 머리말 참고). 여기서 고르면 전 장이
- *    한꺼번에 다시 만들어진다 — 장마다 다른 컨셉을 고르는 UI 를 만들지 말 것.
+ * ⚠️ 컨셉은 주제 하나에 하나다 (`lib/adprompt.js` 머리말 참고). 여기서 고르면 배너가
+ *    다시 만들어진다 — 장마다 다른 컨셉을 고르는 UI 를 만들지 말 것.
+ * ⚠️ `lib/adprompt.js` 가 2026-08-28에 카드별 여러 장에서 배너 한 장으로 바뀌어
+ *    "N장을 같은 사람·색·그림체로" 문구는 더 이상 맞지 않는다 — 지금은 이 한 장의
+ *    인물·색·화풍을 정하는 자리다.
  * ⚠️ 견본(`adThumbSvg`)은 실제 생성 이미지가 아니라 배치·색 견본이다. 고정 사진을 박아 두면
  *    "재활용처럼 보인다"는 지적(8-30)으로 되돌아간다.
  */
-export function AdConceptPicker({ value, toneLabel, isManualPick, count, onChange }) {
+export function AdConceptPicker({ value, toneLabel, isManualPick, onChange }) {
   const selected = AD_CONCEPTS.find((c) => c.id === value) || AD_CONCEPTS[0];
 
   return (
-    <fieldset className="m-0">
-      <legend className="mb-3 text-[15px] font-bold text-black">컨셉</legend>
+    <fieldset className="m-0 grid grid-cols-[max-content_minmax(0,1fr)] items-center gap-6 max-[620px]:grid-cols-1">
+      <legend className="sr-only">이미지 컨셉 선택</legend>
       <div
-        className="flex flex-wrap gap-2"
+        className="flex w-max flex-col gap-2"
         role="radiogroup"
         aria-label="이미지 컨셉 선택"
       >
@@ -24,10 +28,10 @@ export function AdConceptPicker({ value, toneLabel, isManualPick, count, onChang
           return (
             <label
               key={c.id}
-              className={`flex cursor-pointer items-center gap-2 rounded-full border px-[14px] py-[9px] text-[14px] font-bold transition has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-[#287aff] ${
+              className={`flex w-full cursor-pointer items-center gap-[15px] whitespace-nowrap rounded-full border px-[18px] py-[11px] text-[15px] transition has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-[#287aff] ${
                 checked
-                  ? "border-[#191f28] bg-[#191f28] text-white"
-                  : "border-[#e5e8eb] bg-white text-[#5f6b7a] hover:bg-[#f7f8fa]"
+                  ? "border-[#287aff] bg-white font-bold text-[#287aff] drop-shadow-[0_0_2px_rgba(0,30,78,0.07)]"
+                  : "border-[#e5e8eb] bg-white font-medium text-[#4e5968] hover:bg-[#f7f8fa]"
               }`}
             >
               <input
@@ -53,30 +57,32 @@ export function AdConceptPicker({ value, toneLabel, isManualPick, count, onChang
         })}
       </div>
 
-      <div className="mt-4 flex items-center gap-4">
+      <div className="flex min-w-0 items-center gap-6 max-[920px]:flex-col max-[920px]:items-start max-[620px]:flex-row max-[520px]:flex-col">
         <span
-          className="size-[88px] shrink-0 overflow-hidden rounded-[12px]"
+          className="size-[194px] shrink-0 overflow-hidden rounded-[11px] border border-[#e5e8eb]"
           aria-hidden="true"
           dangerouslySetInnerHTML={{
-            __html: adThumbSvg(selected, { size: 88, id: "sel" }),
+            __html: adThumbSvg(selected, { size: 194, id: "sel" }),
           }}
         />
-        <p className="text-[13px] leading-[1.6] text-[#5f6b7a]">
-          <strong className="text-[#333d4b]">{selected.name}</strong> — {selected.who} · {selected.when}
-          <br />
+        <div className="min-w-0">
+          <p className="text-[18px] font-bold text-black">{selected.name}</p>
           {/*
-            ⚠️ 컨셉마다 다른 설명(`desc`)이다. 넷이 서로 어떻게 다른지, 언제 이걸 고르면
-               안 되는지까지 적혀 있다 (요청자 요구 2026-08-28). 여기서 빼면 알약 이름만
+            ⚠️ 컨셉마다 다른 설명(`who`·`when`·`desc`)이다. 여기서 빼면 알약 이름만
                남아 8-31 ③ 의 「컨셉을 저렇게 말해주면 누가 알아듣겠냐」로 되돌아간다.
           */}
-          {selected.desc}
-          <br />
-          <strong className="text-[#333d4b]">{count}장</strong>을 같은 사람·색·그림체로 만듭니다.{" "}
-          {isManualPick
-            ? "직접 고른 컨셉입니다."
-            : `톤 「${toneLabel}」에 맞춰 골라 뒀습니다.`}{" "}
-          장수와 톤은 1단계에서 정합니다.
-        </p>
+          <p className="mt-2 text-[13px] leading-[1.6] text-[#5f6b7a]">
+            {selected.who} · {selected.when}
+            <br />
+            {selected.desc}
+          </p>
+          <p className="mt-2 text-[13px] leading-[1.6] text-[#5f6b7a]">
+            {isManualPick
+              ? "직접 고른 컨셉입니다."
+              : `톤 「${toneLabel}」에 맞춰 골라 뒀습니다.`}{" "}
+            다른 톤을 쓰려면 1단계에서 바꾸세요.
+          </p>
+        </div>
       </div>
     </fieldset>
   );

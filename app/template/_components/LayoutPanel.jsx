@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { lastBoxes, lastSizes, W, H } from "../../../lib/cardrender.js";
 
 /**
@@ -29,10 +30,16 @@ export function LayoutPanel({ objId, label, saved, onChange }) {
   const shownSize = Math.round(
     Number(saved.fontSize) || measuredSize || legacySize || DEFAULT_SIZES[objId] || (isExtra ? 40 : 30),
   );
+  const [sizeInput, setSizeInput] = useState(String(shownSize));
+
+  useEffect(() => {
+    setSizeInput(String(shownSize));
+  }, [objId, shownSize]);
 
   function commitSize(value) {
     const oldSize = Number(saved.fontSize) || measuredSize || DEFAULT_SIZES[objId] || 30;
     const nextSize = Math.min(180, Math.max(12, Number(value) || oldSize));
+    setSizeInput(String(nextSize));
     const next = { ...saved, fontSize: nextSize };
     delete next.fontScale;
     // 키울 때만 기존 상자가 글자를 자르지 않도록 함께 확장한다.
@@ -56,12 +63,19 @@ export function LayoutPanel({ objId, label, saved, onChange }) {
         <label className="space-y-1.5">
           <span className="block text-[13px] text-[#5f6b7a]">텍스트 크기 (px)</span>
           <input
-            key={objId}
             type="number"
             min={12}
             max={180}
             step={1}
-            defaultValue={shownSize}
+            value={sizeInput}
+            onChange={(e) => {
+              const value = e.target.value;
+              setSizeInput(value);
+              const numeric = Number(value);
+              if (value !== "" && Number.isFinite(numeric) && numeric >= 12 && numeric <= 180) {
+                commitSize(numeric);
+              }
+            }}
             onBlur={(e) => commitSize(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") e.currentTarget.blur();
