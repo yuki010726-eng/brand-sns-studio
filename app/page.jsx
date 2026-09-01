@@ -34,6 +34,39 @@ const EMPTY_OUTPUT = {
   card: null,
 };
 
+function nextDraftState(latest) {
+  const runsKey = `${latest.productId}|${String(latest.topic || "").trim()}`;
+  const currentRunsKey = aiRunsKeyOf(latest);
+  const sameTopicRuns =
+    latest.aiRuns?.key === currentRunsKey ||
+    latest.aiRuns?.key === runsKey ||
+    String(latest.aiRuns?.key || "").startsWith(`${runsKey}|`) ||
+    TONES.some(({ id }) => latest.aiRuns?.key === `${runsKey}|${id}`);
+
+  if (!sameTopicRuns) {
+    return { aiRuns: { key: "", list: [] }, activeAiRun: null };
+  }
+
+  const pendingDrafts = Object.fromEntries(
+    (latest.channels || []).map((channelId) => [channelId, ""]),
+  );
+  const runs = [
+    ...(latest.aiRuns?.list || []),
+    { drafts: pendingDrafts, generated: {}, pending: true },
+  ];
+  const activeAiRun = Object.fromEntries(
+    (latest.channels || []).map((channelId) => [
+      channelId,
+      runs.filter((run) => Object.hasOwn(run.drafts || {}, channelId)).length - 1,
+    ]),
+  );
+
+  return {
+    aiRuns: { ...latest.aiRuns, key: currentRunsKey, list: runs },
+    activeAiRun,
+  };
+}
+
 export default function HomePage() {
   const router = useRouter();
   const topicRef = useRef(null);
@@ -159,22 +192,13 @@ export default function HomePage() {
       router.push("/text");
       return;
     }
-    if (!isEditingExisting) {
-      clearLibraryEdit();
-      const latest = getState();
-      const runsKey = `${latest.productId}|${String(latest.topic || "").trim()}`;
-      const currentRunsKey = aiRunsKeyOf(latest);
-      const sameTopicRuns =
-        latest.aiRuns?.key === currentRunsKey ||
-        latest.aiRuns?.key === runsKey ||
-        TONES.some(({ id }) => latest.aiRuns?.key === `${runsKey}|${id}`);
-      setState({
-        ...EMPTY_OUTPUT,
-        postId: newPostId(),
-        aiRuns: sameTopicRuns ? latest.aiRuns : { key: "", list: [] },
-        activeAiRun: sameTopicRuns ? latest.activeAiRun : null,
-      });
-    }
+    if (!isEditingExisting) clearLibraryEdit();
+    const latest = getState();
+    setState({
+      ...EMPTY_OUTPUT,
+      postId: isEditingExisting ? latest.postId : newPostId(),
+      ...nextDraftState(latest),
+    });
     router.push("/text");
   }
 

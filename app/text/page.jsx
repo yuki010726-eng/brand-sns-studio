@@ -282,7 +282,11 @@ export default function CopyPage() {
       // 내용이 통일된다. AI 1/2/3... 몇 번째 벌인지(round)에 따라 뼈대도 새로 짠다.
       const round = Math.max(
         0,
-        ...channelIds.map((id) => aiRunsForChannel(current, id).length),
+        ...channelIds.map(
+          (id) =>
+            aiRunsForChannel(current, id).filter(({ run }) => !run.pending)
+              .length,
+        ),
       );
       const { core, error: outlineError } = await ensureOutline(current, {
         round,
@@ -335,7 +339,29 @@ export default function CopyPage() {
       const latest = getState();
       const run = { drafts, generated: { ...drafts } };
       const sameKey = latest.aiRuns?.key === aiRunsKeyOf(latest);
-      const list = sameKey ? [...(latest.aiRuns?.list || []), run] : [run];
+      const existingList = sameKey ? latest.aiRuns?.list || [] : [];
+      const pendingIndex = existingList.findIndex(
+        (item) =>
+          item.pending &&
+          channelIds.every((id) => Object.hasOwn(item.drafts || {}, id)),
+      );
+      const list =
+        pendingIndex >= 0
+          ? existingList.map((item, index) =>
+              index === pendingIndex
+                ? {
+                    ...item,
+                    drafts: { ...item.drafts, ...drafts },
+                    generated: { ...item.generated, ...drafts },
+                    pending: Object.values({ ...item.drafts, ...drafts }).some(
+                      (value) => !String(value || "").trim(),
+                    ),
+                  }
+                : item,
+            )
+          : sameKey
+            ? [...existingList, run]
+            : [run];
       const activeAiRun =
         typeof latest.activeAiRun === "object" && latest.activeAiRun
           ? { ...latest.activeAiRun }

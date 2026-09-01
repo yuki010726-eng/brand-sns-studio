@@ -5,7 +5,54 @@ import { CompliancePanel } from "./CompliancePanel.jsx";
 const QUOTE_RE = /^\[[^\]]*인용구\]$/;
 const SLOT_RE = /^📷\s*\[이미지\s*(\d+)\s*·\s*([^\]]+)\]/;
 
-function Preview({ value }) {
+const ISSUE_UNDERLINE = {
+  warning: "decoration-amber-500",
+  review: "decoration-orange-600",
+  error: "decoration-red-500",
+};
+
+function HighlightedText({ text, issues }) {
+  const ranges = issues
+    .filter((issue) => issue.match)
+    .flatMap((issue) => {
+      const rangesForIssue = [];
+      let start = 0;
+      while (start < text.length) {
+        const index = text.indexOf(issue.match, start);
+        if (index === -1) break;
+        rangesForIssue.push({
+          start: index,
+          end: index + issue.match.length,
+          level: issue.level,
+        });
+        start = index + issue.match.length;
+      }
+      return rangesForIssue;
+    })
+    .sort((a, b) => a.start - b.start || b.end - a.end);
+
+  if (!ranges.length) return text;
+
+  const nodes = [];
+  let cursor = 0;
+  for (const range of ranges) {
+    if (range.start < cursor) continue;
+    if (range.start > cursor) nodes.push(text.slice(cursor, range.start));
+    nodes.push(
+      <span
+        key={`${range.start}-${range.end}-${range.level}`}
+        className={`underline decoration-2 underline-offset-4 ${ISSUE_UNDERLINE[range.level] || ISSUE_UNDERLINE.warning}`}
+      >
+        {text.slice(range.start, range.end)}
+      </span>,
+    );
+    cursor = range.end;
+  }
+  if (cursor < text.length) nodes.push(text.slice(cursor));
+  return nodes;
+}
+
+function Preview({ value, issues = [] }) {
   const lines = value.split("\n");
   const nodes = [];
   for (let index = 0; index < lines.length; index += 1) {
@@ -24,7 +71,7 @@ function Preview({ value }) {
         >
           {title.map((text) => (
             <span key={text} className="block">
-              {text}
+              <HighlightedText text={text} issues={issues} />
             </span>
           ))}
         </blockquote>,
@@ -63,7 +110,7 @@ function Preview({ value }) {
           key={`head-${index}`}
           className="mb-[24px] mt-[38px] border-l-2 border-[#191f28] pl-3 text-[18px] font-black leading-[26px] text-[#191f28]"
         >
-          {line.slice(3)}
+          <HighlightedText text={line.slice(3)} issues={issues} />
         </h3>,
       );
       continue;
@@ -90,7 +137,7 @@ function Preview({ value }) {
         key={`text-${index}`}
         className="mb-[16px] whitespace-pre-wrap text-[15px] leading-[28px] text-[#4e5968]"
       >
-        {line}
+        <HighlightedText text={line} issues={issues} />
       </p>,
     );
   }
@@ -215,7 +262,7 @@ export function CopyEditor({
               </div>
             ) : readMode ? (
               <article className="min-h-[200px] break-words px-6 py-6 sm:px-[25px] sm:py-[25px]">
-                <Preview value={value} />
+                <Preview value={value} issues={compliance.issues} />
               </article>
             ) : (
               <textarea
