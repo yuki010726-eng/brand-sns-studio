@@ -37,6 +37,17 @@ const EMPTY_OUTPUT = {
 function nextDraftState(latest) {
   const runsKey = `${latest.productId}|${String(latest.topic || "").trim()}`;
   const currentRunsKey = aiRunsKeyOf(latest);
+
+  // 조건 수정 화면에 갔다가 아무것도 바꾸지 않고 돌아온 경우에는 기존
+  // 시안과 선택 상태를 그대로 둔다. 이전에는 이 경로에서도 빈 pending
+  // run을 하나 추가해서 내용 없는 시안 버튼이 계속 늘어났다.
+  if (latest.aiRuns?.key === currentRunsKey) {
+    return {
+      aiRuns: latest.aiRuns,
+      activeAiRun: latest.activeAiRun,
+    };
+  }
+
   const sameTopicRuns =
     latest.aiRuns?.key === currentRunsKey ||
     latest.aiRuns?.key === runsKey ||
@@ -47,23 +58,15 @@ function nextDraftState(latest) {
     return { aiRuns: { key: "", list: [] }, activeAiRun: null };
   }
 
-  const pendingDrafts = Object.fromEntries(
-    (latest.channels || []).map((channelId) => [channelId, ""]),
-  );
-  const runs = [
-    ...(latest.aiRuns?.list || []),
-    { drafts: pendingDrafts, generated: {}, pending: true },
-  ];
-  const activeAiRun = Object.fromEntries(
-    (latest.channels || []).map((channelId) => [
-      channelId,
-      runs.filter((run) => Object.hasOwn(run.drafts || {}, channelId)).length - 1,
-    ]),
-  );
-
   return {
-    aiRuns: { ...latest.aiRuns, key: currentRunsKey, list: runs },
-    activeAiRun,
+    // 시안 버튼은 AI 결과가 실제로 생성된 뒤에만 추가한다. 조건만 바꾼
+    // 단계에서 빈 run을 선등록하면 생성하지 않았는데도 시안이 생겨 보인다.
+    aiRuns: {
+      ...latest.aiRuns,
+      key: currentRunsKey,
+      list: latest.aiRuns?.list || [],
+    },
+    activeAiRun: null,
   };
 }
 
@@ -194,6 +197,15 @@ export default function HomePage() {
     }
     if (!isEditingExisting) clearLibraryEdit();
     const latest = getState();
+    const conditionsUnchanged = latest.aiRuns?.key === aiRunsKeyOf(latest);
+
+    // 기존 시안이 있는 글의 조건이 실제로 달라지지 않았다면 drafts,
+    // generated, card 등을 초기화하지 않는다. 선택했던 시안도 유지된다.
+    if (conditionsUnchanged && (latest.aiRuns?.list || []).length > 0) {
+      router.push("/text");
+      return;
+    }
+
     setState({
       ...EMPTY_OUTPUT,
       postId: isEditingExisting ? latest.postId : newPostId(),
