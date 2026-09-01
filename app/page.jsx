@@ -12,7 +12,7 @@ import {
   postKeyOf,
 } from "../lib/librarystore.js";
 import { loadProducts } from "../lib/products.js";
-import { getState, newPostId, setState, STEPS, subscribe } from "../store.js";
+import { aiRunsKeyOf, getState, newPostId, setState, STEPS, subscribe } from "../store.js";
 import { LoadingScreen } from "./_components/LoadingScreen.jsx";
 import { ProductSection } from "./_components/home/ProductSection.jsx";
 import { PostOutlineModal } from "./_components/home/PostOutlineModal.jsx";
@@ -163,13 +163,16 @@ export default function HomePage() {
       clearLibraryEdit();
       const latest = getState();
       const runsKey = `${latest.productId}|${String(latest.topic || "").trim()}`;
+      const currentRunsKey = aiRunsKeyOf(latest);
       const sameTopicRuns =
+        latest.aiRuns?.key === currentRunsKey ||
         latest.aiRuns?.key === runsKey ||
         TONES.some(({ id }) => latest.aiRuns?.key === `${runsKey}|${id}`);
       setState({
         ...EMPTY_OUTPUT,
         postId: newPostId(),
         aiRuns: sameTopicRuns ? latest.aiRuns : { key: "", list: [] },
+        activeAiRun: sameTopicRuns ? latest.activeAiRun : null,
       });
     }
     router.push("/text");

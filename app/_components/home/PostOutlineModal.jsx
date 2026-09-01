@@ -9,6 +9,16 @@ const fieldClass =
   "min-h-[50px] w-full resize-none overflow-hidden rounded-[12px] border border-[#e5e8eb] bg-white px-4 py-[14px] text-[15px] leading-[1.45] text-[#4e5968] shadow-[0_0_4px_rgba(0,30,78,0.07)] outline-none transition focus:border-[#287aff] focus:ring-2 focus:ring-[#287aff]/15";
 
 function makeOutline(state, product) {
+  if (state?.contentOutline) {
+    return {
+      intro: state.contentOutline.intro || "",
+      bodies: Array.isArray(state.contentOutline.bodies)
+        ? [...state.contentOutline.bodies]
+        : [],
+      conclusion: state.contentOutline.conclusion || "",
+    };
+  }
+
   const focus = String(state.focusPoint || "").trim();
   const bodyCount = Math.max(1, Math.min(3, Number(state.cardCount || 3) - 2));
   const focusParts = focus

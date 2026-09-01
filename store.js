@@ -126,6 +126,9 @@ const INITIAL = {
 export const draftKeyOf = (s) =>
   `${s.productId}|${s.topic.trim()}|${String(s.focusPoint || "").trim()}|${s.tone}|${s.cardCount}`;
 
+export const aiRunsKeyOf = (s) =>
+  `${s.productId}|${String(s.topic || "").trim()}|${String(s.focusPoint || "").trim()}|${s.tone}|${s.tone === "custom" ? String(s.customStyleUrl || "").trim() : ""}|${JSON.stringify(s.contentOutline || null)}`;
+
 /**
  * 3단계 게시물 제작 흐름 정의 — 스테퍼·라우터 가드가 함께 사용.
  *

@@ -228,7 +228,9 @@ export function CopyEditor({
             )}
           </div>
 
-          <CompliancePanel report={compliance} />
+          {generatedValue.trim() && !generation ? (
+            <CompliancePanel report={compliance} />
+          ) : null}
         </div>
 
         {showChat && (

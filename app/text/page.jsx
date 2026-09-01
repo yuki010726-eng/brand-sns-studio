@@ -15,7 +15,7 @@ import { TONE_LABEL } from "../../lib/copywriter.js";
 import { saveToLibrary } from "../../lib/librarystore.js";
 import { loadLocalConfig } from "../../lib/localconfig.js";
 import { getProduct, loadProducts } from "../../lib/products.js";
-import { getState, setState, STEPS, subscribe } from "../../store.js";
+import { aiRunsKeyOf, getState, setState, STEPS, subscribe } from "../../store.js";
 import { toast } from "../../components/toast.js";
 import { LoadingScreen } from "../_components/LoadingScreen.jsx";
 import { Icon } from "../_components/Icon.jsx";
@@ -26,12 +26,9 @@ import { CopyEditor } from "../_components/text/CopyEditor.jsx";
 import { TextStepper } from "../_components/text/TextStepper.jsx";
 import { GenerationSummary } from "./_components/GenerationSummary.jsx";
 
-const runsKeyOf = (state) =>
-  `${state.productId}|${String(state.topic || "").trim()}|${String(state.focusPoint || "").trim()}|${state.tone}|${state.tone === "custom" ? String(state.customStyleUrl || "").trim() : ""}|${JSON.stringify(state.contentOutline || null)}`;
-
 /** 이 채널의 글을 담고 있는 AI 생성 벌들을, 원래 `aiRuns.list` 안 위치를 지킨 채로 골라낸다. */
 function aiRunsForChannel(state, channelId) {
-  if (!state || state.aiRuns?.key !== runsKeyOf(state)) return [];
+  if (!state || state.aiRuns?.key !== aiRunsKeyOf(state)) return [];
   return (state.aiRuns?.list || [])
     .map((run, index) => ({ run, index }))
     .filter(({ run }) => Object.hasOwn(run.drafts || {}, channelId));
@@ -337,7 +334,7 @@ export default function CopyPage() {
       }
       const latest = getState();
       const run = { drafts, generated: { ...drafts } };
-      const sameKey = latest.aiRuns?.key === runsKeyOf(latest);
+      const sameKey = latest.aiRuns?.key === aiRunsKeyOf(latest);
       const list = sameKey ? [...(latest.aiRuns?.list || []), run] : [run];
       const activeAiRun =
         typeof latest.activeAiRun === "object" && latest.activeAiRun
@@ -363,7 +360,7 @@ export default function CopyPage() {
           ),
         },
         aiRuns: {
-          key: runsKeyOf(latest),
+          key: aiRunsKeyOf(latest),
           groupId: sameKey ? latest.aiRuns?.groupId : undefined,
           list,
         },
