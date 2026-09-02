@@ -174,32 +174,48 @@ export function withFollowCard(cards, conceptId, product) {
   }];
 }
 
-/** 카드 문구를 블로그 원문(또는 파생 1회 결과) 기준으로 바꿔 끼운다 */
+/**
+ * 카드 전용 문구가 있을 때만 덱 문구를 바꿔 끼운다.
+ *
+ * 블로그의 `📷` 아래 캡션은 이미지 위치를 설명하는 편집 메모이고, 이어지는 문단에는
+ * `[ai_video · 길이] 15초` 같은 자료 필드가 포함될 수 있다. 이것을 카드 오버레이로
+ * 재사용하면 카드뉴스가 헤드라인이 아니라 내부 메모/본문 복사본이 된다.
+ * 카드 전용 결과가 없을 때는 이미 짧은 제목으로 구성된 `buildDeck()` 결과를 유지한다.
+ */
 export function deckFromBlog(cards, state) {
   const copy = state.cardCopy?.key === draftKeyOf(state) ? state.cardCopy.cards : null;
   if (copy?.length === cards.length) {
-    return cards.map((card, i) => (card.kind === 'outro' ? card : {
+    return cards.map((card, i) => ({
       ...card,
       title: copy[i].title || card.title,
-      body: copy[i].body || card.body,
+      // Older saved cardCopy values were generated with a 36-character ceiling and
+      // often render as a single line. Prefer the fuller outline copy when it fits the
+      // new shared card/note body range, so existing drafts improve without regeneration.
+      body: fullerCardBody(copy[i].body, card.body),
     }));
   }
-  const src = blogCardSource(state);
-  if (!Object.keys(src).length) return cards;
-  return cards.map((card, i) => {
-    const slot = src[i];
-    if (!slot) return card;
-    if (card.kind === 'cover') return { ...card, title: card.title || slot.caption };
-    if (card.kind === 'outro') return card;
-    return {
-      ...card,
-      // 블로그 소제목을 그대로 복사하지 않는다. 글 생성 단계가 각 이미지에 붙인 캡션은
-      // 해당 소제목 아래 내용을 압축한 "핵심 한 줄"이므로 카드의 제목·강조 문구 재료로 쓴다.
-      // 예전 원고처럼 캡션이 없는 경우에만 소제목으로 폴백한다.
-      title: slot.caption || slot.head || card.title,
-      body: slot.para || slot.caption || card.body,
-    };
-  });
+  return cards;
+}
+
+const CARD_BODY_MIN = 60;
+const CARD_BODY_MAX = 120;
+
+function fullerCardBody(generated, fallback) {
+  const current = String(generated || '').trim();
+  if (current.length >= CARD_BODY_MIN) return current;
+
+  const source = String(fallback || '').replace(/\s+/g, ' ').trim();
+  if (source.length >= CARD_BODY_MIN && source.length <= CARD_BODY_MAX) return source;
+
+  const sentences = source.split(/(?<=[.?!])\s+/).filter(Boolean);
+  let candidate = '';
+  for (const sentence of sentences) {
+    const next = candidate ? `${candidate} ${sentence}` : sentence;
+    if (next.length > CARD_BODY_MAX) break;
+    candidate = next;
+    if (candidate.length >= CARD_BODY_MIN) return candidate;
+  }
+  return current || candidate || source;
 }
 
 /** 지금 카드가 어느 블로그 원문에서 나왔는지 나타내는 지문 */

@@ -116,6 +116,7 @@ function ToneSelect({ value, onChange }) {
 export function TopicSection({
   product,
   presets,
+  presetsLoading,
   state,
   topicRef,
   onUpdate,
@@ -123,6 +124,7 @@ export function TopicSection({
   onClear,
   onSubmit,
   onSaveCustomStyle,
+  onRefreshPresets,
 }) {
   const hasTopic = state.topic.trim().length >= 2;
   const hasCustomStyle =
@@ -152,9 +154,24 @@ export function TopicSection({
           <div className="mx-[27px] mt-[15px] grid grid-cols-[minmax(360px,1.35fr)_28px_minmax(300px,1fr)_28px_minmax(280px,0.95fr)] gap-[22px] max-[1024px]:mx-0 max-[1024px]:grid-cols-1">
             <div className="flex min-w-0 flex-col gap-6">
               <div>
-                <p className="text-[15px] font-bold text-[#333d4b]">
-                  추천 주제
-                </p>
+                <div className="flex items-center gap-1.5">
+                  <p className="text-[15px] font-bold text-[#333d4b]">
+                    추천 주제
+                  </p>
+                  <button
+                    type="button"
+                    className="grid size-7 place-items-center rounded-full text-[#6b7684] transition hover:bg-[#f2f4f6] hover:text-[#1b64da] disabled:cursor-wait disabled:opacity-50"
+                    aria-label="추천 주제 새로고침"
+                    title="추천 주제 새로고침"
+                    disabled={presetsLoading}
+                    onClick={onRefreshPresets}
+                  >
+                    <Icon
+                      name="refresh"
+                      className={`size-4 ${presetsLoading ? "animate-spin" : ""}`}
+                    />
+                  </button>
+                </div>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {presets.map((preset) => {
                     const isSelected = state.topic === preset;

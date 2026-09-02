@@ -18,7 +18,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "../../../components/toast.js";
-import { deleteImage, getImage, objectUrl, putImage } from "../../../lib/imagestore.js";
+import { AVATAR_KEY, deleteImage, getImage, objectUrl, putImage } from "../../../lib/imagestore.js";
 import { loadProducts } from "../../../lib/products.js";
 import {
   AWARD_BRANDS,
@@ -42,9 +42,9 @@ import { MyPageSidebar } from "../_components/MyPageSidebar.jsx";
  * ⚠️ **store 에 넣지 않는다.** 이미지 Blob 은 localStorage 에 안 들어가고(보관함과 같은 이유),
  *    기기 간 동기화 대상에 넣으면 실제 Blob 이 없는 기기에서 있다고 표시된다.
  *    Blob 은 IndexedDB 에 두고 화면은 objectURL 만 들고 있는다.
- * ⚠️ 계정은 하나뿐이라 키도 하나다. 카드 이미지(`imageKey`)와 섞이지 않게 이름을 따로 둔다.
+ * ⚠️ 계정은 하나뿐이라 키도 하나다(`AVATAR_KEY`, lib/imagestore.js). 카드 이미지(`imageKey`)와
+ *    섞이지 않게 이름을 따로 둔다. 3단계 인스타그램 게시글 미리보기도 같은 키를 본다.
  */
-const AVATAR_KEY = "profile-avatar";
 
 async function copyText(text, okMessage) {
   if (!String(text).trim()) {

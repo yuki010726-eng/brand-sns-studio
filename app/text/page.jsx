@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CHANNELS } from "../../data/channels.js";
-import { generateWithAI } from "../../lib/copyai.js";
+import { derivePosts, generateWithAI } from "../../lib/copyai.js";
 import { reviewCompliance } from "../../lib/compliance.js";
 import { analyzeCustomBlogStyle } from "./_lib/customBlogStyle.js";
 import {
@@ -11,16 +11,25 @@ import {
   getMemorySummary,
 } from "../../lib/copymemory.js";
 import { coreWithOutline, outlineKeyOf } from "../../lib/outline.js";
+import { reportMissingData } from "../../lib/missingdata.js";
 import { TONE_LABEL } from "../../lib/copywriter.js";
 import { saveToLibrary } from "../../lib/librarystore.js";
 import { loadLocalConfig } from "../../lib/localconfig.js";
 import { getProduct, loadProducts } from "../../lib/products.js";
-import { aiRunsKeyOf, getState, setState, STEPS, subscribe } from "../../store.js";
+import {
+  aiRunsKeyOf,
+  draftKeyOf,
+  getState,
+  setState,
+  STEPS,
+  subscribe,
+} from "../../store.js";
 import { toast } from "../../components/toast.js";
 import { LoadingScreen } from "../_components/LoadingScreen.jsx";
 import { Icon } from "../_components/Icon.jsx";
 import { AiRunSelector } from "../_components/text/AiRunSelector.jsx";
 import { ChannelTabs } from "../_components/text/ChannelTabs.jsx";
+import { MissingDataModal } from "../_components/text/MissingDataModal.jsx";
 // import { CopyActions } from "../_components/text/CopyActions.jsx";
 import { CopyEditor } from "../_components/text/CopyEditor.jsx";
 import { TextStepper } from "../_components/text/TextStepper.jsx";
@@ -54,11 +63,14 @@ const outlineJobs = new Map();
  */
 async function ensureOutline(
   state,
-  { round = 0, researchStyle = "", signal, waitIfPaused } = {},
+  { round = 0, researchStyle = "", extraNote = "", signal, waitIfPaused } = {},
 ) {
   const key = outlineKeyOf(state);
   const contentOutlineKey = contentOutlineKeyOf(state.contentOutline);
+  // extraNote(모달에서 방금 보완한 데이터)가 있으면 캐시를 쓰지 않고 반드시 다시 짠다 —
+  // 그래야 방금 입력한 내용이 이번 뼈대에 반영된다.
   if (
+    !extraNote &&
     state.outline?.key === key &&
     (state.outline.round || 0) === round &&
     (state.outline.contentOutlineKey || "") === contentOutlineKey
@@ -66,7 +78,7 @@ async function ensureOutline(
     return { core: state.outline.core, error: null };
   }
 
-  const jobKey = `${key}|r${round}|c${contentOutlineKey}`;
+  const jobKey = `${key}|r${round}|c${contentOutlineKey}${extraNote ? "|note" : ""}`;
   if (outlineJobs.has(jobKey)) return outlineJobs.get(jobKey);
 
   // 직전 라운드의 소제목을 넘겨 AI 2 이후가 같은 구성을 다시 짜지 못하게 한다.
@@ -92,6 +104,7 @@ async function ensureOutline(
       avoid,
       researchStyle,
       contentOutline: state.contentOutline || null,
+      extraNote,
     },
     { signal, waitIfPaused },
   )
@@ -120,6 +133,9 @@ export default function CopyPage() {
   const [busy, setBusy] = useState(false);
   const [generation, setGeneration] = useState(null);
   const [productsReady, setProductsReady] = useState(false);
+  // AI가 "확인된 상품 사실에 없습니다" 류의 문장을 정직하게 썼을 때 멈추고 띄우는 모달의 상태.
+  // null이면 닫혀 있다. lib/missingdata.js 참고.
+  const [missingData, setMissingData] = useState(null);
   const generationController = useRef(null);
   const pausedRef = useRef(false);
   const pauseWaiters = useRef([]);
@@ -206,7 +222,7 @@ export default function CopyPage() {
     setState(patch);
   }
 
-  async function generate(channelIds) {
+  async function generate(channelIds, extraNote = "") {
     if (!product || busy) return;
     const controller = new AbortController();
     generationController.current = controller;
@@ -291,6 +307,7 @@ export default function CopyPage() {
       const { core, error: outlineError } = await ensureOutline(current, {
         round,
         researchStyle,
+        extraNote,
         signal: controller.signal,
         waitIfPaused,
       });
@@ -329,12 +346,53 @@ export default function CopyPage() {
             contentOutline: current.contentOutline || null,
             researchStyle,
             userMemory: memory?.summary || "",
+            extraNote,
           },
           {
             signal: controller.signal,
             waitIfPaused,
           },
         );
+      }
+      // 카드뉴스는 아웃라인의 소제목을 재사용하지 않고, 완성된 블로그 전체를
+      // OpenAI가 다시 읽어 카드 전용 핵심 문구로 압축한다. 이번 생성에 블로그가
+      // 없으면 현재 편집 중인 블로그를 사용한다.
+      const blogForCards = String(
+        drafts.blog || getState().drafts?.blog || "",
+      ).trim();
+      let derivedCards = null;
+      if (blogForCards) {
+        setGeneration((generation) => ({
+          ...generation,
+          channelName: "카드뉴스 요약",
+        }));
+        try {
+          const derived = await derivePosts(
+            blogForCards,
+            {
+              product,
+              topic: current.topic.trim(),
+              focusPoint: String(current.focusPoint || "").trim(),
+              tone: current.tone,
+              cardCount: current.cardCount,
+              core,
+              contentOutline: current.contentOutline || null,
+              researchStyle,
+              userMemory: memory?.summary || "",
+              extraNote,
+            },
+            {
+              signal: controller.signal,
+              waitIfPaused,
+            },
+          );
+          derivedCards = derived?.cards || null;
+        } catch (error) {
+          if (error?.name === "AbortError") throw error;
+          // 카드 요약 한 번의 실패 때문에 이미 완성된 채널 글까지 버리지는 않는다.
+          // 템플릿에서는 기존 규칙 기반 덱으로 안전하게 폴백한다.
+          console.warn("[card-copy] 카드뉴스 요약 생성에 실패했습니다.", error);
+        }
       }
       const latest = getState();
       const run = { drafts, generated: { ...drafts } };
@@ -391,6 +449,9 @@ export default function CopyPage() {
           list,
         },
         activeAiRun,
+        cardCopy: derivedCards
+          ? { key: draftKeyOf(latest), cards: derivedCards }
+          : null,
         card: null,
       });
       const saved = await saveToLibrary(getState());
@@ -399,6 +460,26 @@ export default function CopyPage() {
     } catch (error) {
       if (error?.name === "AbortError") {
         toast("AI 생성을 취소했습니다.");
+        return;
+      }
+      if (error?.name === "MissingDataError") {
+        if (extraNote) {
+          // 방금 보완한 내용으로 다시 시도했는데도 같은 문제다 — 1회만 다시 시도하고,
+          // 또 걸리면 모달을 다시 띄우지 않고 담당자에게 넘긴다.
+          toast(
+            `보완한 내용으로도 "${error.subject}" 자료를 찾지 못했습니다 — 담당자에게 자료 업데이트를 요청해 주세요.`,
+            6000,
+          );
+          return;
+        }
+        setMissingData({
+          subject: error.subject,
+          sentence: error.sentence,
+          stage: error.stage,
+          channelId: error.channelId,
+          channelIds,
+          topic: getState().topic || "",
+        });
         return;
       }
       console.error(error);
@@ -410,6 +491,41 @@ export default function CopyPage() {
       setGeneration(null);
       setBusy(false);
     }
+  }
+
+  /** 모달에서 「이 내용으로 계속」을 눌렀을 때 — 담당자 검토용으로 기록하고, 입력한 내용을
+   *  이번 생성 1회에만 반영해 같은 채널을 다시 만든다. */
+  async function submitMissingData(userInput) {
+    const pending = missingData;
+    setMissingData(null);
+    if (!pending) return;
+    reportMissingData({
+      productId: product?.id,
+      topic: pending.topic,
+      channelId: pending.channelId,
+      stage: pending.stage,
+      subject: pending.subject,
+      sentence: pending.sentence,
+      userInput,
+    });
+    await generate(pending.channelIds, userInput);
+  }
+
+  /** 모달에서 「취소」를 눌렀을 때 — AI 생성을 멈추고, 무엇이 없었는지만 기록해 둔다. */
+  function cancelMissingData() {
+    const pending = missingData;
+    setMissingData(null);
+    if (!pending) return;
+    reportMissingData({
+      productId: product?.id,
+      topic: pending.topic,
+      channelId: pending.channelId,
+      stage: pending.stage,
+      subject: pending.subject,
+      sentence: pending.sentence,
+      userInput: "",
+    });
+    toast("AI 생성을 취소했습니다. 담당자에게 자료 보완을 요청해 주세요.", 4000);
   }
 
   function selectRun(index) {
@@ -543,6 +659,8 @@ export default function CopyPage() {
                   onCopy={() =>
                     copy(value, `${activeChannel.name} 글귀를 복사했습니다.`)
                   }
+                  instagramHandle={product?.handle}
+                  cardCount={state.cardCount}
                 />
               </div>
             </div>
@@ -554,6 +672,11 @@ export default function CopyPage() {
         className="toast-root"
         role="status"
         aria-live="polite"
+      />
+      <MissingDataModal
+        notice={missingData}
+        onSubmit={submitMissingData}
+        onCancel={cancelMissingData}
       />
     </main>
   );

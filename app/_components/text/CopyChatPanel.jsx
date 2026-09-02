@@ -34,6 +34,7 @@ export function CopyChatPanel({
   draftLabel,
   draftValue,
   onApplyToDraft,
+  onClose,
 }) {
   const [authUserId, setAuthUserId] = useState(getUser()?.id || null);
   const loggedIn = Boolean(authUserId);
@@ -171,7 +172,7 @@ export function CopyChatPanel({
   }
 
   return (
-    <aside className="flex w-[320px] shrink-0 flex-col rounded-xl border border-[#e5e8eb] bg-white max-[1100px]:w-full min-[1101px]:sticky min-[1101px]:top-[calc(var(--header-h)+20px)]">
+    <aside className="flex h-full w-full flex-col bg-white">
       <header className="flex items-start justify-between gap-2 border-b border-[#e5e8eb] px-4 py-3.5">
         <div className="min-w-0">
           <p className="flex items-center gap-1.5 text-sm font-bold text-[#333d4b]">
@@ -187,6 +188,16 @@ export function CopyChatPanel({
             지금 보고 있는 시안에 바로 반영됩니다.
           </p>
         </div>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="챗봇 닫기"
+            className="-mr-1 -mt-1 flex size-8 shrink-0 items-center justify-center rounded-full text-[#8b95a1] hover:bg-[#f2f4f6] hover:text-[#4e5968]"
+          >
+            <Icon name="close" className="size-[18px]" />
+          </button>
+        )}
       </header>
 
       <div className="border-b border-[#e5e8eb] px-4 py-2.5">
@@ -219,8 +230,7 @@ export function CopyChatPanel({
         <>
           <div
             ref={listRef}
-            className="flex-1 space-y-3 overflow-y-auto px-4 py-4"
-            style={{ minHeight: 360, maxHeight: 560 }}
+            className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4"
           >
             {!ready ? (
               <p className="text-center text-xs text-[#8b95a1]">불러오는 중…</p>

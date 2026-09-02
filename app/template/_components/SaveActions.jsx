@@ -27,17 +27,19 @@ export function SaveActions({ cardCount, savingAll, publishing, onSaveOne, onSav
         <Icon name="instagram" className="size-[18px]" />
         Instagram에 게시
       </button>
-      <button
-        type="button"
-        onClick={onSaveAll}
-        disabled={savingAll}
-        aria-busy={savingAll}
-        aria-label={`카드 ${cardCount}장 모두 PNG로 저장하기`}
-        className="inline-flex items-center gap-[5px] rounded-full border border-[#287aff] bg-[#287aff] px-[19px] py-[11px] text-[15px] font-bold text-white shadow-[0_0_2px_rgba(0,30,78,0.07)] transition hover:border-[#1b64da] hover:bg-[#1b64da] disabled:opacity-40"
-      >
-        <Icon name="download" className="size-[18px]" />
-        {cardCount}장 모두 저장
-      </button>
+      {cardCount > 1 && (
+        <button
+          type="button"
+          onClick={onSaveAll}
+          disabled={savingAll}
+          aria-busy={savingAll}
+          aria-label={`카드 ${cardCount}장 모두 PNG로 저장하기`}
+          className="inline-flex items-center gap-[5px] rounded-full border border-[#287aff] bg-[#287aff] px-[19px] py-[11px] text-[15px] font-bold text-white shadow-[0_0_2px_rgba(0,30,78,0.07)] transition hover:border-[#1b64da] hover:bg-[#1b64da] disabled:opacity-40"
+        >
+          <Icon name="download" className="size-[18px]" />
+          {cardCount}장 모두 저장
+        </button>
+      )}
     </div>
   );
 }

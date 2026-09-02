@@ -1360,7 +1360,7 @@ function blogCardSource(s) {
  *
  * - **표지**: 제목은 첫 캡션(= 글 전체를 한 줄로 요약한 후킹)
  * - **본문·반론**: 제목은 그 자리의 `■ 소제목`, 본문은 `📷` 바로 위 문단
- * - **마무리**: 건드리지 않는다 — 승인된 마무리 문장이라 바꾸면 안 된다(사실성 원칙 4번)
+ * - **마무리**: 카드 전용 AI 문구가 있으면 이번 글에 맞춘 결론으로 교체한다.
  *
  * 블로그에 `📷` 줄이 없으면(규칙 기반 글·옛 보관본) 원래 카드를 그대로 둔다.
  */
@@ -1371,14 +1371,14 @@ function blogCardSource(s) {
  *
  * 왜 카드형만인가 — 카드형의 마무리 장은 **테마색 단색 + 팔로우 문구**라 내용을 하나도 담지 않는다
  * (8절 템플릿 표). 그래서 4장을 고르면 실제로 읽을 카드는 표지+본문 2장, 셋뿐이었다.
- * 매거진형·노트형의 마무리 장은 승인된 마무리 문장을 본문으로 담으므로 이 문제가 없다.
+ * 매거진형·노트형의 마무리 장은 이번 글에 맞춰 생성한 마무리 문장을 본문으로 담는다.
  *
  * 고른 장수만큼은 전부 내용 카드가 되고, 팔로우 카드는 **덤으로 맨 뒤에** 붙는다.
  *
  * ⚠️ **`deckFromBlog()` 뒤에서 더한다.** 앞에서 더하면 카드 문구(`cardCopy`)와 길이가 어긋나
  *    `copy.length === cards.length` 가 깨지고, 파생이 만든 문구가 통째로 버려진다.
  * ⚠️ 팔로우 카드는 **이미지를 쓰지 않는다**(`usesImage`). 그래서 장을 더해도 만들 이미지는 안 는다.
- * ⚠️ 기존 마무리 장은 이제 `roleOf()` 에서 **본문 역할**이 된다 — 승인된 마무리 문장과 CTA가
+ * ⚠️ 기존 마무리 장은 이제 `roleOf()` 에서 **본문 역할**이 된다 — 생성된 마무리 문장과 CTA가
  *    비로소 카드형에서도 읽힌다. 8-25 에서 노트형에 해 둔 것과 같은 취지다.
  */
 function withFollowCard(cards, conceptId, product) {
@@ -1407,33 +1407,16 @@ function deckFromBlog(cards, s) {
    */
   const copy = s.cardCopy?.key === draftKeyOf(s) ? s.cardCopy.cards : null;
   if (copy?.length === cards.length) {
-    return cards.map((card, i) => (card.kind === 'outro' ? card : {
+    return cards.map((card, i) => ({
       ...card,
       title: copy[i].title || card.title,
       body: copy[i].body || card.body,
     }));
   }
-  const src = blogCardSource(s);
-  if (!Object.keys(src).length) return cards;
-  return cards.map((card, i) => {
-    const slot = src[i];
-    if (!slot) return card;
-    /**
-     * ⚠️ **표지는 뼈대의 후킹(`card.title`)이 먼저다** (2026-08-21, 요청자 지시).
-     *    예전에는 블로그 첫 캡션을 먼저 썼다. 캡션은 「그 대목의 핵심 한 줄」이라 **설명문**이고,
-     *    표지에 얹히면 「수상기사는 숨겨두지 말고 …하세요」처럼 나온다.
-     *    후킹은 `HOOK_RULE`(lib/outline.js)이 압축해서 만든 값이라 표지에는 그쪽이 맞다.
-     */
-    if (card.kind === 'cover') return { ...card, title: card.title || slot.caption };
-    if (card.kind === 'outro') return card;
-    return {
-      ...card,
-      // 소제목 복사 대신, 생성된 글에서 그 대목을 요약한 캡션을 카드 문구로 쓴다.
-      // 캡션이 없는 예전 원고만 소제목으로 폴백한다.
-      title: slot.caption || slot.head || card.title,
-      body: slot.para || slot.caption || card.body,
-    };
-  });
+  // 블로그 캡션은 이미지 위치 안내용 편집 메모다. 이어지는 본문에는
+  // `[ai_video · 길이] 15초` 같은 자료 필드도 있으므로 카드 오버레이로 복사하지 않는다.
+  // 카드 전용 결과가 없으면 짧은 헤드라인으로 만든 buildDeck() 결과를 그대로 쓴다.
+  return cards;
 }
 
 /**

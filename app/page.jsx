@@ -11,7 +11,7 @@ import {
   loadFromLibrary,
   postKeyOf,
 } from "../lib/librarystore.js";
-import { loadProducts } from "../lib/products.js";
+import { loadProducts, loadRandomTopicPresets } from "../lib/products.js";
 import { aiRunsKeyOf, getState, newPostId, setState, STEPS, subscribe } from "../store.js";
 import { LoadingScreen } from "./_components/LoadingScreen.jsx";
 import { ProductSection } from "./_components/home/ProductSection.jsx";
@@ -77,6 +77,8 @@ export default function HomePage() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [outlineOpen, setOutlineOpen] = useState(false);
+  const [presets, setPresets] = useState([]);
+  const [presetsLoading, setPresetsLoading] = useState(false);
 
   useEffect(() => {
     setViewState(getState());
@@ -92,8 +94,29 @@ export default function HomePage() {
     () => products.find((item) => item.id === state?.productId) || null,
     [products, state?.productId],
   );
-  const presets = product?.topicPresets || [];
   const update = (patch) => setState(patch);
+
+  async function refreshPresets(productId = state?.productId) {
+    if (!productId) {
+      setPresets([]);
+      return;
+    }
+    setPresetsLoading(true);
+    try {
+      setPresets(await loadRandomTopicPresets(productId));
+    } catch (error) {
+      console.error("[topics] 추천 주제 조회에 실패했습니다.", error);
+      const fallback = products.find((item) => item.id === productId)?.topicPresets || [];
+      setPresets(fallback.slice(0, 4));
+      toast("추천 주제를 불러오지 못했습니다.");
+    } finally {
+      setPresetsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    refreshPresets(state?.productId);
+  }, [state?.productId, products]);
 
   function selectProduct(id) {
     update({
@@ -230,6 +253,8 @@ export default function HomePage() {
             <TopicSection
               product={product}
               presets={presets}
+              presetsLoading={presetsLoading}
+              onRefreshPresets={() => refreshPresets()}
               state={state}
               topicRef={topicRef}
               onUpdate={update}

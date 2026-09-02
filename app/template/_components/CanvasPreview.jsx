@@ -6,6 +6,7 @@ import {
   cardAlt,
   lastClipped,
   lastBoxes,
+  lastLines,
   W,
   H,
 } from "../../../lib/cardrender.js";
@@ -47,6 +48,7 @@ export function CanvasPreview({
   const rafScheduled = useRef(false);
   const flashTimerRef = useRef(null);
   const [boxes, setBoxes] = useState({});
+  const [lines, setLines] = useState({});
   const [idle, setIdle] = useState(true);
   const [flashObj, setFlashObj] = useState(null);
 
@@ -58,6 +60,7 @@ export function CanvasPreview({
       canvas.setAttribute("aria-label", cardAlt(texts, cardIndex));
       onClipped?.(lastClipped());
       setBoxes(lastBoxes());
+      setLines(lastLines());
     },
     [texts, cardIndex, onClipped],
   );
@@ -124,11 +127,43 @@ export function CanvasPreview({
   function startDrag(e, objId, grip) {
     e.preventDefault();
     const wrap = wrapRef.current;
-    const cur = boxes[objId];
-    if (!wrap || !cur) return;
+    if (!wrap) return;
+    const obj = objects.find((o) => o.id === objId);
     setIdle(false);
     selectObj(objId);
     const rect = wrap.getBoundingClientRect();
+
+    // 선(구분선)은 상자가 아니라 두 끝점을 갖는다 — 끝점을 잡으면 길이·각도가,
+    // 몸통을 잡으면 위치만 바뀐다.
+    if (obj?.type === "line") {
+      const cur = lines[objId];
+      if (!cur) return;
+      const startLine = {
+        ...(opts.layout?.[objId] || {}),
+        x1: cur.x1 / W,
+        y1: cur.y1 / H,
+        x2: cur.x2 / W,
+        y2: cur.y2 / H,
+        hidden: false,
+      };
+      dragRef.current = {
+        objId,
+        kind: "line",
+        grip: grip || "move",
+        startClientX: e.clientX,
+        startClientY: e.clientY,
+        startLine,
+        rectW: rect.width,
+        rectH: rect.height,
+      };
+      draftBoxRef.current = { ...startLine };
+      window.addEventListener("pointermove", onDragMove);
+      window.addEventListener("pointerup", onDragEnd, { once: true });
+      return;
+    }
+
+    const cur = boxes[objId];
+    if (!cur) return;
     // Keep the saved text style in the draft layout while dragging.  The renderer
     // replaces a layout entry as a whole, so a geometry-only draft temporarily
     // fell back to the default font size/weight until pointerup committed the box.
@@ -141,6 +176,7 @@ export function CanvasPreview({
     };
     dragRef.current = {
       objId,
+      kind: "box",
       grip: grip || null,
       startClientX: e.clientX,
       startClientY: e.clientY,
@@ -158,6 +194,49 @@ export function CanvasPreview({
     if (!drag) return;
     const dx = (e.clientX - drag.startClientX) / drag.rectW;
     const dy = (e.clientY - drag.startClientY) / drag.rectH;
+
+    if (drag.kind === "line") {
+      const { startLine, grip } = drag;
+      const next = { ...startLine };
+      if (grip === "start" || grip === "end") {
+        const isStart = grip === "start";
+        const anchor = isStart
+          ? { x: startLine.x2, y: startLine.y2 }
+          : { x: startLine.x1, y: startLine.y1 };
+        let px = (isStart ? startLine.x1 : startLine.x2) + dx;
+        let py = (isStart ? startLine.y1 : startLine.y2) + dy;
+        // 디자인 툴처럼 Ctrl 을 누른 채 끝점을 끌면 반대쪽 끝점을 축으로 90도 단위(수평·수직)
+        // 로만 움직인다. 캔버스가 정사각형이 아니라(1080×1350) 정규화 좌표 그대로 각도를
+        // 재면 시각적으로 기울어져 보이므로, 반드시 캔버스 픽셀 공간(W·H 를 곱한 값)에서 잰다.
+        if (e.ctrlKey || e.metaKey) {
+          const vx = (px - anchor.x) * W;
+          const vy = (py - anchor.y) * H;
+          const dist = Math.hypot(vx, vy);
+          if (dist > 0) {
+            const angle = Math.atan2(vy, vx);
+            const snapped = Math.round(angle / (Math.PI / 2)) * (Math.PI / 2);
+            px = anchor.x + (Math.cos(snapped) * dist) / W;
+            py = anchor.y + (Math.sin(snapped) * dist) / H;
+          }
+        }
+        if (isStart) {
+          next.x1 = px;
+          next.y1 = py;
+        } else {
+          next.x2 = px;
+          next.y2 = py;
+        }
+      } else {
+        next.x1 = startLine.x1 + dx;
+        next.y1 = startLine.y1 + dy;
+        next.x2 = startLine.x2 + dx;
+        next.y2 = startLine.y2 + dy;
+      }
+      draftBoxRef.current = next;
+      requestDragPaint();
+      return;
+    }
+
     const { startBox, grip } = drag;
     const box = { ...startBox };
     if (!grip) {
@@ -213,6 +292,29 @@ export function CanvasPreview({
     if (!(e.key in deltas)) return;
     e.preventDefault();
     selectObj(objId);
+    const [dx, dy] = deltas[e.key];
+    const obj = objects.find((o) => o.id === objId);
+
+    if (obj?.type === "line") {
+      const cur = lines[objId];
+      if (!cur) return;
+      const norm = opts.layout?.[objId] || {
+        x1: cur.x1 / W,
+        y1: cur.y1 / H,
+        x2: cur.x2 / W,
+        y2: cur.y2 / H,
+      };
+      onCommitLayout?.(objId, {
+        ...norm,
+        x1: norm.x1 + dx,
+        y1: norm.y1 + dy,
+        x2: norm.x2 + dx,
+        y2: norm.y2 + dy,
+        hidden: false,
+      });
+      return;
+    }
+
     const cur = boxes[objId];
     if (!cur) return;
     const norm = opts.layout?.[objId] || {
@@ -221,11 +323,11 @@ export function CanvasPreview({
       w: cur.w / W,
       h: cur.h / H,
     };
-    const [dx, dy] = deltas[e.key];
     onCommitLayout?.(objId, { ...norm, x: norm.x + dx, y: norm.y + dy });
   }
 
-  const visibleObjects = objects.filter((o) => boxes[o.id]);
+  const visibleObjects = objects.filter((o) => o.type !== "line" && boxes[o.id]);
+  const visibleLines = objects.filter((o) => o.type === "line" && lines[o.id]);
 
   return (
     <div ref={wrapRef} data-canvas-wrap className="relative">
@@ -287,6 +389,90 @@ export function CanvasPreview({
             );
           })}
         </div>
+      )}
+      {visibleLines.length > 0 && (
+        <svg
+          viewBox={`0 0 ${W} ${H}`}
+          className="pointer-events-none absolute inset-0 touch-none"
+          aria-hidden="true"
+        >
+          {visibleLines.map((o) => {
+            const ln = lines[o.id];
+            const on = o.id === selectedObj;
+            return (
+              <g key={o.id} data-tpl-handle data-obj={o.id}>
+                {/* 몸통 — 두꺼운 투명 히트 영역으로 몸통 전체를 드래그하면 옮겨진다 */}
+                <line
+                  x1={ln.x1}
+                  y1={ln.y1}
+                  x2={ln.x2}
+                  y2={ln.y2}
+                  stroke="transparent"
+                  strokeWidth={28}
+                  tabIndex={0}
+                  role="button"
+                  aria-pressed={on}
+                  aria-label={`${o.label} 위치 — 드래그해서 옮기고, 방향키로도 옮길 수 있습니다`}
+                  style={{ pointerEvents: "stroke", cursor: "move" }}
+                  className="pointer-events-auto focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#287aff]"
+                  onPointerDown={(e) => startDrag(e, o.id, null)}
+                  onKeyDown={(e) => handleKeyDown(e, o.id)}
+                />
+                {/* 실제 선 — 눈에 보이는 안내선. 선택 중이 아니면 옅은 점선으로만 위치를 알린다 */}
+                <line
+                  x1={ln.x1}
+                  y1={ln.y1}
+                  x2={ln.x2}
+                  y2={ln.y2}
+                  stroke={on ? "#287aff" : "rgba(40,122,255,0.6)"}
+                  strokeWidth={on ? 3 : 2}
+                  strokeDasharray={on ? undefined : "8 6"}
+                  style={{ pointerEvents: "none" }}
+                />
+                {/* 라벨 뱃지는 순수 SVG로는 CSS 트랜지션이 번거로워 foreignObject로 얹는다 */}
+                <foreignObject
+                  x={(ln.x1 + ln.x2) / 2 - 60}
+                  y={Math.min(ln.y1, ln.y2) - 34}
+                  width={120}
+                  height={22}
+                  className="pointer-events-none overflow-visible"
+                >
+                  <div
+                    className={`mx-auto w-fit whitespace-nowrap rounded-full bg-[#1b64da] px-2 py-0.5 text-[11px] font-bold text-white transition-opacity duration-500 ${o.id === flashObj ? "opacity-100" : "opacity-0"}`}
+                  >
+                    {o.label}
+                  </div>
+                </foreignObject>
+                {on && (
+                  <>
+                    <circle
+                      cx={ln.x1}
+                      cy={ln.y1}
+                      r={16}
+                      fill="#287aff"
+                      stroke="#fff"
+                      strokeWidth={2}
+                      style={{ pointerEvents: "auto", cursor: "grab" }}
+                      className="pointer-events-auto"
+                      onPointerDown={(e) => startDrag(e, o.id, "start")}
+                    />
+                    <circle
+                      cx={ln.x2}
+                      cy={ln.y2}
+                      r={16}
+                      fill="#287aff"
+                      stroke="#fff"
+                      strokeWidth={2}
+                      style={{ pointerEvents: "auto", cursor: "grab" }}
+                      className="pointer-events-auto"
+                      onPointerDown={(e) => startDrag(e, o.id, "end")}
+                    />
+                  </>
+                )}
+              </g>
+            );
+          })}
+        </svg>
       )}
     </div>
   );

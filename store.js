@@ -109,6 +109,7 @@ const INITIAL = {
   activeAiRun: null,
   draftKey: "",
   concept: "magazine", // 카드뉴스 템플릿 id (lib/concepts.js)
+  magazineTemplate: "t1", // 매거진형 세부 템플릿 1~4 (lib/concepts.js 의 MAGAZINE_TEMPLATES)
   accent: "#B9F73E", // 매거진형 강조 색상 (lib/concepts.js 의 DEFAULT_ACCENT)
   mark: "newspaper", // 카드형 우상단 마크 (lib/concepts.js 의 MARKS)
   cardTheme: "blue", // 카드형 테마 색 — 한 곳에만 둔다. 바꾸면 모든 장이 함께 바뀐다.

@@ -16,7 +16,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getProduct, loadProducts } from "../../lib/products.js";
-import { getConcept, CONCEPTS } from "../../lib/concepts.js";
+import {
+  getConcept,
+  CONCEPTS,
+  MAGAZINE_TEMPLATES,
+  DEFAULT_MAGAZINE_TEMPLATE,
+  getMagazineTemplate,
+} from "../../lib/concepts.js";
 import { slotsFor, roleOf, objectsFor } from "../../lib/templates.js";
 import { buildDeck, TONE_LABEL } from "../../lib/copywriter.js";
 import { outlineKeyOf } from "../../lib/outline.js";
@@ -57,8 +63,10 @@ import {
 } from "./_lib/deckBuilder.js";
 import { ConceptPicker } from "./_components/ConceptPicker.jsx";
 import { CardTabs } from "./_components/CardTabs.jsx";
+import { MagazineTemplatePicker } from "./_components/MagazineTemplatePicker.jsx";
 import { CanvasPreview } from "./_components/CanvasPreview.jsx";
 import { LayoutPanel } from "./_components/LayoutPanel.jsx";
+import { DividerPanel } from "./_components/DividerPanel.jsx";
 import { CardForm } from "./_components/CardForm.jsx";
 import { StylePanel } from "./_components/StylePanel.jsx";
 import { ImagePanel } from "./_components/ImagePanel.jsx";
@@ -112,6 +120,18 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const effectiveAdConcept = (s) =>
   s.adConceptTone === s.tone ? s.adConcept : adConceptForTone(s.tone);
 
+/**
+ * 매거진 t2·t4 구분선의 오버라이드는 `magazineTemplate` 별로 따로 저장한다
+ * (`layout[i]["divider:t2"]` / `layout[i]["divider:t4"]`). 구분선의 기본 위치가
+ * 템플릿마다 달라서, 한 키를 같이 쓰면 t4 에서 고친 값이 t2 로 전환했을 때 그대로
+ * 새어 들어오고(t2 는 원래 자기 자리가 있는데 엉뚱한 좌표를 받는다), t4 에서 지운
+ * 것이 t2 의 선까지 함께 지워 버린다(요청자 지적 2026-09-02). 렌더러에는 이 키를
+ * 그대로 넘기지 않는다 — `buildRenderOpts` 가 지금 템플릿 것만 골라 `divider` 라는
+ * 평범한 키로 바꿔서 넘긴다(cardrender.js·CanvasPreview 는 매거진 하위 템플릿을 모른다).
+ */
+const dividerKey = (s) =>
+  `divider:${s.magazineTemplate || DEFAULT_MAGAZINE_TEMPLATE}`;
+
 /** 클립보드 복사 — 권한이 막힌 환경을 위해 execCommand 폴백을 둔다 */
 async function copyText(text, okMessage) {
   if (!String(text).trim()) {
@@ -134,6 +154,7 @@ async function copyText(text, okMessage) {
 
 const EDITOR_STATE_KEYS = [
   "concept",
+  "magazineTemplate",
   "accent",
   "mark",
   "cardTheme",
@@ -218,6 +239,9 @@ export default function TemplatePage() {
     });
     d = deckFromBlog(d, state);
     d = withFollowCard(d, state.concept, product);
+    // 매거진형은 표지 한 장만 만든다 (2026-09-02, 요청자 지시) — 장수(cardCount)와
+    // 무관하게 늘 1장이다. CardTabs 대신 MagazineTemplatePicker 가 그 자리를 대신한다.
+    if (state.concept === "magazine") d = d.slice(0, 1);
     return d;
   }, [state, product]);
 
@@ -233,7 +257,11 @@ export default function TemplatePage() {
   // 자유 배치 손잡이 목록 — 기본 오브젝트(옛 objectsFor) + 이 카드에 추가한 텍스트 상자
   const objects = useMemo(() => {
     if (!state?.card || !deck.length || !deck[active]) return [];
-    const builtIn = objectsFor(state.concept, deck[active].kind);
+    const builtIn = objectsFor(
+      state.concept,
+      deck[active].kind,
+      state.magazineTemplate,
+    );
     const extras = (state.card.extraTexts?.[active] || []).map((item, n) => ({
       id: `extra-${item.id}`,
       type: "text",
@@ -349,20 +377,30 @@ export default function TemplatePage() {
   }
 
   const buildRenderOpts = useCallback(
-    (s, i) => ({
-      conceptId: s.concept,
-      kind: deck[i]?.kind,
-      image: bitmaps[i] || null,
-      accent: s.accent,
-      cardTheme: s.cardTheme,
-      mark: s.mark,
-      noteSymbol: s.noteSymbol,
-      notePaper: s.notePaper,
-      noteGrain: s.noteGrain,
-      noteInk: s.noteInk,
-      layout: s.card?.layout?.[i] || {},
-      extraTexts: s.card?.extraTexts?.[i] || [],
-    }),
+    (s, i) => {
+      const rawLayout = s.card?.layout?.[i] || {};
+      // 저장은 템플릿별 키(`divider:t2`/`divider:t4`)로 하지만, 렌더러와 CanvasPreview 는
+      // 매거진 하위 템플릿을 모르고 평범한 `divider` 키만 본다 — 지금 템플릿 것만 골라 준다.
+      const layout =
+        s.concept === "magazine"
+          ? { ...rawLayout, divider: rawLayout[dividerKey(s)] }
+          : rawLayout;
+      return {
+        conceptId: s.concept,
+        kind: deck[i]?.kind,
+        image: bitmaps[i] || null,
+        accent: s.accent,
+        cardTheme: s.cardTheme,
+        mark: s.mark,
+        noteSymbol: s.noteSymbol,
+        notePaper: s.notePaper,
+        noteGrain: s.noteGrain,
+        noteInk: s.noteInk,
+        magazineTemplate: s.magazineTemplate,
+        layout,
+        extraTexts: s.card?.extraTexts?.[i] || [],
+      };
+    },
     [deck, bitmaps],
   );
 
@@ -373,6 +411,12 @@ export default function TemplatePage() {
     setActive(0);
     setSelectedObj(null);
     toast(`${getConcept(id).name} 템플릿으로 바꿨습니다.`);
+  }
+
+  function handleMagazineTemplateChange(id) {
+    setState({ magazineTemplate: id });
+    setSelectedObj(null);
+    toast(`${getMagazineTemplate(id).name}으로 바꿨습니다.`);
   }
 
   // 컨셉을 바꾸면 전 장을 다시 만든다 — 한 벌이 통째로 갈리는 값이라 부분 갱신이 없다.
@@ -467,7 +511,21 @@ export default function TemplatePage() {
     const s = getState();
     const layout = deck.map((_, i) => ({ ...(s.card.layout?.[i] || {}) }));
     const obj = objects.find((o) => o.id === objId);
+
+    // 선(구분선)은 상자(x,y,w,h)가 아니라 두 끝점(x1,y1,x2,y2)이라 아래의 상자 전용
+    // 폴백·서체 기본값 로직을 타면 안 된다 — 값을 병합만 하고 그대로 저장한다.
+    // 저장 키는 지금 매거진 템플릿(t2/t4)별로 나눈다 — 안 나누면 한쪽에서 고친 선이
+    // 다른 템플릿에도 그대로 보인다(요청자 지적 2026-09-02).
+    if (obj?.type === "line") {
+      const key = objId === "divider" ? dividerKey(s) : objId;
+      const previous = layout[active][key] || {};
+      layout[active] = { ...layout[active], [key]: { ...previous, ...box } };
+      setState({ card: { ...s.card, layout } });
+      return;
+    }
+
     const previous = layout[active][objId] || {};
+
     let nextBox = { ...previous, ...box };
 
     // 위치·크기가 하나도 없는 오버라이드를 만들면 안 된다 — 렌더러가 NaN 좌표로 튄다.
@@ -502,6 +560,31 @@ export default function TemplatePage() {
     }
 
     layout[active] = { ...layout[active], [objId]: nextBox };
+    setState({ card: { ...s.card, layout } });
+  }
+
+  /**
+   * 매거진 t2·t4 의 구분선을 지우거나 다시 만든다 — "선을 자유자재로 지우고 다시 만든다"는
+   * 요청(2026-09-02)을 상자와 같은 자유 배치 오버라이드(`layout.divider`)로 구현한 것이다.
+   * 지울 때는 `hidden` 만 세우고, 다시 만들 때는 오버라이드 자체를 지워 기본 위치로 되돌린다 —
+   * 옮기거나 줄인 적 없는 처음 상태와 똑같이 시작해야 "다시 만든다"는 말에 맞기 때문이다.
+   */
+  function handleToggleDivider() {
+    const s = getState();
+    const layout = deck.map((_, i) => ({ ...(s.card.layout?.[i] || {}) }));
+    const key = dividerKey(s);
+    const hidden = Boolean(layout[active][key]?.hidden);
+    if (hidden) {
+      delete layout[active][key];
+      toast("구분선을 다시 만들었습니다.");
+    } else {
+      layout[active] = {
+        ...layout[active],
+        [key]: { ...(layout[active][key] || {}), hidden: true },
+      };
+      toast("구분선을 지웠습니다.");
+      if (selectedObj === "divider") setSelectedObj(null);
+    }
     setState({ card: { ...s.card, layout } });
   }
 
@@ -835,6 +918,10 @@ export default function TemplatePage() {
   const edited = isFieldEdited(state.card, active, state.concept, card.kind);
   const previewOpts = buildRenderOpts(state, active);
   const selectedLayoutObj = objects.find((o) => o.id === selectedObj) || null;
+  const dividerObj = objects.find((o) => o.id === "divider") || null;
+  const dividerHidden = Boolean(
+    state.card?.layout?.[active]?.[dividerKey(state)]?.hidden,
+  );
   const clippedLabels = [...new Set(clippedSlots)].map(
     (id) => slots.find((s) => s.id === id)?.label || id,
   );
@@ -877,7 +964,15 @@ export default function TemplatePage() {
             />
 
             <div className="sticky top-[60px] z-30 -mx-3 mb-[18px] mt-2 flex flex-wrap items-center justify-between gap-3 px-3 py-3">
-              <CardTabs deck={deck} active={active} onSelect={setActive} />
+              {state.concept === "magazine" ? (
+                <MagazineTemplatePicker
+                  templates={MAGAZINE_TEMPLATES}
+                  value={state.magazineTemplate || DEFAULT_MAGAZINE_TEMPLATE}
+                  onChange={handleMagazineTemplateChange}
+                />
+              ) : (
+                <CardTabs deck={deck} active={active} onSelect={setActive} />
+              )}
             </div>
 
             <div className="grid grid-cols-[minmax(0,536px)_1fr] gap-x-10 max-[900px]:grid-cols-1">
@@ -990,6 +1085,30 @@ export default function TemplatePage() {
                       <Icon name="refresh" className="size-4" />
                       추천 문구로
                     </button>
+                    {dividerObj && (
+                      <button
+                        type="button"
+                        onClick={handleToggleDivider}
+                        aria-label={
+                          dividerHidden
+                            ? "구분선 다시 만들기"
+                            : "구분선 지우기"
+                        }
+                        className="inline-flex items-center gap-1.5 rounded-full border border-[#e5e8eb] bg-white px-[18px] py-[10px] text-[15px] font-bold text-[#5F6B7A] transition hover:bg-[#f7f8fa]"
+                      >
+                        {dividerHidden ? (
+                          <span
+                            aria-hidden="true"
+                            className="text-[17px] font-medium leading-none"
+                          >
+                            +
+                          </span>
+                        ) : (
+                          <Icon name="trash" className="size-4" />
+                        )}
+                        {dividerHidden ? "구분선 추가" : "구분선 삭제"}
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={handleAddTextBox}
@@ -1025,6 +1144,13 @@ export default function TemplatePage() {
                     objId={selectedObj}
                     label={selectedLayoutObj.label}
                     saved={state.card?.layout?.[active]?.[selectedObj] || {}}
+                    onChange={(next) => handleCommitLayout(selectedObj, next)}
+                  />
+                )}
+
+                {selectedLayoutObj?.type === "line" && (
+                  <DividerPanel
+                    saved={state.card?.layout?.[active]?.[dividerKey(state)] || {}}
                     onChange={(next) => handleCommitLayout(selectedObj, next)}
                   />
                 )}
