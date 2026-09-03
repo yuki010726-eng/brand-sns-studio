@@ -40,7 +40,7 @@ const INITIAL = {
   postId: "",
   topic: "",
   focusPoint: "", // 이번 게시물에서 특히 강조할 내용 (선택 입력)
-  contentOutline: null, // 뼈대잡기 모달에서 사용자가 확정·수정한 서론/본론/결론
+  contentOutline: null, // 뼈대잡기 모달에서 사용자가 확정·수정한 제목/제목 선택지/서론/본론/결론
   // "다른 이름으로 저장" 때 보관함에서만 쓰는 이름. 글 생성 주제와 분리한다.
   libraryTitle: "",
   tone: "",
@@ -49,6 +49,8 @@ const INITIAL = {
   customStyleGuide: "", // URL에서 분석해 재사용하는 문체 가이드
   customStyleGuideUrl: "", // 위 가이드를 분석한 원본 URL
   channels: [],
+  // 인스타그램 캡션 구성: 심플형 · 정보형 · 문답형
+  instagramFormat: "simple",
   cardCount: 0, // 카드뉴스 장수 1~6 — API 비용을 줄이려고 요청자가 고르게 했다
   /**
    * ⚠️ **`adCount` 는 없앴다** (2026-08-20). 직관형 장수는 `cardCount` 하나가 정한다 —

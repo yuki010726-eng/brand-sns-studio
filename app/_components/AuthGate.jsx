@@ -8,21 +8,22 @@ export function AuthGate({ children }) {
   const pathname = usePathname();
   const router = useRouter();
   const isLoginRoute = pathname === '/login' || pathname.startsWith('/login/');
+  const isPublicRoute = isLoginRoute || pathname === '/privacy' || pathname.startsWith('/privacy/');
   const [user, setUser] = useState(() => getUser());
-  const [ready, setReady] = useState(isLoginRoute);
+  const [ready, setReady] = useState(isPublicRoute);
 
   useEffect(() => {
-    if (isLoginRoute) { setReady(true); return; }
+    if (isPublicRoute) { setReady(true); return; }
     const unsubscribe = onAuth(setUser);
     initAuth().finally(() => setReady(true));
     return unsubscribe;
-  }, [isLoginRoute]);
+  }, [isPublicRoute]);
 
   useEffect(() => {
-    if (!isLoginRoute && ready && user?.status !== 'approved') router.replace('/login');
-  }, [isLoginRoute, ready, router, user]);
+    if (!isPublicRoute && ready && user?.status !== 'approved') router.replace('/login');
+  }, [isPublicRoute, ready, router, user]);
 
-  if (isLoginRoute) return children;
+  if (isPublicRoute) return children;
   if (!ready || user?.status !== 'approved') {
     return <main className="flex min-h-dvh items-center justify-center bg-[#1a1a1a] text-white">계정 상태를 확인하고 있습니다.</main>;
   }

@@ -28,6 +28,10 @@ import { toast } from "../../components/toast.js";
 import { LoadingScreen } from "../_components/LoadingScreen.jsx";
 import { Icon } from "../_components/Icon.jsx";
 import { AiRunSelector } from "../_components/text/AiRunSelector.jsx";
+import {
+  INSTAGRAM_FORMATS,
+  InstagramFormatSelector,
+} from "../_components/text/InstagramFormatSelector.jsx";
 import { ChannelTabs } from "../_components/text/ChannelTabs.jsx";
 import { MissingDataModal } from "../_components/text/MissingDataModal.jsx";
 // import { CopyActions } from "../_components/text/CopyActions.jsx";
@@ -42,6 +46,13 @@ function aiRunsForChannel(state, channelId) {
     .map((run, index) => ({ run, index }))
     .filter(({ run }) => Object.hasOwn(run.drafts || {}, channelId));
 }
+
+const instagramDraftOf = (run, format, field = "drafts") =>
+  (field === "generated"
+    ? run?.instagramGenerated?.[format]
+    : run?.instagramDrafts?.[format])
+  ?? run?.[field]?.instagram
+  ?? "";
 
 const contentOutlineKeyOf = (contentOutline) =>
   contentOutline ? JSON.stringify(contentOutline) : "";
@@ -210,11 +221,23 @@ export default function CopyPage() {
     const patch = { drafts: { ...current.drafts, [activeId]: value } };
     const entry = matchingRuns[activeRun];
     if (entry) {
+      const instagramFormat = current.instagramFormat || "simple";
       patch.aiRuns = {
         ...current.aiRuns,
         list: current.aiRuns.list.map((run, index) =>
           index === entry.index
-            ? { ...run, drafts: { ...run.drafts, [activeId]: value } }
+            ? {
+                ...run,
+                drafts: { ...run.drafts, [activeId]: value },
+                ...(activeId === "instagram"
+                  ? {
+                      instagramDrafts: {
+                        ...(run.instagramDrafts || {}),
+                        [instagramFormat]: value,
+                      },
+                    }
+                  : {}),
+              }
             : run,
         ),
       };
@@ -227,7 +250,11 @@ export default function CopyPage() {
     const controller = new AbortController();
     generationController.current = controller;
     pausedRef.current = false;
-    setGeneration({ current: 0, total: channelIds.length, paused: false });
+    const totalJobs = channelIds.reduce(
+      (total, id) => total + (id === "instagram" ? INSTAGRAM_FORMATS.length : 1),
+      0,
+    );
+    setGeneration({ current: 0, total: totalJobs, paused: false });
     setBusy(true);
     try {
       const current = getState();
@@ -320,22 +347,28 @@ export default function CopyPage() {
       const memory = await getMemorySummary().catch(() => null);
 
       const drafts = {};
+      let instagramDrafts = null;
+      let completedJobs = 0;
       for (let index = 0; index < channelIds.length; index++) {
         await waitIfPaused();
         if (controller.signal.aborted) {
           throw new DOMException("취소되었습니다.", "AbortError");
         }
         const channelId = channelIds[index];
-        setGeneration((current) => ({
-          ...current,
-          current: index + 1,
-          channelName:
-            CHANNELS.find((channel) => channel.id === channelId)?.name ||
+        const formats = channelId === "instagram"
+          ? INSTAGRAM_FORMATS
+          : [{ id: null, label: null }];
+        for (const format of formats) {
+          setGeneration((progress) => ({
+            ...progress,
+            current: completedJobs + 1,
+            channelName: format.id
+              ? `인스타그램 ${format.label}`
+              : CHANNELS.find((channel) => channel.id === channelId)?.name || channelId,
+          }));
+          const generatedDraft = await generateWithAI(
             channelId,
-        }));
-        drafts[channelId] = await generateWithAI(
-          channelId,
-          {
+            {
             product,
             topic: current.topic.trim(),
             focusPoint: String(current.focusPoint || "").trim(),
@@ -347,12 +380,24 @@ export default function CopyPage() {
             researchStyle,
             userMemory: memory?.summary || "",
             extraNote,
+            instagramFormat: format.id || current.instagramFormat || "simple",
           },
           {
             signal: controller.signal,
             waitIfPaused,
           },
-        );
+          );
+          completedJobs += 1;
+          if (channelId === "instagram") {
+            instagramDrafts = { ...(instagramDrafts || {}), [format.id]: generatedDraft };
+          } else {
+            drafts[channelId] = generatedDraft;
+          }
+        }
+      }
+      if (instagramDrafts) {
+        drafts.instagram = instagramDrafts[current.instagramFormat || "simple"]
+          || instagramDrafts.simple;
       }
       // 카드뉴스는 아웃라인의 소제목을 재사용하지 않고, 완성된 블로그 전체를
       // OpenAI가 다시 읽어 카드 전용 핵심 문구로 압축한다. 이번 생성에 블로그가
@@ -380,6 +425,7 @@ export default function CopyPage() {
               researchStyle,
               userMemory: memory?.summary || "",
               extraNote,
+              instagramFormat: current.instagramFormat || "simple",
             },
             {
               signal: controller.signal,
@@ -395,7 +441,23 @@ export default function CopyPage() {
         }
       }
       const latest = getState();
-      const run = { drafts, generated: { ...drafts } };
+      const run = {
+        drafts,
+        generated: { ...drafts },
+        // 이 시안을 만들 때 실제로 썼던 조건 — 나중에 다른 시안을 만들며 제목·톤을
+        // 바꿔도, 이 시안을 다시 선택하면 그때 조건 그대로 보여줘야 하기 때문에 남긴다.
+        conditions: {
+          title: current.contentOutline?.title || "",
+          focusPoint: current.focusPoint || "",
+          tone: current.tone,
+        },
+        ...(instagramDrafts
+          ? {
+              instagramDrafts,
+              instagramGenerated: { ...instagramDrafts },
+            }
+          : {}),
+      };
       const sameKey = latest.aiRuns?.key === aiRunsKeyOf(latest);
       const existingList = sameKey ? latest.aiRuns?.list || [] : [];
       const pendingIndex = existingList.findIndex(
@@ -414,6 +476,12 @@ export default function CopyPage() {
                     pending: Object.values({ ...item.drafts, ...drafts }).some(
                       (value) => !String(value || "").trim(),
                     ),
+                    ...(instagramDrafts
+                      ? {
+                          instagramDrafts,
+                          instagramGenerated: { ...instagramDrafts },
+                        }
+                      : {}),
                   }
                 : item,
             )
@@ -532,11 +600,18 @@ export default function CopyPage() {
     const entry = matchingRuns[index];
     if (!entry) return;
     const current = getState();
+    const selectedDraft = activeId === "instagram"
+      ? instagramDraftOf(entry.run, current.instagramFormat || "simple")
+      : entry.run.drafts[activeId];
+    const selectedGenerated = activeId === "instagram"
+      ? entry.run.instagramGenerated?.[current.instagramFormat || "simple"]
+        ?? instagramDraftOf(entry.run, current.instagramFormat || "simple", "generated")
+      : entry.run.generated[activeId];
     setState({
-      drafts: { ...current.drafts, [activeId]: entry.run.drafts[activeId] },
+      drafts: { ...current.drafts, [activeId]: selectedDraft },
       generated: {
         ...current.generated,
-        [activeId]: entry.run.generated[activeId],
+        [activeId]: selectedGenerated,
       },
       sources: { ...current.sources, [activeId]: "ai" },
       activeAiRun: {
@@ -544,6 +619,27 @@ export default function CopyPage() {
         [activeId]: index,
       },
       card: null,
+    });
+  }
+
+  function selectInstagramFormat(instagramFormat) {
+    const current = getState();
+    const entry = matchingRuns[activeRun];
+    if (!entry) {
+      setState({ instagramFormat });
+      return;
+    }
+    setState({
+      instagramFormat,
+      drafts: {
+        ...current.drafts,
+        instagram: instagramDraftOf(entry.run, instagramFormat),
+      },
+      generated: {
+        ...current.generated,
+        instagram: entry.run.instagramGenerated?.[instagramFormat]
+          ?? instagramDraftOf(entry.run, instagramFormat, "generated"),
+      },
     });
   }
 
@@ -580,6 +676,16 @@ export default function CopyPage() {
   if (!state || !productsReady || !activeChannel) return <LoadingScreen />;
   const value = state.drafts?.[activeId] || "";
   const compliance = reviewCompliance(value, activeChannel, product);
+  // 지금 선택된 시안이 실제로 어떤 조건으로 만들어졌는지 보여준다 — 없으면(아직 AI로
+  // 만든 적 없거나 옛 저장본이라 조건이 안 남은 시안이면) 현재 화면의 조건으로 보여준다.
+  const activeConditions = activeRunEntry?.run?.conditions;
+  const summaryTitle = activeConditions
+    ? activeConditions.title
+    : state.contentOutline?.title;
+  const summaryFocusPoint = activeConditions
+    ? activeConditions.focusPoint
+    : state.focusPoint;
+  const summaryTone = activeConditions ? activeConditions.tone : state.tone;
   return (
     <main className="min-h-dvh bg-[#1a1a1a] pb-[140px] text-[#4e5968]">
       <div className="w-full px-[clamp(20px,3.85vw,74px)]">
@@ -600,8 +706,9 @@ export default function CopyPage() {
               <GenerationSummary
                 productName={product?.name}
                 topic={state.topic}
-                focusPoint={state.focusPoint}
-                writingStyle={TONE_LABEL[state.tone] || state.tone}
+                title={summaryTitle}
+                focusPoint={summaryFocusPoint}
+                writingStyle={TONE_LABEL[summaryTone] || summaryTone}
                 onEditConditions={() => router.push("/")}
                 onNext={moveToTemplate}
               />
@@ -648,11 +755,20 @@ export default function CopyPage() {
                   onToggleGenerationPause={toggleGenerationPause}
                   onCancelGeneration={cancelGeneration}
                   runSelector={
-                    <AiRunSelector
-                      runs={matchingRuns}
-                      activeIndex={activeRun}
-                      onSelect={selectRun}
-                    />
+                    <div className="flex flex-col gap-3">
+                      <AiRunSelector
+                        runs={matchingRuns}
+                        activeIndex={activeRun}
+                        onSelect={selectRun}
+                      />
+                      {activeId === "instagram" && (
+                        <InstagramFormatSelector
+                          value={state.instagramFormat || "simple"}
+                          disabled={busy}
+                          onChange={selectInstagramFormat}
+                        />
+                      )}
+                    </div>
                   }
                   onChange={updateDraft}
                   onToggleMode={() => setReadMode((mode) => !mode)}

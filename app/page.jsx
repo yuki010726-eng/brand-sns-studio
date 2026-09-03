@@ -131,6 +131,7 @@ export default function HomePage() {
       cardCount: 0,
       channels: [],
       libraryTitle: "",
+      contentOutline: null,
     });
     requestAnimationFrame(() =>
       topicRef.current?.focus({ preventScroll: true }),
@@ -157,6 +158,7 @@ export default function HomePage() {
       cardCount: 0,
       channels: [],
       libraryTitle: "",
+      contentOutline: null,
     });
     topicRef.current?.focus();
     toast("주제를 비웠습니다.");

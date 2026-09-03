@@ -3,14 +3,16 @@ import { Icon } from "../../_components/Icon.jsx";
 export function GenerationSummary({
   productName,
   topic,
+  title,
   focusPoint,
   writingStyle,
   onEditConditions,
   onNext,
 }) {
   const items = [
-    { label: "상품", value: productName },
-    { label: "주제", value: topic },
+    { label: "상품", value: productName, wrap: true },
+    { label: "주제", value: topic, wrap: true },
+    { label: "제목", value: title, wrap: true },
     ...(focusPoint?.trim()
       ? [{ label: "강조 할 내용", value: focusPoint }]
       : []),
@@ -22,11 +24,14 @@ export function GenerationSummary({
       aria-label="글 생성 조건 요약"
       className="flex min-h-[66px] items-center gap-6 overflow-hidden rounded-[15px] border border-[#e5e8eb] bg-white px-8 py-[17px] max-[1100px]:flex-wrap max-[1100px]:py-4 max-sm:px-5"
     >
-      <dl className="grid min-w-0 flex-1 grid-cols-[minmax(150px,0.7fr)_minmax(220px,1fr)_minmax(220px,1.15fr)_minmax(220px,1.15fr)] items-center gap-x-8 gap-y-3 max-[1380px]:grid-cols-2 max-[700px]:grid-cols-1">
-        {items.map(({ label, value }) => (
+      <dl className="grid min-w-0 flex-1 grid-cols-[repeat(auto-fit,minmax(180px,1fr))] items-center gap-x-8 gap-y-3 max-[700px]:grid-cols-1">
+        {items.map(({ label, value, wrap }) => (
           <div key={label} className="flex min-w-0 items-center gap-[15px] text-[15px] leading-[1.3]">
             <dt className="shrink-0 whitespace-nowrap font-bold text-black">{label}</dt>
-            <dd className="min-w-0 truncate font-normal text-[#8e8e8e]" title={value || "-"}>
+            <dd
+              className={`min-w-0 font-normal text-[#8e8e8e] ${wrap ? "whitespace-normal break-words" : "truncate"}`}
+              title={value || "-"}
+            >
               {value || "-"}
             </dd>
           </div>

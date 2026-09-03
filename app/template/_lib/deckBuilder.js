@@ -136,19 +136,19 @@ export function blogCardSource(state) {
     if (!no) return;
     const caption = String(lines[i + 1] || '').match(/^\s*⤷\s*(.+?)\s*$/)?.[1] || '';
 
-    let head = '';
-    let para = '';
+    // 새 배치(소제목 → 본문 → 이미지)는 위쪽 소제목과 문단을 사용한다.
+    // 아래 탐색은 이미지가 소제목 앞에 있던 기존 저장 글과의 호환을 위해 남긴다.
+    let head = above;
+    let para = above ? paragraphAt(i - 1, -1) : '';
     for (let j = i + 1; j < lines.length; j++) {
+      if (head) break;
       const u = lines[j].trim();
       if (isHead(u)) { head = u.slice(HEAD_MARK.length).trim(); para = paragraphAt(j + 1, 1); break; }
       if (!u || noise(u)) continue;
       if (isShot(u)) break;
       break;
     }
-    if (!head) {
-      head = above;
-      para = paragraphAt(i + 1, 1) || paragraphAt(i - 1, -1);
-    }
+    if (!head) para = paragraphAt(i + 1, 1) || paragraphAt(i - 1, -1);
     out[Number(no) - 1] = { head, caption, para };
   });
   return out;

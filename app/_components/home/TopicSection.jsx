@@ -193,6 +193,7 @@ export function TopicSection({
                             cardCount: 0,
                             channels: [],
                             libraryTitle: "",
+                            contentOutline: null,
                           });
                           topicRef.current?.focus();
                         }}
@@ -221,6 +222,7 @@ export function TopicSection({
                       cardCount: 0,
                       channels: [],
                       libraryTitle: "",
+                      contentOutline: null,
                     })
                   }
                   placeholder="주제를 입력해주세요. ( 구체적일수록 글귀가 정확해집니다. )"
@@ -309,7 +311,7 @@ export function TopicSection({
                   이미지 · 카드뉴스 장수
                 </p>
                 <div className="w-max mt-2 flex flex-wrap gap-2">
-                  {[1, 2, 3, 4, 5, 6].map((count) => (
+                  {[4, 5, 6].map((count) => (
                     <label
                       key={count}
                       className={`inline-flex cursor-pointer items-center rounded-full border px-4 py-[9px] text-[15px] font-medium transition ${state.cardCount === count ? "border-[#191f28] bg-[#191f28] font-bold text-white" : "border-[#e5e8eb] bg-white text-[#4e5968] hover:border-[#d5dae0]"}`}
@@ -325,11 +327,6 @@ export function TopicSection({
                     </label>
                   ))}
                 </div>
-                <p className="mt-2 text-[15px] leading-[1.6] text-[#5f6b7a]">
-                  {HINTS[state.cardCount] || "카드뉴스 장수를 선택하세요."}{" "}
-                  장수를 줄여도 블로그·인스타 글은 기승전결을 그대로 씁니다.
-                  이미지만 줄어듭니다.
-                </p>
               </div>
             </fieldset>
             <FlowArrow />

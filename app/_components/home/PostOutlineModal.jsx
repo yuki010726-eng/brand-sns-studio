@@ -2,15 +2,25 @@
 
 import { useEffect, useRef, useState } from "react";
 import { CHANNELS } from "../../../data/channels.js";
+import {
+  cachedTitleSuggestions,
+  fallbackTitles,
+  getTitleSuggestions,
+} from "../../../lib/titleSuggestions.js";
 import { Icon } from "../Icon.jsx";
 import { TONES } from "./TopicSection.jsx";
 
 const fieldClass =
   "min-h-[50px] w-full resize-none overflow-hidden rounded-[12px] border border-[#e5e8eb] bg-white px-4 py-[14px] text-[15px] leading-[1.45] text-[#4e5968] shadow-[0_0_4px_rgba(0,30,78,0.07)] outline-none transition focus:border-[#287aff] focus:ring-2 focus:ring-[#287aff]/15";
 
+function titleSuggestions(state, product) {
+  return fallbackTitles(product, state?.topic);
+}
+
 function makeOutline(state, product) {
   if (state?.contentOutline) {
     return {
+      title: state.contentOutline.title || titleSuggestions(state, product)[0] || "",
       intro: state.contentOutline.intro || "",
       bodies: Array.isArray(state.contentOutline.bodies)
         ? [...state.contentOutline.bodies]
@@ -32,6 +42,7 @@ function makeOutline(state, product) {
   ];
 
   return {
+    title: titleSuggestions(state, product)[0] || "",
     intro: "독자가 공감할 만한 상황을 제시하고 글에서 다룰 내용을 소개합니다.",
     bodies: Array.from({ length: bodyCount }, (_, index) =>
       focusParts[index]
@@ -44,6 +55,9 @@ function makeOutline(state, product) {
 
 export function PostOutlineModal({ open, product, state, onClose, onConfirm }) {
   const [outline, setOutline] = useState(() => makeOutline(state, product));
+  const [suggestedTitles, setSuggestedTitles] = useState([]);
+  const [titlesLoading, setTitlesLoading] = useState(false);
+  const [titleError, setTitleError] = useState("");
   const [dragIndex, setDragIndex] = useState(null);
   const [dragPreview, setDragPreview] = useState(null);
   const dragIndexRef = useRef(null);
@@ -64,6 +78,47 @@ export function PostOutlineModal({ open, product, state, onClose, onConfirm }) {
       previous?.focus?.();
     };
   }, [open, product, state, onClose]);
+
+  useEffect(() => {
+    if (!open) return;
+    const selectedTitle = String(state?.contentOutline?.title || "").trim();
+    const savedTitles = Array.isArray(state?.contentOutline?.titleOptions)
+      ? state.contentOutline.titleOptions.map((title) => String(title || "").trim()).filter(Boolean)
+      : [];
+    const generatedTitles = savedTitles.length
+      ? savedTitles
+      : cachedTitleSuggestions(product, state);
+    if (generatedTitles?.length) {
+      setSuggestedTitles(generatedTitles);
+      setOutline((current) => ({
+        ...current,
+        title: selectedTitle || generatedTitles[0] || current.title,
+      }));
+      setTitlesLoading(false);
+      setTitleError("");
+      return;
+    }
+    const controller = new AbortController();
+    const fallback = titleSuggestions(state, product);
+    setSuggestedTitles([]);
+    setTitlesLoading(true);
+    setTitleError("");
+    getTitleSuggestions(product, state, { signal: controller.signal })
+      .then((titles) => {
+        setSuggestedTitles(titles);
+        setOutline((current) => ({ ...current, title: titles[0] || current.title }));
+      })
+      .catch((error) => {
+        if (error?.name === "AbortError") return;
+        console.warn("[titles] AI title generation failed; using fallback titles.", error);
+        setSuggestedTitles(fallback);
+        setTitleError("AI 제목을 불러오지 못해 임시 제목을 표시했습니다.");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setTitlesLoading(false);
+      });
+    return () => controller.abort();
+  }, [open, product?.id, state?.topic, state?.focusPoint, state?.contentOutline?.title, state?.contentOutline?.titleOptions]);
 
   useEffect(() => {
     if (dragIndex === null) return;
@@ -189,6 +244,46 @@ export function PostOutlineModal({ open, product, state, onClose, onConfirm }) {
               내용을 수정하거나 본론을 끌어서 순서를 바꿀 수 있어요.
             </p>
             <div className="mt-4 space-y-[10px]">
+              <div className="grid grid-cols-[66px_18px_minmax(0,1fr)] items-start gap-2">
+                <span className="pt-3.5 text-[15px] font-bold text-black">제목</span>
+                <span aria-hidden="true" />
+                <div>
+                  {titlesLoading && (
+                    <div className="flex min-h-10 items-center gap-2 text-[13px] font-semibold text-[#8b95a1]" role="status">
+                      <span className="size-4 animate-spin rounded-full border-2 border-[#d9e7ff] border-t-[#287aff]" />
+                      상품과 주제를 확인해 제목을 만들고 있어요.
+                    </div>
+                  )}
+                  <div className="flex flex-wrap gap-2" role="group" aria-label="추천 제목 선택">
+                    {suggestedTitles.map((title) => {
+                      const selected = outline.title === title;
+                      return (
+                        <button
+                          key={title}
+                          type="button"
+                          aria-pressed={selected}
+                          onClick={() =>
+                            setOutline((current) => ({ ...current, title }))
+                          }
+                          className={`rounded-full border px-3.5 py-2 text-left text-[13px] font-semibold leading-snug transition ${
+                            selected
+                              ? "border-[#287aff] bg-[#e8f2fe] text-[#287aff]"
+                              : "border-[#e5e8eb] bg-white text-[#4e5968] hover:border-[#287aff]/50 hover:bg-[#f7f9fc]"
+                          }`}
+                        >
+                          {title}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {titleError && (
+                    <p className="mt-2 text-xs leading-relaxed text-[#e5484d]">{titleError}</p>
+                  )}
+                  <p className="mt-2 text-xs leading-relaxed text-[#8b95a1]">
+                    선택한 제목과 주제를 바탕으로 카드뉴스 표지 문구를 만듭니다.
+                  </p>
+                </div>
+              </div>
               <OutlineRow
                 label="서론"
                 value={outline.intro}
@@ -251,7 +346,12 @@ export function PostOutlineModal({ open, product, state, onClose, onConfirm }) {
           <div className="mt-9 flex justify-center">
             <button
               type="button"
-              onClick={() => onConfirm(outline)}
+              onClick={() =>
+                onConfirm({
+                  ...outline,
+                  titleOptions: suggestedTitles,
+                })
+              }
               className="h-[54px] min-w-[116px] rounded-full bg-[#287aff] px-8 text-[18px] font-bold text-white shadow-[0_0_2px_rgba(0,30,78,0.07)] hover:bg-[#1b64da]"
             >
               확인
