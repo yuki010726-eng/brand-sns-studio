@@ -1,11 +1,18 @@
-import '../styles/tokens.css';
-import '../styles/components.css';
-import '../styles/tailwind.css';
-import { Header } from './_components/layout/Header.jsx';
-import { AuthGate } from './_components/AuthGate.jsx';
+import "../styles/tokens.css";
+import "../styles/components.css";
+import "../styles/tailwind.css";
+import { Header } from "./_components/layout/Header.jsx";
+import { AuthGate } from "./_components/AuthGate.jsx";
 
 export const metadata = {
-  title: 'Brand SNS Studio',
+  title: "브랜드 SNS 스튜디오",
+  description: "브랜드 SNS 스튜디오",
+  icons: {
+    icon: "/favicon.png",
+  },
+  openGraph: {
+    images: ["/meta-img.png"],
+  },
 };
 
 export default function RootLayout({ children }) {

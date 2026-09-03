@@ -265,18 +265,26 @@ export function CopyEditor({
               </div>
             </div>
           ) : readMode && channel.id === "instagram" ? (
-            <article className="flex min-h-[200px] flex-col gap-8 break-words px-6 py-6 sm:px-[25px] sm:py-[25px] lg:flex-row lg:items-start">
-              <div className="min-w-0 flex-1">
-                <Preview value={value} issues={compliance.issues} />
+            value.trim() ? (
+              <article className="flex min-h-[200px] flex-col gap-8 break-words px-6 py-6 sm:px-[25px] sm:py-[25px] lg:flex-row lg:items-start">
+                <div className="min-w-0 flex-1">
+                  <Preview value={value} issues={compliance.issues} />
+                </div>
+                <div className="w-full shrink-0 lg:sticky lg:top-[calc(var(--header-h)+20px)] lg:w-[380px]">
+                  <InstagramPostPreview
+                    value={value}
+                    handle={instagramHandle}
+                    cardCount={cardCount}
+                  />
+                </div>
+              </article>
+            ) : (
+              <div className="flex min-h-[200px] items-center justify-center px-6 py-6">
+                <p className="text-[15px] text-[#8b95a1]">
+                  AI 생성 버튼을 눌러 글을 만들어 보세요.
+                </p>
               </div>
-              <div className="w-full shrink-0 lg:sticky lg:top-[calc(var(--header-h)+20px)] lg:w-[380px]">
-                <InstagramPostPreview
-                  value={value}
-                  handle={instagramHandle}
-                  cardCount={cardCount}
-                />
-              </div>
-            </article>
+            )
           ) : readMode ? (
             <article className="min-h-[200px] break-words px-6 py-6 sm:px-[25px] sm:py-[25px]">
               <Preview value={value} issues={compliance.issues} />

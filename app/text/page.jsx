@@ -662,9 +662,14 @@ export default function CopyPage() {
       toast("글 생성 후 이동할 수 있습니다.");
       return;
     }
-    const blockedChannel = channels.find((channel) =>
-      reviewCompliance(current.drafts?.[channel.id], channel, product).errors.length,
-    );
+    // AI 생성을 한 채널만 했다면 나머지 선택 채널은 아직 글이 없다 — "게시글이
+    // 없다"는 것은 컴플라이언스 위반이 아니라 아직 안 만든 것뿐이므로, 실제로
+    // 글이 있는 채널만 검사한다.
+    const blockedChannel = channels.find((channel) => {
+      const text = current.drafts?.[channel.id];
+      if (!String(text || "").trim()) return false;
+      return reviewCompliance(text, channel, product).errors.length;
+    });
     if (blockedChannel) {
       setActiveId(blockedChannel.id);
       toast(`${blockedChannel.name} 게시글에 수정이 필요한 컴플라이언스 항목이 있습니다.`, 5000);

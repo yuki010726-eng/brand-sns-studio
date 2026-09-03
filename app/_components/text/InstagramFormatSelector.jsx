@@ -1,5 +1,5 @@
 export const INSTAGRAM_FORMATS = [
-  { id: "simple", label: "심플형" },
+  { id: "simple", label: "기본형" },
   { id: "informative", label: "정보형" },
   { id: "qna", label: "문답형" },
 ];

@@ -49,7 +49,7 @@ const INITIAL = {
   customStyleGuide: "", // URL에서 분석해 재사용하는 문체 가이드
   customStyleGuideUrl: "", // 위 가이드를 분석한 원본 URL
   channels: [],
-  // 인스타그램 캡션 구성: 심플형 · 정보형 · 문답형
+  // 인스타그램 캡션 구성: 기본형 · 정보형 · 문답형
   instagramFormat: "simple",
   cardCount: 0, // 카드뉴스 장수 1~6 — API 비용을 줄이려고 요청자가 고르게 했다
   /**
