@@ -6,7 +6,7 @@ import { AuthGate } from "./_components/AuthGate.jsx";
 
 export const metadata = {
   title: "브랜드 SNS 스튜디오",
-  description: "브랜드 SNS 스튜디오",
+  description: "당신의 SNS를 만들어드립니다.",
   icons: {
     icon: "/favicon.png",
   },

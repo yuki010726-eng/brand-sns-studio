@@ -119,15 +119,11 @@ export default function LoginPage() {
         className="inline-flex items-center gap-2.5 px-[75px] pt-[53px] text-white max-[560px]:px-5 max-[560px]:pt-[22px]"
         aria-hidden="true"
       >
-        <img
-          className="w-auto"
-          src={logo.src}
-          alt="브랜드 SNS 스튜디오 로고"
-        />
+        <img className="w-auto" src={logo.src} alt="브랜드 SNS 스튜디오 로고" />
       </div>
       <div className="flex flex-1 items-center justify-center gap-[clamp(312px,6vw,96px)] px-10 pb-14 pt-8 max-[560px]:px-5 max-[560px]:pb-10 max-[560px]:pt-6">
         <img
-          className="w-[min(36vw,440px)] drop-shadow-[0_30px_70px_rgba(94,60,200,0.28)] max-[880px]:hidden"
+          className="w-[min(600px)] drop-shadow-[0_30px_70px_rgba(94,60,200,0.28)] max-[880px]:hidden"
           src={loginArt.src}
           alt=""
           aria-hidden="true"
@@ -193,88 +189,91 @@ export default function LoginPage() {
 
             {activeTab === "login" ? (
               <div>
-              <InstagramAuthButton intent="login" />
-              <AuthDivider />
-              <form
-                className="flex flex-col text-left"
-                onSubmit={handleLogin}
-                onInput={() => setLoginError("")}
-              >
-                <LoginField
-                  label="아이디"
-                  name="username"
-                  autoComplete="username"
-                  maxLength={64}
-                  pattern="[A-Za-z0-9.!#$%&'*+/=?^_{|}~-]+"
-                  title="이메일 도메인을 제외한 아이디만 입력해 주세요"
-                  placeholder="아이디를 입력해 주세요"
-                />
-                <LoginField
-                  label="비밀번호"
-                  name="password"
-                  type="password"
-                  autoComplete="current-password"
-                  minLength={6}
-                  placeholder="비밀번호를 입력해 주세요"
-                />
-                <p
-                  className="mt-3.5 text-sm font-semibold leading-[1.5] text-[#ff8a80]"
-                  role="alert"
-                  aria-live="polite"
-                  hidden={!loginError}
+                <InstagramAuthButton intent="login" />
+                <AuthDivider />
+                <form
+                  className="flex flex-col text-left"
+                  onSubmit={handleLogin}
+                  onInput={() => setLoginError("")}
                 >
-                  {loginError}
-                </p>
-                <button
-                  className="mt-11 h-[51px] rounded-full border-0 bg-white px-[55px] py-2.5 text-xl font-bold leading-[22.4px] text-black"
-                  type="submit"
-                  disabled={!configured || loginBusy}
-                >
-                  {loginBusy ? "로그인 중…" : "로그인"}
-                </button>
-              </form>
+                  <LoginField
+                    label="아이디"
+                    name="username"
+                    autoComplete="username"
+                    maxLength={64}
+                    pattern="[A-Za-z0-9.!#$%&'*+/=?^_{|}~-]+"
+                    title="이메일 도메인을 제외한 아이디만 입력해 주세요"
+                    placeholder="아이디를 입력해 주세요"
+                  />
+                  <LoginField
+                    label="비밀번호"
+                    name="password"
+                    type="password"
+                    autoComplete="current-password"
+                    minLength={6}
+                    placeholder="비밀번호를 입력해 주세요"
+                  />
+                  <p
+                    className="mt-3.5 text-sm font-semibold leading-[1.5] text-[#ff8a80]"
+                    role="alert"
+                    aria-live="polite"
+                    hidden={!loginError}
+                  >
+                    {loginError}
+                  </p>
+                  <button
+                    className="mt-11 h-[51px] rounded-full border-0 bg-white px-[55px] py-2.5 text-xl font-bold leading-[22.4px] text-black"
+                    type="submit"
+                    disabled={!configured || loginBusy}
+                  >
+                    {loginBusy ? "로그인 중…" : "로그인"}
+                  </button>
+                </form>
               </div>
             ) : (
               <div>
-              <InstagramAuthButton intent="signup" />
-              <AuthDivider />
-              <form className="flex flex-col text-left" onSubmit={handleSignup}>
-                <LoginField
-                  label="아이디"
-                  name="username"
-                  autoComplete="username"
-                  maxLength={64}
-                  pattern="[A-Za-z0-9.!#$%&'*+/=?^_{|}~-]+"
-                  title="이메일 도메인을 제외한 아이디만 입력해 주세요"
-                  placeholder="사용할 아이디를 입력해 주세요"
-                />
-                <LoginField
-                  label="이름"
-                  name="name"
-                  autoComplete="name"
-                  maxLength={50}
-                  placeholder="이름을 입력해 주세요"
-                />
-                <LoginField
-                  label="비밀번호"
-                  name="password"
-                  type="password"
-                  autoComplete="new-password"
-                  minLength={6}
-                  placeholder="비밀번호를 입력해 주세요"
-                />
-                <button
-                  className="mt-11 h-[51px] rounded-full border-0 bg-white px-[55px] py-2.5 text-xl font-bold leading-[22.4px] text-black"
-                  type="submit"
-                  disabled={!configured || signupBusy}
+                <InstagramAuthButton intent="signup" />
+                <AuthDivider />
+                <form
+                  className="flex flex-col text-left"
+                  onSubmit={handleSignup}
                 >
-                  {signupBusy ? "가입 중…" : "회원가입"}
-                </button>
-                <p className="mt-4 text-center text-[13px] leading-relaxed text-white/60">
-                  가입 후 관리자의 승인이 완료되어야 서비스를 이용할 수
-                  있습니다.
-                </p>
-              </form>
+                  <LoginField
+                    label="아이디"
+                    name="username"
+                    autoComplete="username"
+                    maxLength={64}
+                    pattern="[A-Za-z0-9.!#$%&'*+/=?^_{|}~-]+"
+                    title="이메일 도메인을 제외한 아이디만 입력해 주세요"
+                    placeholder="사용할 아이디를 입력해 주세요"
+                  />
+                  <LoginField
+                    label="이름"
+                    name="name"
+                    autoComplete="name"
+                    maxLength={50}
+                    placeholder="이름을 입력해 주세요"
+                  />
+                  <LoginField
+                    label="비밀번호"
+                    name="password"
+                    type="password"
+                    autoComplete="new-password"
+                    minLength={6}
+                    placeholder="비밀번호를 입력해 주세요"
+                  />
+                  <button
+                    className="mt-11 h-[51px] rounded-full border-0 bg-white px-[55px] py-2.5 text-xl font-bold leading-[22.4px] text-black"
+                    type="submit"
+                    disabled={!configured || signupBusy}
+                  >
+                    {signupBusy ? "가입 중…" : "회원가입"}
+                  </button>
+                  <p className="mt-4 text-center text-[13px] leading-relaxed text-white/60">
+                    가입 후 관리자의 승인이 완료되어야 서비스를 이용할 수
+                    있습니다.
+                  </p>
+                </form>
               </div>
             )}
             {!configured && (
@@ -303,7 +302,9 @@ function InstagramAuthButton({ intent }) {
   return (
     <button
       type="button"
-      onClick={() => { window.location.href = `/api/auth/instagram/start?intent=${intent}`; }}
+      onClick={() => {
+        window.location.href = `/api/auth/instagram/start?intent=${intent}`;
+      }}
       className="mt-7 flex h-[51px] w-full items-center justify-center gap-2 rounded-full border-0 bg-gradient-to-r from-[#833ab4] via-[#e1306c] to-[#f77737] px-5 text-[17px] font-bold text-white transition hover:brightness-110"
     >
       Instagram으로 {isSignup ? "회원가입하기" : "로그인하기"}
@@ -312,7 +313,11 @@ function InstagramAuthButton({ intent }) {
 }
 
 function AuthDivider() {
-  return <div className="my-5 flex items-center gap-3 text-[12px] text-white/50 before:h-px before:flex-1 before:bg-white/20 after:h-px after:flex-1 after:bg-white/20">또는</div>;
+  return (
+    <div className="my-5 flex items-center gap-3 text-[12px] text-white/50 before:h-px before:flex-1 before:bg-white/20 after:h-px after:flex-1 after:bg-white/20">
+      또는
+    </div>
+  );
 }
 
 function AccountStatus({ user }) {
@@ -331,7 +336,10 @@ function AccountStatus({ user }) {
 
   return (
     <div className="w-[min(100%,452px)] max-w-[479px] rounded-[28px] border border-white/[0.12] bg-white/[0.08] px-11 pb-11 pt-12 text-left shadow-[0_30px_70px_rgba(0,0,0,0.35)] backdrop-blur-[28px] max-[560px]:rounded-[22px] max-[560px]:px-6 max-[560px]:py-9">
-      <h1 id="login-title" className="text-[30px] font-bold leading-[22.4px] text-white">
+      <h1
+        id="login-title"
+        className="text-[30px] font-bold leading-[22.4px] text-white"
+      >
         {title}
       </h1>
       <p className="mt-2.5 text-lg font-[350] leading-[22.4px] text-white/[0.68]">
