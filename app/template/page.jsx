@@ -49,7 +49,7 @@ import {
   adConceptForTone,
 } from "../../lib/adprompt.js";
 import { saveToLibrary, hasLibraryChanges } from "../../lib/librarystore.js";
-import { getState, setState, subscribe, STEPS } from "../../store.js";
+import { draftKeyOf, getState, setState, subscribe, STEPS } from "../../store.js";
 import { toast } from "../../components/toast.js";
 import { LoadingScreen } from "../_components/LoadingScreen.jsx";
 import { Icon } from "../_components/Icon.jsx";
@@ -450,6 +450,18 @@ export default function TemplatePage() {
     texts[active] = { ...s.card.base[active] };
     setState({ card: { ...s.card, texts } });
     toast(`${active + 1}번 카드를 추천 문구로 되돌렸습니다.`);
+  }
+
+  function handleCoverRecommendation(option) {
+    const s = getState();
+    if (!s.card?.texts?.[0]) return;
+    const texts = cloneTexts(s.card.texts);
+    texts[0] = {
+      ...texts[0],
+      title: option.title,
+      highlight: option.highlight,
+    };
+    setState({ card: { ...s.card, texts } });
   }
 
   function handleAddTextBox() {
@@ -940,6 +952,11 @@ export default function TemplatePage() {
     JSON.stringify(historyEntry.current) !==
       JSON.stringify(historyEntry.initial),
   );
+  const coverRecommendations =
+    active === 0 && state.concept === "magazine" &&
+    state.cardCopy?.key === draftKeyOf(state)
+      ? state.cardCopy.coverRecommendations || []
+      : [];
 
   return (
     <main className="min-h-dvh bg-[#1a1a1a] pb-[40px] text-[#4e5968]">
@@ -1082,16 +1099,40 @@ export default function TemplatePage() {
                     </details>
                   </div>
                   <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={handleResetOne}
-                      disabled={!edited}
-                      aria-label="이 카드 문구를 추천 문구로 되돌리기"
-                      className="inline-flex items-center gap-1.5 rounded-full border border-[#e5e8eb] bg-white px-[18px] py-[10px] text-[15px] font-bold text-[#5F6B7A] transition hover:bg-[#f7f8fa] disabled:opacity-40"
-                    >
-                      <Icon name="refresh" className="size-4" />
-                      추천 문구로
-                    </button>
+                    {coverRecommendations.length ? (
+                      <details className="relative">
+                        <summary className="inline-flex cursor-pointer list-none items-center rounded-full border border-[#e5e8eb] bg-white px-[18px] py-[10px] text-[15px] font-bold text-[#5F6B7A] transition hover:bg-[#f7f8fa] [&::-webkit-details-marker]:hidden">
+                          추천 문구
+                        </summary>
+                        <div className="absolute right-0 top-[calc(100%+8px)] z-40 w-[min(380px,calc(100vw-48px))] overflow-hidden rounded-[14px] border border-[#e5e8eb] bg-white p-2 shadow-[0_12px_32px_rgba(0,0,0,0.16)]">
+                          {coverRecommendations.map((option, index) => (
+                            <button
+                              key={`${option.title}-${option.highlight}`}
+                              type="button"
+                              onClick={(event) => {
+                                handleCoverRecommendation(option);
+                                event.currentTarget.closest("details")?.removeAttribute("open");
+                              }}
+                              className="block w-full rounded-[10px] px-3 py-3 text-left transition hover:bg-[#f2f6ff]"
+                            >
+                              <span className="mb-1 block text-[12px] font-bold text-[#287aff]">추천 {index + 1}</span>
+                              <span className="block text-[15px] font-bold text-[#333d4b]">{option.title}</span>
+                              <span className="mt-0.5 block text-[14px] text-[#5f6b7a]">{option.highlight}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </details>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleResetOne}
+                        disabled={!edited}
+                        aria-label="이 카드 문구를 추천 문구로 되돌리기"
+                        className="inline-flex items-center rounded-full border border-[#e5e8eb] bg-white px-[18px] py-[10px] text-[15px] font-bold text-[#5F6B7A] transition hover:bg-[#f7f8fa] disabled:opacity-40"
+                      >
+                        추천 문구
+                      </button>
+                    )}
                     {dividerObj && (
                       <button
                         type="button"

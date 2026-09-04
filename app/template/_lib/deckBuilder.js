@@ -10,8 +10,13 @@ import { draftKeyOf } from '../../../store.js';
 
 /* ---------------- 문구 상태 재조정 (옛 ensureTexts/mergeTexts/baseOf) ---------------- */
 
-export function baseOf(conceptId, deck, product) {
-  return deck.map((card) => defaultsFor(conceptId, card, product));
+export function baseOf(conceptId, deck, product, coverRecommendations = []) {
+  const base = deck.map((card) => defaultsFor(conceptId, card, product));
+  const first = coverRecommendations[0];
+  if (conceptId === 'magazine' && base[0] && first?.title && first?.highlight) {
+    base[0] = { ...base[0], title: first.title, highlight: first.highlight };
+  }
+  return base;
 }
 
 /** 새 템플릿의 슬롯을 기준으로, 사용자가 직접 고쳤던 값만 덮어쓴다 */
@@ -41,7 +46,10 @@ const fitLayout = (layout, deck) => deck.map((_, i) => ({ ...(layout?.[i] || {})
  */
 export function reconcileCard(state, deck, product) {
   const key = draftKeyOf(state);
-  const base = baseOf(state.concept, deck, product);
+  const recommendations = state.cardCopy?.key === key
+    ? state.cardCopy.coverRecommendations || []
+    : [];
+  const base = baseOf(state.concept, deck, product, recommendations);
   // 카드 문구는 블로그뿐 아니라 cardCopy, outline, 상품 정보에서도 만들어진다.
   // 블로그만 지문으로 삼으면 cardCopy가 바뀌었을 때 기존 texts는 그대로인데
   // base만 새 값이 되어, 손대지 않은 문구가 사용자 편집으로 오인된다.

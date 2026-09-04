@@ -16,7 +16,6 @@ import * as TemplatePage from './pages/template.js';
 import * as LibraryPage from './pages/library.js';
 import * as LoginPage from './pages/login.js';
 import * as ResearchPage from './pages/research.js';
-import * as ProductsAdminPage from './pages/products-admin.js';
 
 const ROUTES = {
   '/login': LoginPage,
@@ -25,15 +24,14 @@ const ROUTES = {
   '/template': TemplatePage,
   '/library': LibraryPage,
   '/research': ResearchPage,
-  '/products-admin': ProductsAdminPage,
 };
 
 const LOGIN_PATH = '/login';
 const RETURN_PATH_KEY = 'auth:return-path';
 let authReady = false;
 
-/** 없어진 경로 → 현재 경로. 이미지 제작 단계는 템플릿 안으로 합쳤다. 프로필은 Next.js 로 옮겼다. */
-const MOVED = { '/image': '/template', '/profile': '/library/profile' };
+/** 없어진 경로 → 현재 경로. 이미지 제작 단계는 템플릿 안으로 합쳤다. 프로필·상품 관리는 Next.js 로 옮겼다. */
+const MOVED = { '/image': '/template', '/profile': '/library/profile', '/products-admin': '/products-admin' };
 
 const headerRoot = document.getElementById('header-root');
 const mainRoot = document.getElementById('main');

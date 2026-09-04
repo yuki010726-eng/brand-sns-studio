@@ -87,7 +87,7 @@ const INITIAL = {
   /**
    * 파생 1회에서 나온 **카드 전용 문구** (2026-08-20). `key` 가 지금 조건과 같을 때만 쓴다.
    * 블로그 소제목을 앞에서 자른 덱보다 낫다 — 글 전체를 보고 만든 것이라 카드만 넘겨도 말이 된다.
-   * @type {{key:string, cards:Array<{title:string, body:string}>}|null}
+   * @type {{key:string, cards:Array<{title:string, body:string}>, coverRecommendations?:Array<{title:string,highlight:string}>}|null}
    */
   cardCopy: null,
   /**

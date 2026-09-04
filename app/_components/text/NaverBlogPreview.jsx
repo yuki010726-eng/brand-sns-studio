@@ -18,8 +18,29 @@ import { AVATAR_KEY, getImage, objectUrl } from "../../../lib/imagestore.js";
 import { Icon } from "../Icon.jsx";
 
 const QUOTE_RE = /^\[[^\]]*인용구\]$/;
-const SLOT_RE = /^📷\s*\[이미지\s*(\d+)\s*·\s*([^\]]+)\]/;
+const SLOT_RE = /^\s*📷\s*\[이미지\s*(\d+)(?:\s*[·・-]\s*([^\]]+))?\]/;
+const HEAD_RE = /^(?:#{2,6}|■)\s+(.+)$/;
 const TAGS_RE = /^(#[^#\s]+\s*)+$/;
+
+function paragraphChunks(lines) {
+  const chunks = [];
+  let chunk = [];
+  let chars = 0;
+
+  lines.forEach((line) => {
+    const nextChars = chars + line.length;
+    if (chunk.length && (chunk.length >= 4 || nextChars > 170)) {
+      chunks.push(chunk);
+      chunk = [];
+      chars = 0;
+    }
+    chunk.push(line);
+    chars += line.length;
+  });
+
+  if (chunk.length) chunks.push(chunk);
+  return chunks;
+}
 
 /** 원고를 제목 두 줄과 본문 블록으로 나눈다 — CopyEditor.jsx 의 `Preview` 와 같은 표식을 본다. */
 function parseBlog(raw) {
@@ -41,10 +62,12 @@ function parseBlog(raw) {
   let paraLines = [];
   const flushPara = () => {
     if (!paraLines.length) return;
-    blocks.push({
-      type: "para",
-      key: `para-${blocks.length}`,
-      text: paraLines.join("\n"),
+    paragraphChunks(paraLines).forEach((chunk) => {
+      blocks.push({
+        type: "para",
+        key: `para-${blocks.length}`,
+        text: chunk.join("\n"),
+      });
     });
     paraLines = [];
   };
@@ -61,17 +84,19 @@ function parseBlog(raw) {
     if (slot) {
       flushPara();
       const captionLine = lines[index + 1]?.trim() || "";
-      const caption = captionLine.startsWith("⤷")
-        ? captionLine.slice(1).trim()
+      const captionMatch = captionLine.match(/^⤷\s*(.+?)\s*$/);
+      const caption = captionMatch
+        ? captionMatch[1]
         : "";
       if (caption) index += 1;
       blocks.push({ type: "image", key: `image-${index}`, caption });
       continue;
     }
 
-    if (line.startsWith("## ")) {
+    const head = line.match(HEAD_RE);
+    if (head) {
       flushPara();
-      blocks.push({ type: "head", key: `head-${index}`, text: line.slice(3) });
+      blocks.push({ type: "head", key: `head-${index}`, text: head[1].trim() });
       continue;
     }
 

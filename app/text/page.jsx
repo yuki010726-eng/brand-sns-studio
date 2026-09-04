@@ -59,6 +59,21 @@ const contentOutlineKeyOf = (contentOutline) =>
 
 const outlineJobs = new Map();
 
+/** 저장된 블로그 시안에서 실제로 노출된 소제목을 모은다. */
+function blogHeadingsFromRuns(state) {
+  if (!state || state.aiRuns?.key !== aiRunsKeyOf(state)) return [];
+  return [
+    ...new Set(
+      (state.aiRuns?.list || [])
+        .flatMap((run) => String(run?.drafts?.blog || "").split(/\r?\n/))
+        .map((line) => line.trim())
+        .filter((line) => line.startsWith("## "))
+        .map((line) => line.slice(3).trim())
+        .filter(Boolean),
+    ),
+  ];
+}
+
 /**
  * 채널 글을 쓰기 전에 주제 뼈대(core)를 먼저 만든다.
  *
@@ -98,6 +113,7 @@ async function ensureOutline(
   const avoid = [
     ...new Set([
       ...pastHeads,
+      ...blogHeadingsFromRuns(state),
       ...(state.outline?.key === key
         ? (state.outline.core?.points || []).map((x) => x.q)
         : []),
@@ -373,6 +389,8 @@ export default function CopyPage() {
             topic: current.topic.trim(),
             focusPoint: String(current.focusPoint || "").trim(),
             tone: current.tone,
+            round,
+            avoidHeadings: blogHeadingsFromRuns(current),
             variant: (current.variants?.[channelId] || 0) + 1,
             cardCount: current.cardCount,
             core,
@@ -405,7 +423,7 @@ export default function CopyPage() {
       const blogForCards = String(
         drafts.blog || getState().drafts?.blog || "",
       ).trim();
-      let derivedCards = null;
+      let derivedCardCopy = null;
       if (blogForCards) {
         setGeneration((generation) => ({
           ...generation,
@@ -432,7 +450,12 @@ export default function CopyPage() {
               waitIfPaused,
             },
           );
-          derivedCards = derived?.cards || null;
+          derivedCardCopy = derived?.cards?.length
+            ? {
+                cards: derived.cards,
+                coverRecommendations: derived.coverRecommendations || [],
+              }
+            : null;
         } catch (error) {
           if (error?.name === "AbortError") throw error;
           // 카드 요약 한 번의 실패 때문에 이미 완성된 채널 글까지 버리지는 않는다.
@@ -517,8 +540,8 @@ export default function CopyPage() {
           list,
         },
         activeAiRun,
-        cardCopy: derivedCards
-          ? { key: draftKeyOf(latest), cards: derivedCards }
+        cardCopy: derivedCardCopy
+          ? { key: draftKeyOf(latest), ...derivedCardCopy }
           : null,
         card: null,
       });

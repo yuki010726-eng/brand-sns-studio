@@ -3,7 +3,7 @@
  *
  * 왜 필요한가
  * Terra 와 Sol 의 단가가 2.5배 차이라 감으로 고를 수 없다. 그런데 이 앱에는 이미
- * **객관적인 판정 장치**가 있다 — `validateDraft()` 가 금지 표현·근거 없는 단정·주제 이탈을
+ * **객관적인 판정 장치**가 있다 — `validateDraft()` 가 금지 표현·주제 이탈·너무 짧음을
  * 잡아낸다. 같은 주제를 모델별로 여러 번 돌려 **반려율**을 재면 답이 나온다.
  *
  * ⚠️ 싼 모델이 정말 싼 게 아니다. 반려되면 최대 3회까지 다시 부르므로 비용도 같이 늘어난다.
@@ -330,11 +330,11 @@ function render() {
 
     <h2>반려 사유</h2>
     ${Object.keys(why).length ? `<div class="scroll"><table>
-      <thead><tr><th>모델</th><th>주제 이탈</th><th>금지 표현</th><th>근거 없는 단정</th><th>너무 짧음</th></tr></thead>
+      <thead><tr><th>모델</th><th>주제 이탈</th><th>금지 표현</th><th>너무 짧음</th></tr></thead>
       <tbody>${models.map((m) => `<tr>
         <td><strong>${esc(m.replace('gpt-5.6-', ''))}</strong></td>
         <td>${why[m]?.['주제 이탈'] || 0}</td><td>${why[m]?.['금지 표현'] || 0}</td>
-        <td>${why[m]?.['근거 없는 단정'] || 0}</td><td>${why[m]?.['너무 짧음'] || 0}</td>
+        <td>${why[m]?.['너무 짧음'] || 0}</td>
       </tr>`).join('')}</tbody></table></div>` : '<p class="dim">반려된 글이 없습니다.</p>'}
 
     <h2>채널별 1회 통과율</h2>
@@ -364,7 +364,6 @@ function render() {
 function kindOf(problem) {
   if (problem.includes('주제')) return '주제 이탈';
   if (problem.includes('금지 표현')) return '금지 표현';
-  if (problem.includes('단정')) return '근거 없는 단정';
   if (problem.includes('짧')) return '너무 짧음';
   return '기타';
 }
