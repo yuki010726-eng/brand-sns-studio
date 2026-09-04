@@ -782,6 +782,8 @@ export default function CopyPage() {
                   }
                   instagramHandle={product?.handle}
                   cardCount={state.cardCount}
+                  blogTitle={summaryTitle}
+                  productName={product?.name}
                 />
               </div>
             </div>

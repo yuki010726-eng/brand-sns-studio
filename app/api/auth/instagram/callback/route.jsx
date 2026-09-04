@@ -86,6 +86,9 @@ export async function GET(request) {
 
     let userId = intent === 'connect' ? connectingUserId : existing?.user_id;
     const syntheticEmail = `instagram_${profile.instagramUserId}@users.invalid`;
+    // 로그인 링크는 이메일로만 만들 수 있다. userId 가 연결된 실제 계정(다른 이메일)일 수 있으므로
+    // syntheticEmail 을 그대로 쓰면 안 되고, 그 userId 의 실제 이메일을 반드시 다시 조회한다.
+    let loginEmail = syntheticEmail;
     if (!userId) {
       const { data: created, error } = await admin.auth.admin.createUser({
         email: syntheticEmail,
@@ -94,6 +97,11 @@ export async function GET(request) {
       });
       if (error) throw error;
       userId = created.user.id;
+      loginEmail = created.user.email || syntheticEmail;
+    } else {
+      const { data: found, error: getUserError } = await admin.auth.admin.getUserById(userId);
+      if (getUserError) throw getUserError;
+      loginEmail = found?.user?.email || syntheticEmail;
     }
 
     const expiresAt = new Date(Date.now() + Number(long.expires_in || 0) * 1000).toISOString();
@@ -119,7 +127,7 @@ export async function GET(request) {
 
     const { data: link, error: linkError } = await admin.auth.admin.generateLink({
       type: 'magiclink',
-      email: syntheticEmail,
+      email: loginEmail,
       options: { redirectTo: new URL('/login', request.url).toString() },
     });
     if (linkError || !link?.properties?.hashed_token) throw linkError || new Error('사이트 로그인 링크를 만들지 못했습니다.');

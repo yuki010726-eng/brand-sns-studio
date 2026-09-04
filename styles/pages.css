@@ -1053,7 +1053,7 @@ body.is-home-page main > .container {
 
 /* 파란 세로선 소제목 — 위로는 크게 떼고, 아래 본문과도 확실히 띄운다 */
 .preview__head {
-  font-size: var(--fs-xl);
+  font-size: 20px;
   font-weight: 900;
   line-height: 1.45;
   padding-left: 12px;

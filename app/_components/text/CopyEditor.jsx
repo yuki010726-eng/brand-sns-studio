@@ -3,6 +3,7 @@ import { Icon } from "../Icon.jsx";
 import { CopyChatPanel } from "./CopyChatPanel.jsx";
 import { CompliancePanel } from "./CompliancePanel.jsx";
 import { InstagramPostPreview } from "./InstagramPostPreview.jsx";
+import { NaverBlogPreview } from "./NaverBlogPreview.jsx";
 
 const QUOTE_RE = /^\[[^\]]*인용구\]$/;
 const SLOT_RE = /^📷\s*\[이미지\s*(\d+)\s*·\s*([^\]]+)\]/;
@@ -170,9 +171,12 @@ export function CopyEditor({
   onCancelGeneration,
   instagramHandle,
   cardCount,
+  blogTitle,
+  productName,
 }) {
   const [chatOpen, setChatOpen] = useState(false);
-  const over = value.length > channel.limit;
+  const hasLimit = Number.isFinite(channel.limit) && channel.limit > 0;
+  const over = hasLimit && value.length > channel.limit;
   const bodyCount = value
     .split("\n")
     .filter(
@@ -194,8 +198,8 @@ export function CopyEditor({
           <output
             className={`mr-5 text-[15px] font-bold ${over ? "text-red-200" : "text-white"}`}
           >
-            본문 {bodyCount.toLocaleString()}자 · 전체{" "}
-            {value.length.toLocaleString()} / {channel.limit.toLocaleString()}자
+            본문 {bodyCount.toLocaleString()}자 · 전체 {value.length.toLocaleString()}자
+            {hasLimit ? ` / ${channel.limit.toLocaleString()}자` : ""}
           </output>
           <button
             type="button"
@@ -264,6 +268,22 @@ export function CopyEditor({
                 </div>
               </div>
             </div>
+          ) : readMode && channel.id === "blog" ? (
+            value.trim() ? (
+              <article className="min-h-[200px] break-words px-6 py-6 sm:px-[25px] sm:py-[25px]">
+                <NaverBlogPreview
+                  value={value}
+                  title={blogTitle}
+                  authorName={productName}
+                />
+              </article>
+            ) : (
+              <div className="flex min-h-[200px] items-center justify-center px-6 py-6">
+                <p className="text-[15px] text-[#8b95a1]">
+                  AI 생성 버튼을 눌러 글을 만들어 보세요.
+                </p>
+              </div>
+            )
           ) : readMode && channel.id === "instagram" ? (
             value.trim() ? (
               <article className="flex min-h-[200px] flex-col gap-8 break-words px-6 py-6 sm:px-[25px] sm:py-[25px] lg:flex-row lg:items-start">

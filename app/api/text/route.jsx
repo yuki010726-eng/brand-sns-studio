@@ -52,6 +52,21 @@ const clampOutputTokens = (value) => {
   return Math.min(MAX_OUTPUT_TOKENS, Math.round(number));
 };
 
+const reasoningEffort = (value) =>
+  ['low', 'medium', 'high'].includes(value) ? value : 'low';
+
+function downloadableProposalUrl(value) {
+  const url = new URL(value);
+  if (url.hostname === 'drive.google.com') {
+    const fileMatch = url.pathname.match(/^\/file\/d\/([^/]+)/);
+    const id = fileMatch?.[1] || url.searchParams.get('id');
+    if (id) {
+      return `https://drive.usercontent.google.com/download?id=${encodeURIComponent(id)}&export=download&confirm=t`;
+    }
+  }
+  return url.toString();
+}
+
 export async function POST(request) {
   const auth = await requireApprovedUser(request);
   if (!auth.ok) return fail(auth.status, auth.message);
@@ -72,10 +87,29 @@ export async function POST(request) {
     return fail(400, `프롬프트가 너무 깁니다 (${prompt.length}자 / 최대 ${MAX_PROMPT_CHARS}자).`);
   }
 
+  let proposalUrl = typeof body?.proposalUrl === 'string' ? body.proposalUrl.trim() : '';
+  if (proposalUrl) {
+    try {
+      const parsed = new URL(proposalUrl);
+      if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error();
+      proposalUrl = downloadableProposalUrl(proposalUrl);
+    } catch {
+      return fail(400, '상품 제안서 URL이 올바르지 않습니다.');
+    }
+  }
+
   const requestBody = {
     model: MODEL,
-    input: prompt,
-    reasoning: { effort: 'low' },
+    input: proposalUrl
+      ? [{
+          role: 'user',
+          content: [
+            { type: 'input_file', file_url: proposalUrl },
+            { type: 'input_text', text: prompt },
+          ],
+        }]
+      : prompt,
+    reasoning: { effort: reasoningEffort(body.reasoningEffort) },
     max_output_tokens: clampOutputTokens(body.maxOutputTokens),
   };
   if (typeof body.system === 'string' && body.system) requestBody.instructions = body.system;

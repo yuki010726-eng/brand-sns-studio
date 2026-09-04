@@ -198,6 +198,13 @@ export default function TemplatePage() {
   const historyPostId = useRef(null);
 
   useEffect(() => {
+    // 카드뉴스 스텝에 들어올 때는 이전 작업에서 마지막으로 골랐던 유형과 관계없이
+    // 항상 매거진형부터 보여 준다. 이 초기화는 마운트 때 한 번만 실행되므로,
+    // 페이지 안에서 사용자가 다른 유형을 고르는 동작에는 영향을 주지 않는다.
+    const initialState = getState();
+    if (initialState.concept !== "magazine") {
+      setState({ concept: "magazine" });
+    }
     setViewState(getState());
     const unsubscribe = subscribe(setViewState);
     loadProducts().finally(() => setProductsReady(true));
