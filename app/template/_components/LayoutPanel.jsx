@@ -19,13 +19,12 @@ const WEIGHTS = [
   [900, "아주 굵게"],
 ];
 
-export function LayoutPanel({ objId, label, saved, onChange }) {
+export function LayoutPanel({ objId, label, saved, onChange, measured }) {
   const cur = lastBoxes()[objId];
-  if (!cur) return null;
 
   const isExtra = objId.startsWith("extra-");
-  const shownWeight = Number(saved.fontWeight) || DEFAULT_WEIGHTS[objId] || (isExtra ? 400 : 500);
-  const measuredSize = lastSizes()[objId]?.size || null;
+  const shownWeight = Number(saved.fontWeight) || measured?.weight || lastSizes()[objId]?.weight || DEFAULT_WEIGHTS[objId] || (isExtra ? 400 : 500);
+  const measuredSize = measured?.size || lastSizes()[objId]?.size || null;
   const legacySize = saved.fontScale ? Math.round((DEFAULT_SIZES[objId] || 30) * saved.fontScale) : null;
   const shownSize = Math.round(
     Number(saved.fontSize) || measuredSize || legacySize || DEFAULT_SIZES[objId] || (isExtra ? 40 : 30),
@@ -35,6 +34,8 @@ export function LayoutPanel({ objId, label, saved, onChange }) {
   useEffect(() => {
     setSizeInput(String(shownSize));
   }, [objId, shownSize]);
+
+  if (!cur) return null;
 
   function commitSize(value) {
     const oldSize = Number(saved.fontSize) || measuredSize || DEFAULT_SIZES[objId] || 30;
@@ -97,6 +98,15 @@ export function LayoutPanel({ objId, label, saved, onChange }) {
             ))}
           </select>
         </label>
+      </div>
+      <div className="flex gap-1" role="group" aria-label="텍스트 정렬">
+        {[["left", "왼쪽 정렬"], ["center", "가운데 정렬"], ["right", "오른쪽 정렬"]].map(([value, title]) => (
+          <button key={value} type="button" aria-pressed={saved.textAlign === value}
+            onClick={() => onChange({ ...saved, textAlign: value })}
+            className={`flex-1 rounded-lg border px-2 py-2 text-xs ${saved.textAlign === value ? "border-blue-500 bg-blue-50 text-blue-600" : "border-gray-200"}`}>
+            {title}
+          </button>
+        ))}
       </div>
     </div>
   );

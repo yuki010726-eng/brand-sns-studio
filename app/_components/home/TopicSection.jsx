@@ -113,6 +113,21 @@ function ToneSelect({ value, onChange }) {
   );
 }
 
+/** 이 조건 패널이 「게시물 생성하기」를 눌러도 되는 상태인지 — 카드뉴스 템플릿 선택
+ *  (`TemplateSection`)은 기본값(매거진형)이 항상 있어 여기에 포함하지 않는다. */
+export function hasRequiredConditions(state) {
+  const hasTopic = state.topic.trim().length >= 2;
+  const hasCustomStyle =
+    state.tone !== "custom" ||
+    String(state.customStyleUrl || "").trim().length > 0;
+  const hasOptions =
+    hasTopic &&
+    Boolean(state.tone) &&
+    hasCustomStyle &&
+    Number(state.cardCount) > 0;
+  return hasOptions && state.channels.length > 0;
+}
+
 export function TopicSection({
   product,
   presets,
@@ -121,8 +136,6 @@ export function TopicSection({
   topicRef,
   onUpdate,
   onToggleChannel,
-  onClear,
-  onSubmit,
   onSaveCustomStyle,
   onRefreshPresets,
 }) {
@@ -135,7 +148,6 @@ export function TopicSection({
     Boolean(state.tone) &&
     hasCustomStyle &&
     Number(state.cardCount) > 0;
-  const hasRequiredFields = hasOptions && state.channels.length > 0;
   const tone = TONES.find((item) => item.id === state.tone);
   return (
     <section className="flex flex-col gap-7" aria-labelledby="topic-heading">
@@ -370,24 +382,6 @@ export function TopicSection({
                 })}
               </ul>
             </fieldset>
-          </div>
-          <div className="mx-[26px] mt-[30px] flex items-center justify-end gap-4 border-t border-[#e5e8eb] pt-[30px] max-[560px]:flex-col max-[560px]:items-stretch">
-            <button
-              type="button"
-              className="rounded-full bg-transparent px-3 py-2 text-[15px] font-bold text-[#333d4b] hover:bg-[#f2f4f6]"
-              onClick={onClear}
-            >
-              초기화
-            </button>
-            <button
-              type="button"
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-[#287aff] px-7 py-3.5 text-[16px] font-bold text-white transition hover:bg-[#1b64da] disabled:cursor-not-allowed disabled:bg-[#e5e8eb] disabled:text-[#4e5968]"
-              disabled={!hasRequiredFields}
-              onClick={onSubmit}
-            >
-              게시물 생성하기{" "}
-              <Icon name="arrowRight" className="size-[18px] stroke-[1.75]" />
-            </button>
           </div>
         </div>
       ) : (

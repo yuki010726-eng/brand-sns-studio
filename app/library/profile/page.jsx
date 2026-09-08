@@ -242,7 +242,7 @@ export default function ProfilePage() {
         <div className="mt-10 flex justify-end">
           <button
             type="button"
-            onClick={() => router.push("/")}
+            onClick={() => router.push("/text?edit=1")}
             aria-label="상품·주제 선택 단계로 이동"
             className="inline-flex items-center gap-[5px] rounded-full bg-white px-6 py-3 text-[15px] font-bold text-[#191f28] transition hover:bg-[#ececec]"
           >

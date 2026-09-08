@@ -4,6 +4,8 @@ import { CopyChatPanel } from "./CopyChatPanel.jsx";
 import { CompliancePanel } from "./CompliancePanel.jsx";
 import { InstagramPostPreview } from "./InstagramPostPreview.jsx";
 import { NaverBlogPreview } from "./NaverBlogPreview.jsx";
+import { CardEditModal } from "./CardEditModal.jsx";
+import { useCardDeck } from "./useCardDeck.js";
 
 const QUOTE_RE = /^\[[^\]]*인용구\]$/;
 const SLOT_RE = /^📷\s*\[이미지\s*(\d+)\s*·\s*([^\]]+)\]/;
@@ -173,8 +175,16 @@ export function CopyEditor({
   cardCount,
   blogTitle,
   productName,
+  state,
+  product,
 }) {
   const [chatOpen, setChatOpen] = useState(false);
+  // 블로그·인스타그램 미리보기가 함께 보는 카드뉴스 덱·썸네일 — 어느 채널의 이미지
+  // 부분을 눌러도 같은 모달(`CardEditModal`)로 같은 카드를 편집해야 하므로 한 곳에서 만든다.
+  const [editIndex, setEditIndex] = useState(null);
+  const { deck, cardThumbs } = useCardDeck(state, product, {
+    suspendThumbs: editIndex != null,
+  });
   const hasLimit = Number.isFinite(channel.limit) && channel.limit > 0;
   const over = hasLimit && value.length > channel.limit;
   const bodyCount = value
@@ -201,14 +211,16 @@ export function CopyEditor({
             본문 {bodyCount.toLocaleString()}자 · 전체 {value.length.toLocaleString()}자
             {hasLimit ? ` / ${channel.limit.toLocaleString()}자` : ""}
           </output>
-          <button
-            type="button"
-            onClick={onToggleMode}
-            className="inline-flex h-[45px] items-center gap-[5px] rounded-full border border-[#e5e8eb] bg-white px-[19px] text-[15px] font-medium text-[#4e5968]"
-          >
-            <Icon name={readMode ? "edit" : "eye"} className="size-[18px]" />
-            {readMode ? "고치기" : "미리보기"}
-          </button>
+          {channel.id !== "blog" && (
+            <button
+              type="button"
+              onClick={onToggleMode}
+              className="inline-flex h-[45px] items-center gap-[5px] rounded-full border border-[#e5e8eb] bg-white px-[19px] text-[15px] font-medium text-[#4e5968]"
+            >
+              <Icon name={readMode ? "edit" : "eye"} className="size-[18px]" />
+              {readMode ? "고치기" : "미리보기"}
+            </button>
+          )}
           <button
             type="button"
             onClick={onCopy}
@@ -268,13 +280,19 @@ export function CopyEditor({
                 </div>
               </div>
             </div>
-          ) : readMode && channel.id === "blog" ? (
+          ) : channel.id === "blog" ? (
             value.trim() ? (
               <article className="min-h-[200px] break-words px-6 py-6 sm:px-[25px] sm:py-[25px]">
                 <NaverBlogPreview
                   value={value}
                   title={blogTitle}
                   authorName={productName}
+                  state={state}
+                  product={product}
+                  deck={deck}
+                  cardThumbs={cardThumbs}
+                  onEditCard={setEditIndex}
+                  onChange={onChange}
                 />
               </article>
             ) : (
@@ -295,6 +313,9 @@ export function CopyEditor({
                     value={value}
                     handle={instagramHandle}
                     cardCount={cardCount}
+                    deck={deck}
+                    cardThumbs={cardThumbs}
+                    onEditCard={setEditIndex}
                   />
                 </div>
               </article>
@@ -353,6 +374,13 @@ export function CopyEditor({
           )}
         </>
       )}
+
+      <CardEditModal
+        product={product}
+        deck={deck}
+        cardIndex={editIndex}
+        onClose={() => setEditIndex(null)}
+      />
     </section>
   );
 }

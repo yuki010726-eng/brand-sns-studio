@@ -3,16 +3,13 @@ import { Icon } from "../../_components/Icon.jsx";
 export function GenerationSummary({
   productName,
   topic,
-  title,
   focusPoint,
   writingStyle,
   onEditConditions,
-  onNext,
 }) {
   const items = [
     { label: "상품", value: productName, wrap: true },
     { label: "주제", value: topic, wrap: true },
-    { label: "제목", value: title, wrap: true },
     ...(focusPoint?.trim()
       ? [{ label: "강조 할 내용", value: focusPoint }]
       : []),
@@ -22,12 +19,17 @@ export function GenerationSummary({
   return (
     <section
       aria-label="글 생성 조건 요약"
-      className="flex min-h-[66px] items-center gap-6 overflow-hidden rounded-[15px] border border-[#e5e8eb] bg-white px-8 py-[17px] max-[1100px]:flex-wrap max-[1100px]:py-4 max-sm:px-5"
+      className="flex min-h-[66px] items-center gap-6 overflow-hidden rounded-[15px] border border-[#d6d6d6] bg-[#d6d6d6] px-8 py-[17px] max-[1100px]:flex-wrap max-[1100px]:py-4 max-sm:px-5"
     >
       <dl className="grid min-w-0 flex-1 grid-cols-[repeat(auto-fit,minmax(180px,1fr))] items-center gap-x-8 gap-y-3 max-[700px]:grid-cols-1">
         {items.map(({ label, value, wrap }) => (
-          <div key={label} className="flex min-w-0 items-center gap-[15px] text-[15px] leading-[1.3]">
-            <dt className="shrink-0 whitespace-nowrap font-bold text-black">{label}</dt>
+          <div
+            key={label}
+            className="flex min-w-0 items-center gap-[15px] text-[15px] leading-[1.3]"
+          >
+            <dt className="shrink-0 whitespace-nowrap font-bold text-black">
+              {label}
+            </dt>
             <dd
               className={`min-w-0 font-normal text-[#8e8e8e] ${wrap ? "whitespace-normal break-words" : "truncate"}`}
               title={value || "-"}
@@ -42,18 +44,11 @@ export function GenerationSummary({
         <button
           type="button"
           onClick={onEditConditions}
-          className="inline-flex h-[42px] items-center justify-center gap-[5px] rounded-full border border-[#e5e8eb] bg-white px-[19px] text-[15px] font-medium leading-[22.4px] text-[#4e5968] transition hover:bg-[#f7f8fa]"
+          aria-expanded={false}
+          className="inline-flex h-[42px] items-center justify-center gap-[5px] text-[15px] font-medium leading-[22.4px] text-[#4e5968] cursor-pointer"
         >
-          <Icon name="arrowLeft" className="size-[18px]" />
-          조건 수정
-        </button>
-        <button
-          type="button"
-          onClick={onNext}
-          className="inline-flex h-[42px] items-center justify-center gap-[5px] rounded-full border border-[#287aff] bg-[#287aff] px-[19px] text-[15px] font-bold leading-[22.4px] text-white transition hover:border-[#1b64da] hover:bg-[#1b64da]"
-        >
-          다음 단계
-          <Icon name="arrowRight" className="size-[17px]" />
+          <Icon name="chevronDown" className="size-[18px]" />
+          펼치기
         </button>
       </div>
     </section>

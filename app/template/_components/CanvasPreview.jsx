@@ -7,9 +7,11 @@ import {
   lastClipped,
   lastBoxes,
   lastLines,
+  lastSizes,
   W,
   H,
 } from "../../../lib/cardrender.js";
+import { slotIdForObject } from "../../../lib/templates.js";
 
 /**
  * 카드 미리보기 캔버스 + 오브젝트 자유 배치(드래그·리사이즈) 손잡이.
@@ -39,6 +41,8 @@ export function CanvasPreview({
   onSelectObj,
   onCommitLayout,
   onClipped,
+  onEditText,
+  onTextSelection,
 }) {
   const canvasRef = useRef(null);
   const wrapRef = useRef(null);
@@ -48,17 +52,42 @@ export function CanvasPreview({
   const rafScheduled = useRef(false);
   const flashTimerRef = useRef(null);
   const [boxes, setBoxes] = useState({});
+  const sizesRef = useRef({});
   const [lines, setLines] = useState({});
   const [idle, setIdle] = useState(true);
   const [flashObj, setFlashObj] = useState(null);
+  // 더블클릭으로 미리보기 위 글자 상자를 바로 고치는 기능 — `onEditText` 를 받은
+  // 화면(카드 편집 모달)에서만 켜진다. 기존 「디테일 수정」 폼을 쓰는 화면(template/page.jsx)
+  // 은 이 prop 을 넘기지 않으므로 더블클릭해도 아무 일도 없다 — 그 화면은 그대로 둔다.
+  const [editingObj, setEditingObj] = useState(null);
+  const [editingValue, setEditingValue] = useState("");
+  // Keep the live value out of React state while typing. Updating the global
+  // card store per keystroke makes the parent rebuild the card deck, which in
+  // turn interrupts a contentEditable element (and is unnecessarily costly).
+  const editingValueRef = useRef("");
+  const editingInitialValueRef = useRef("");
+  const [previewScale, setPreviewScale] = useState(1);
+
+  // The canvas is always drawn at 1080px wide but displayed responsively.
+  // Keep the native text size in sync with that display scale while editing.
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap) return undefined;
+    const updateScale = () => setPreviewScale((wrap.clientWidth || W) / W);
+    updateScale();
+    const observer = new ResizeObserver(updateScale);
+    observer.observe(wrap);
+    return () => observer.disconnect();
+  }, []);
 
   const draw = useCallback(
-    (renderOpts) => {
+    (renderOpts, renderTexts = texts) => {
       const canvas = canvasRef.current;
       if (!canvas) return;
-      renderCard(canvas, texts, renderOpts);
-      canvas.setAttribute("aria-label", cardAlt(texts, cardIndex));
+      renderCard(canvas, renderTexts, { ...renderOpts, suppressText: Boolean(onEditText) });
+      canvas.setAttribute("aria-label", cardAlt(renderTexts, cardIndex));
       onClipped?.(lastClipped());
+      sizesRef.current = lastSizes();
       setBoxes(lastBoxes());
       setLines(lastLines());
     },
@@ -113,6 +142,38 @@ export function CanvasPreview({
     flashTimerRef.current = setTimeout(() => setFlashObj(null), 1400);
   }
 
+  /** 상자 id 에 지금 찍혀 있는 글자 — 기본 슬롯이면 `texts`, 추가 텍스트면 `opts.extraTexts` 에서 온다. */
+  function valueForObject(objId) {
+    if (objId.startsWith("extra-")) {
+      const id = objId.slice("extra-".length);
+      return opts.extraTexts?.find((item) => String(item.id) === id)?.text || "";
+    }
+    const slotId = slotIdForObject(opts.conceptId, opts.kind, objId);
+    return texts?.[slotId] || "";
+  }
+
+  function startEdit(objId) {
+    if (!onEditText) return;
+    selectObj(objId);
+    onTextSelection?.(null);
+    const value = valueForObject(objId);
+    editingValueRef.current = value;
+    editingInitialValueRef.current = value;
+    setEditingObj(objId);
+    setEditingValue(value);
+  }
+
+  function commitEdit() {
+    if (!editingObj) return;
+    const value = editingValueRef.current;
+    if (value !== editingInitialValueRef.current) onEditText?.(editingObj, value);
+    setEditingObj(null);
+  }
+
+  function cancelEdit() {
+    setEditingObj(null);
+  }
+
   function requestDragPaint() {
     if (rafScheduled.current) return;
     rafScheduled.current = true;
@@ -125,6 +186,9 @@ export function CanvasPreview({
   }
 
   function startDrag(e, objId, grip) {
+    // 지금 더블클릭으로 고치고 있는 상자면 드래그로 넘기지 않는다 — 그대로 두면
+    // textarea 안을 눌러 커서를 옮기는 클릭까지 `preventDefault()` 로 막혀 버린다.
+    if (editingObj === objId) return;
     e.preventDefault();
     const wrap = wrapRef.current;
     if (!wrap) return;
@@ -167,7 +231,9 @@ export function CanvasPreview({
     // Keep the saved text style in the draft layout while dragging.  The renderer
     // replaces a layout entry as a whole, so a geometry-only draft temporarily
     // fell back to the default font size/weight until pointerup committed the box.
+    const measured = sizesRef.current[slotIdForObject(opts.conceptId, opts.kind, objId)] || {};
     const startBox = {
+      ...(obj?.type === "text" ? { fontSize: measured.size, fontWeight: measured.weight } : {}),
       ...(opts.layout?.[objId] || {}),
       x: cur.x / W,
       y: cur.y / H,
@@ -278,6 +344,10 @@ export function CanvasPreview({
   }
 
   function handleKeyDown(e, objId) {
+    // 더블클릭 편집 중에는 이 상자가 나서지 않는다 — 방향키·Escape 는 textarea 자체의
+    // onKeyDown(글자 이동·편집 취소)이 처리한다. 여기서 같이 반응하면 캐럿이 안 움직이고
+    // 상자가 화살표 방향으로 밀린다.
+    if (editingObj === objId) return;
     if (e.key === "Escape") {
       onSelectObj?.(null);
       return;
@@ -355,6 +425,21 @@ export function CanvasPreview({
               : idle
                 ? "border-transparent bg-transparent hover:border-[#287aff]/45 hover:bg-[#287aff]/[0.06]"
                 : "border-dashed border-[#287aff]/75 bg-[#287aff]/5 hover:bg-[#287aff]/[0.12]";
+            const editable = Boolean(onEditText) && o.type === "text";
+            const isEditing = editingObj === o.id;
+            const slotId = o.id.startsWith("extra-") ? o.id : slotIdForObject(opts.conceptId, opts.kind, o.id);
+            const measured = sizesRef.current[slotId] || {};
+            const savedTextStyle = opts.layout?.[o.id] || {};
+            const editorStyle = {
+              fontSize: `${Math.max(12, (savedTextStyle.fontSize || measured.size || 32) * previewScale)}px`,
+              fontWeight: savedTextStyle.fontWeight || measured.weight || 400,
+              textAlign: savedTextStyle.textAlign || "left",
+              // Card thumbnails use Noto Sans KR. Keep the DOM editor in the
+              // modal on that same face as well, rather than switching to a
+              // concept-specific display font only while editing.
+              fontFamily: "'Noto Sans KR', sans-serif",
+              color: opts.conceptId === "card" ? "#FFFFFF" : "#191F28",
+            };
             return (
               <div
                 key={o.id}
@@ -363,28 +448,79 @@ export function CanvasPreview({
                 tabIndex={0}
                 role="button"
                 aria-pressed={on}
-                aria-label={`${o.label} 위치·크기 — 드래그하거나 방향키로 옮기고, 아래 숫자 입력으로도 조정할 수 있습니다`}
+                aria-label={
+                  editable
+                    ? `${o.label} — 드래그하거나 방향키로 옮기고, 더블클릭하면 글자를 바로 고칠 수 있습니다`
+                    : `${o.label} 위치·크기 — 드래그하거나 방향키로 옮기고, 아래 숫자 입력으로도 조정할 수 있습니다`
+                }
                 style={style}
                 onPointerDown={(e) => {
                   const grip = e.target.closest("[data-grip]");
                   startDrag(e, o.id, grip?.dataset.grip || null);
                 }}
+                onDoubleClick={(e) => {
+                  if (!editable) return;
+                  e.stopPropagation();
+                  startEdit(o.id);
+                }}
                 onKeyDown={(e) => handleKeyDown(e, o.id)}
-                className={`pointer-events-auto absolute cursor-move touch-none rounded-[6px] border-[1.5px] transition-colors focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#287aff] ${borderClass} ${o.id === "image" ? "z-0" : "z-[1]"}`}
+                className={`pointer-events-auto absolute touch-none rounded-[6px] border-[1.5px] transition-colors focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#287aff] ${isEditing ? "cursor-text" : "cursor-move"} ${borderClass} ${o.id === "image" ? "z-0" : "z-[1]"}`}
               >
-                <span
-                  className={`pointer-events-none absolute -top-[22px] left-0 whitespace-nowrap rounded-full bg-[#1b64da] px-2 py-0.5 text-[11px] font-bold text-white transition-opacity duration-500 ${o.id === flashObj ? "opacity-100" : "opacity-0"}`}
-                >
-                  {o.label}
-                </span>
-                {on &&
-                  GRIPS.map((gr) => (
+                {isEditing ? (
+                  <div
+                    ref={(node) => node?.focus()}
+                    contentEditable
+                    suppressContentEditableWarning
+                    role="textbox"
+                    aria-multiline
+                    aria-label={`${o.label} 텍스트 편집`}
+                    onInput={(e) => {
+                      const value = e.currentTarget.innerText.replace(/\n$/, "");
+                      editingValueRef.current = value;
+                    }}
+                    onBlur={commitEdit}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => {
+                      e.stopPropagation();
+                      if (e.key === "Escape") {
+                        e.preventDefault();
+                        cancelEdit();
+                      } else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                        e.preventDefault();
+                        commitEdit();
+                      }
+                    }}
+                    style={editorStyle}
+                    className="size-full overflow-hidden rounded-[4px] border-0 bg-transparent p-0 leading-[1.35] whitespace-pre-wrap break-words outline-none ring-2 ring-[#287aff]"
+                  >
+                    {editingValue}
+                  </div>
+                ) : (
+                  <>
+                    {editable && (
+                      <div
+                        aria-hidden="true"
+                        style={editorStyle}
+                        className="pointer-events-none size-full overflow-hidden whitespace-pre-wrap break-words leading-[1.35]"
+                      >
+                        {valueForObject(o.id)}
+                      </div>
+                    )}
                     <span
-                      key={gr}
-                      data-grip={gr}
-                      className={`pointer-events-auto absolute size-3.5 rounded-full border-2 border-white bg-[#287aff] shadow-[0_1px_3px_rgba(0,0,0,0.3)] ${GRIP_POS[gr]}`}
-                    />
-                  ))}
+                      className={`pointer-events-none absolute -top-[22px] left-0 whitespace-nowrap rounded-full bg-[#1b64da] px-2 py-0.5 text-[11px] font-bold text-white transition-opacity duration-500 ${o.id === flashObj ? "opacity-100" : "opacity-0"}`}
+                    >
+                      {o.label}
+                    </span>
+                    {on &&
+                      GRIPS.map((gr) => (
+                        <span
+                          key={gr}
+                          data-grip={gr}
+                          className={`pointer-events-auto absolute size-3.5 rounded-full border-2 border-white bg-[#287aff] shadow-[0_1px_3px_rgba(0,0,0,0.3)] ${GRIP_POS[gr]}`}
+                        />
+                      ))}
+                  </>
+                )}
               </div>
             );
           })}

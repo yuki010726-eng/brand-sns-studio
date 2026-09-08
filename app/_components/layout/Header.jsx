@@ -21,7 +21,7 @@ import {
 } from "../../../lib/instagram-accounts.js";
 
 const NAV_ITEMS = [
-  { path: "/", label: "새 게시물" },
+  { path: "/text", label: "새 게시물" },
   { path: "/library", label: "마이페이지" },
 ];
 
@@ -136,7 +136,7 @@ export function Header() {
 
       clearLibraryEdit();
       resetFlow();
-      router.push("/");
+      router.push("/text");
       router.refresh();
 
       if (started) {
@@ -188,7 +188,7 @@ export function Header() {
         }`}
       >
         <Link
-          href="/"
+          href="/text"
           onClick={startNewPost}
           aria-label="브랜드 SNS 스튜디오 홈으로 이동"
           className="inline-flex items-center hover:no-underline max-[560px]:hidden"
@@ -210,7 +210,7 @@ export function Header() {
                 <Link
                   key={item.path}
                   href={item.path}
-                  onClick={item.path === "/" ? startNewPost : undefined}
+                  onClick={item.path === "/text" ? startNewPost : undefined}
                   aria-current={active ? "page" : undefined}
                   className={`whitespace-nowrap rounded-full border font-bold leading-[22.4px] transition-[background-color,border-color,font-size] duration-200 max-[640px]:px-[10px] max-[640px]:py-2 max-[640px]:text-[13px] ${
                     isScrolled

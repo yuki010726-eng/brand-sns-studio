@@ -21,7 +21,7 @@
 | 요금 | 각자 부담 | 서버 키 소유자가 부담 |
 
 앱은 **두 모드를 모두 지원한다.** 시작할 때 `/api/health` 를 한 번 찔러 보고 정한다.
-그래서 배포 후에도 로컬에서 `python -m http.server` 로 예전처럼 쓸 수 있다.
+로컬 개발은 Next.js 개발 서버(`npm run dev`)로 실행한다.
 
 ---
 
@@ -71,7 +71,7 @@ Supabase → **Authentication → URL Configuration**
 
 - **Site URL**: `https://<배포주소>`
 - **Redirect URLs**: `https://<배포주소>/**` 를 추가
-  (기존 `http://localhost:5610/**` 도 그대로 둔다 — 로컬에서도 계속 쓴다)
+  (로컬 개발 주소인 `http://localhost:3000/**` 도 등록한다)
 
 ---
 

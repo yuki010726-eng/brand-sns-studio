@@ -4,13 +4,13 @@
 
 ## 실행
 
-빌드 도구 없이 동작하지만 블로그·카페 수집 등 서버 API를 사용하므로 Node 서버로 실행할 것.
+Next.js 개발 서버로 실행한다.
 
 ```bash
-npm start
+npm run dev
 ```
 
-또는 `serve.cmd`를 더블클릭한 뒤 http://localhost:5610 에 접속한다. Python의 `http.server`는 POST API를 처리하지 못해 상품 자료 확인 시 501 오류가 발생한다.
+http://localhost:3000 에 접속한다. 운영 모드에서는 `npm run build` 후 `npm start`를 사용한다.
 
 ## 새 컴퓨터에서 시작하기
 
@@ -23,8 +23,6 @@ winget install --id GitHub.cli
 ```
 
 Claude Code는 https://claude.ai/download 에서 받거나 `npm i -g @anthropic-ai/claude-code`.
-Python은 `python --version`으로 확인하고, 없으면 https://www.python.org/downloads/ 에서 설치한다
-(설치 시 **Add Python to PATH** 체크).
 
 ### 2. GitHub 로그인
 
@@ -44,13 +42,11 @@ gh repo clone yuki010726-eng/brand-sns-studio
 
 ### 4. 실행
 
-`serve.cmd`를 더블클릭하거나:
-
 ```bash
-npm start
+npm run dev
 ```
 
-http://localhost:5610 접속. Claude Code에서는 `.claude/launch.json`이 등록돼 있어
+http://localhost:3000 접속. Claude Code에서는 `.claude/launch.json`이 등록돼 있어
 `brand-sns-studio` 설정으로 바로 띄울 수 있다.
 ES 모듈을 쓰므로 `file://`로 직접 열면 동작하지 않는다. 반드시 서버로 띄운다.
 
@@ -256,7 +252,7 @@ PART 2에서 실제 AI API로 바꿀 때 이 함수만 교체하면 `pages/copy.
 모델 단가가 25배까지 차이 나서 감으로 고르면 손해다. 비교 도구를 붙여 뒀다.
 
 ```
-http://localhost:5610/tools/bench.html
+http://localhost:3000/tools/bench.html
 ```
 
 같은 주제를 모델별로 여러 번 돌려 **검수 1회 통과율**과 **실제 지불액**을 잰다.
@@ -268,12 +264,12 @@ http://localhost:5610/tools/bench.html
 
 ### 운영 방식 — 배포하지 않는다
 
-**인터넷에 올리지 않는다.** 쓰는 사람이 각자 자기 PC 에서 `serve.cmd` 로 띄워 쓴다
+**인터넷에 올리지 않는다.** 쓰는 사람이 각자 자기 PC에서 `npm run dev`로 띄워 쓴다.
 (요청자 결정 2026-08-10). 관계자만 쓰기 때문에 도메인도, 새 주소 등록도 필요 없다.
 
 그래서 각자 필요한 것은 셋이다.
 
-1. 저장소 받기 (Private — GitHub 로그인 필요) · Python
+1. 저장소 받기 (Private — GitHub 로그인 필요) · Node.js
 2. **관리자 승인** — 가입만으로는 못 들어간다. 승인 절차는 `SUPABASE_SETUP.md` 의
    「관계자를 새로 붙일 때」를 볼 것. 승인 화면은 앱에 없고 Supabase 대시보드에서 바꾼다.
 3. **자기 OpenAI API 키** — 요금도 각자 낸다

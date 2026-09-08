@@ -31,11 +31,18 @@ function inkHint(ink, paperHex) {
  * @param {object} values { accent, mark, cardTheme, noteSymbol, notePaper, noteInk, noteGrain }
  * @param {(patch:object)=>void} onChange 바뀐 값만 담아 부른다 — page.jsx 가 setState 로 병합한다
  */
-export function StylePanel({ concept, values, onChange }) {
+export function StylePanel({ concept, values, onChange, children }) {
   const { accent, mark, cardTheme, noteSymbol, notePaper, noteInk, noteGrain } = values;
+  const hasContent =
+    Boolean(concept.accentPicker) || concept.id === "card" || concept.id === "note";
+  if (!hasContent) return null;
 
   return (
-    <div className="space-y-5">
+    <div data-layout-panel className="space-y-5">
+      <SectionDivider title="스타일" description="색상·마크 등 카드 전체에 함께 적용됩니다." />
+
+      {children}
+
       {concept.accentPicker && (
         <SwatchPicker
           legend="강조 색상"

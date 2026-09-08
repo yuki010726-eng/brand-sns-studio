@@ -38,20 +38,17 @@ Claude Code가 세션 시작 시 자동으로 읽는 프로젝트 지침이다.
 
 ## 2. 실행
 
-빌드 도구를 쓰지 않는다. ES 모듈을 쓰므로 `file://`로 열면 동작하지 않는다. 반드시 서버로 띄운다.
+Next.js 앱이므로 개발 서버로 실행한다.
 
 ```bash
-python -m http.server 5610
+npm run dev
 ```
 
 `.claude/launch.json`에 등록돼 있으므로 `preview_start`로 실행하면 된다.
-`python`이 없고 `py`만 있으면 `launch.json`의 `runtimeExecutable`을 `py`로 바꾼다.
-`serve.cmd`를 더블클릭해도 된다 (python → py → python3 순으로 시도).
 
 ### 캐시 주의
 
-`python -m http.server`는 캐시 헤더를 붙이지 않아, 코드를 고쳐도 브라우저가 옛 파일을 쓴다.
-브라우저에서 검증하기 전에 반드시 캐시를 비운다.
+개발 중에는 Next.js 개발 서버가 변경을 자동 반영한다. 반영이 늦으면 브라우저를 새로고침한다.
 
 ```js
 Promise.all([...document.styleSheets].filter(s=>s.href).map(s=>fetch(s.href,{cache:'reload'})))
@@ -1105,7 +1102,7 @@ outline.answer → mergeCore → core.answer
 | 앱 부팅 | 전 모듈 200/304 · `config.local.js`·`/api/health` 404 만 (8-7 정상 동작) |
 
 > ⚠️ **남은 가장 큰 것은 접근성이다.** "남들이 이 화면에 들어와서"가 지금은 불가능하다 —
-> 배포하지 않기로 했고(8-7) 키도 각자 발급이라, 쓰려면 clone → Python → 서버 실행 → 키 발급을
+> 배포하지 않기로 했고(8-7) 키도 각자 발급이라, 쓰려면 clone → Node.js → 서버 실행 → 키 발급을
 > 거쳐야 한다. 로그인·승인 코드(11절)와 `vercel.json`·`api/`(8-6)는 **이미 다 만들어져 있고 안 쓴다.**
 > 남들이 쓰게 하려면 그 두 결정을 다시 여는 것이 먼저다 — 글 다듬기보다 앞선다.
 
@@ -2996,7 +2993,7 @@ imageKey(productId, conceptId, index)   →   'kbsn-card-0'
 Luna 와 Sol 이 25배 차이라 감으로 고를 수 없다. **어느 모델이 최소 사양인지 숫자로 정하는 도구다.**
 
 ```
-http://localhost:5610/tools/bench.html
+http://localhost:3000/tools/bench.html
 ```
 
 ### 어떻게 재나
@@ -3500,7 +3497,7 @@ OpenAI·Terra 는 이미 `PROVIDERS[0]` · `TEXT_MODELS[0]` 이라 **기본값 �
 
 ### 두 모드를 모두 지원한다
 
-`python -m http.server` 로 쓰던 방식이 죽으면 안 된다. 그래서 시작할 때 `/api/health` 를
+Next.js 개발 서버로 실행한다. 시작할 때 `/api/health` 를
 한 번 찔러 보고 정한다 (`lib/serverapi.js` 의 `detect()`).
 
 | | 서버 모드 (배포본) | 로컬 모드 |

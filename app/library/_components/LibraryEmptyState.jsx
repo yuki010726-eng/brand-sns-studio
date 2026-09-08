@@ -14,7 +14,7 @@ export function LibraryEmptyState() {
         반영됩니다.
       </p>
       <Link
-        href="/"
+        href="/text"
         aria-label="새 게시물 만들기 화면으로 이동"
         className="mt-6 inline-flex items-center justify-center rounded-full bg-[#287aff] px-6 py-3 text-[15px] font-bold text-white transition hover:bg-[#1b64da]"
       >

@@ -12,12 +12,24 @@ const TOOLS = [
 /**
  * 카드 한 장의 배경/아이콘 이미지 패널. 옛 components/imagepanel.js 를 JSX로 옮겼다.
  *
- * AI가 여기서 이미지를 직접 만들지 않는다(요청자 결정) — 프롬프트를 복사해 원하는 도구에서
- * 만든 뒤 파일을 올리는 흐름이다. 이미지는 선택 사항이라 없어도 템플릿 기본 배경으로 그려진다.
+ * AI가 여기서 이미지를 직접 만들지 않는다(요청자 결정) — 프롬프트를 복사해 원하는
+ * 도구에서 만든 뒤 파일을 올리는 흐름이다. 카드형·노트형에 한해 잠시 자동/수동
+ * AI 생성 버튼을 붙였었지만(2026-09-07), 필요 없다는 요청자 판단으로 다시 뗐다
+ * (2026-09-08) — 모든 컨셉이 이제 같은 흐름을 쓴다.
  *
  * 접었다 펴는 구조다 — 기본은 접힘. 피그마: https://www.figma.com/design/jRjBo4LUHkohSoPRqSaEAv/sns?node-id=72-2605
  */
-export function ImagePanel({ label, disabled, hasImage, source, prompt, cardIndex, onUpload, onDelete, onCopy }) {
+export function ImagePanel({
+  label,
+  disabled,
+  hasImage,
+  source,
+  prompt,
+  cardIndex,
+  onUpload,
+  onDelete,
+  onCopy,
+}) {
   const [open, setOpen] = useState(false);
   const n = cardIndex + 1;
 

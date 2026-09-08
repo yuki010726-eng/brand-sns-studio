@@ -121,6 +121,13 @@ const INITIAL = {
   noteGrain: 35, // 종이 결 강도 0~100 (예전 0~3 값은 getNoteGrain 이 올려 준다)
   image: null, // { variant, at } — 카드 문구 조합
   images: {}, // { [카드번호]: { source:'ai'|'upload', at } } · 실제 Blob 은 IndexedDB
+  /**
+   * 블로그 미리보기 안에서 이미지마다 고른 크기·정렬 (2026-09-08).
+   * `{ [이미지 번호]: { size:'sm'|'md'|'lg', align:'left'|'center'|'right' } }`.
+   * 이미지 파일 자체(내용)는 카드뉴스와 공유하지만, 블로그 글 안에서 얼마나 크게·
+   * 어느 쪽에 놓을지는 그 글만의 편집이라 따로 둔다. `NaverBlogPreview.jsx` 참고.
+   */
+  blogImageLayout: {},
   card: null,
   library: [],
 };
@@ -146,11 +153,16 @@ export const aiRunsKeyOf = (s) =>
  *    8-20 에 2단계로 넣었는데, 게시물을 만들 때마다 검색·수집·분석을 다시 하게 돼 번거로웠다.
  *    프로필 세팅과 같은 성격이다 — **한 번 모아 두고 게시물마다 골라 쓰는 설정**이다.
  *    그래서 `/research` 는 단계에서 빠지고 헤더 메뉴로 옮겼다.
+ *
+ * ⚠️ **상품·주제 선택은 더 이상 별도 단계(페이지)가 아니다** (2026-09-08, 요청자 지시).
+ *    "한 페이지에서 최대한 끝내고 싶다"는 요청에 따라 `/text` 페이지 위쪽 「글 생성 조건
+ *    요약」 바를 펼치면 그 자리에서 상품·주제를 고르고, 고르고 나면 다시 접힌다
+ *    (`app/text/page.jsx` 의 `panelExpanded`). 그래서 이 목록은 이제 2단계뿐이다.
+ *    `/`(홈)는 그 펼친 화면으로 보내는 통로로만 남는다 — `app/page.jsx` 참고.
  */
 export const STEPS = [
-  { n: 1, path: "/", label: "상품·주제 선택", icon: "sparkles" },
-  { n: 2, path: "/copy", label: "게시글 생성", icon: "fileText" },
-  { n: 3, path: "/template", label: "카드뉴스 제작", icon: "layout" },
+  { n: 1, path: "/text", label: "게시글 생성", icon: "fileText" },
+  { n: 2, path: "/template", label: "카드뉴스 제작", icon: "layout" },
 ];
 
 /**
@@ -279,6 +291,7 @@ export function resetFlow() {
     activeAiRun: null,
     image: null,
     images: {},
+    blogImageLayout: {},
     card: null,
   });
 }

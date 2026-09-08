@@ -72,17 +72,17 @@ export default function LibraryPage() {
     return () => window.removeEventListener(INSTAGRAM_ACCOUNTS_CHANGED, syncActiveAccount);
   }, []);
 
-  const all = useMemo(
-    () => (Array.isArray(state?.library) ? state.library : []),
-    [state],
-  );
+  // `library` keeps its array identity for unrelated store updates, so it can
+  // be used directly as the dependency below. Wrapping this single property in
+  // `useMemo` only added another derived value without preventing any work.
+  const library = Array.isArray(state?.library) ? state.library : [];
 
   const accountItems = useMemo(
-    () => all.filter(
+    () => library.filter(
       (item) => !activeInstagramId
         || String(item.instagramAccountId || "") === activeInstagramId,
     ),
-    [all, activeInstagramId],
+    [library, activeInstagramId],
   );
 
   const visible = useMemo(() => {
@@ -108,14 +108,14 @@ export default function LibraryPage() {
   async function handleLoad(id) {
     const current = getState();
     const working = String(current.topic || "").trim();
-    const target = all.find((it) => it.id === id);
+    const target = library.find((it) => it.id === id);
     if (!target) {
       toast("항목을 찾을 수 없습니다.");
       return;
     }
 
     const unsaved =
-      working && !all.some((it) => it.postKey === postKeyOf(current));
+      working && !library.some((it) => it.postKey === postKeyOf(current));
     if (unsaved && postKeyOf(current) !== target.postKey) {
       const ok = await confirmModal(
         `지금 작업 중인 「${working}」은(는) 보관함에 없습니다. 불러오면 지금 내용은 사라집니다.`,
@@ -130,11 +130,11 @@ export default function LibraryPage() {
       return;
     }
     toast(`「${target.title}」을(를) 불러왔습니다.`);
-    router.push("/template");
+    router.push("/text");
   }
 
   async function handleRemove(id) {
-    const item = all.find((it) => it.id === id);
+    const item = library.find((it) => it.id === id);
     if (!item) return;
 
     const ok = await confirmModal(

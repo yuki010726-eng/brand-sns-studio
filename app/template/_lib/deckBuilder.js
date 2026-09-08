@@ -5,8 +5,32 @@
  * 로직 자체는 바꾸지 않는다 — 화면(React)과 상태 모델만 새 구조에 맞춘다.
  */
 import { defaultsFor } from '../../../lib/templates.js';
-import { HEAD_MARK } from '../../../lib/copywriter.js';
+import { HEAD_MARK, buildDeck } from '../../../lib/copywriter.js';
 import { draftKeyOf } from '../../../store.js';
+import { outlineKeyOf } from '../../../lib/outline.js';
+
+/**
+ * `state`·`product` 만으로 지금 보여줄 카드 덱을 세운다 — `app/template/page.jsx` 의
+ * `deck` useMemo, `NaverBlogPreview.jsx` 의 미리보기, 새 카드 편집 모달이 전부 같은
+ * 순서(뼈대 → 블로그 원문 반영 → 팔로우 장 추가)를 거쳐야 카드 번호가 어긋나지 않는다.
+ * ⚠️ 매거진형 표지 한 장만 남기는 처리(`d.slice(0,1)`)는 여기 없다 — 그건 카드 탭이
+ *    있는 화면(template/page.jsx)만의 사정이라 호출한 쪽이 필요하면 직접 자른다.
+ */
+export function buildPreviewDeck(state, product) {
+  const core = state.outline?.key === outlineKeyOf(state) ? state.outline.core : null;
+  let deck = buildDeck({
+    product,
+    topic: String(state.topic || '').trim(),
+    tone: state.tone,
+    variant: state.image?.variant ?? 0,
+    cardCount: state.cardCount,
+    core,
+    allowRuleFallback: !core,
+  });
+  deck = deckFromBlog(deck, state);
+  deck = withFollowCard(deck, state.concept, product);
+  return deck;
+}
 
 /* ---------------- 문구 상태 재조정 (옛 ensureTexts/mergeTexts/baseOf) ---------------- */
 
@@ -60,18 +84,29 @@ export function reconcileCard(state, deck, product) {
   if (!card || !Array.isArray(card.texts) || card.texts.length !== deck.length) {
     next = { key, source, concept: state.concept, texts: cloneTexts(base), base, layout: emptyLayout(deck), extraTexts: emptyExtraTexts(deck) };
   } else if (card.concept !== state.concept) {
-    const extraTextsByConcept = { ...(card.extraTextsByConcept || {}), [card.concept]: fitExtraTexts(card.extraTexts, deck) };
-    const layoutByConcept = { ...(card.layoutByConcept || {}), [card.concept]: fitLayout(card.layout, deck) };
+    // 템플릿(컨셉)마다 문구를 완전히 독립적으로 다룬다. "title"·"footer"·"brand" 같은
+    // 필드 id가 매거진·카드·노트 세 템플릿에 공통으로 쓰이기 때문에, texts를 하나로
+    // 공유하면 mergeTexts가 다른 템플릿에서 고친 값을 "편집됨"으로 오인해 그대로
+    // 새 템플릿에 넘긴다 (예: 매거진형에서 고친 계정 아이디가 카드형에도 나타남).
+    // layout·extraTexts처럼 컨셉별로 따로 저장해 서로 새지 않게 한다.
+    const extraTextsByConcept = { ...(card.extraTextsByConcept || {}), [card.concept]: card.extraTexts };
+    const layoutByConcept = { ...(card.layoutByConcept || {}), [card.concept]: card.layout };
+    const textsByConcept = { ...(card.textsByConcept || {}), [card.concept]: { texts: card.texts, base: card.base } };
+    const savedForTarget = textsByConcept[state.concept];
+    const texts = savedForTarget
+      ? mergeTexts({ texts: savedForTarget.texts, base: savedForTarget.base }, base)
+      : cloneTexts(base);
     next = {
       key: card.key,
       source,
       concept: state.concept,
-      texts: mergeTexts(card, base),
+      texts,
       base,
       layout: fitLayout(layoutByConcept[state.concept], deck),
       extraTexts: fitExtraTexts(extraTextsByConcept[state.concept], deck),
       extraTextsByConcept,
       layoutByConcept,
+      textsByConcept,
     };
   } else {
     const layout = fitLayout(card.layout, deck);

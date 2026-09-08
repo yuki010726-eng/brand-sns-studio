@@ -11,8 +11,12 @@
  * 프로필 화면의 `InstagramPreview.jsx`(계정 프로필 미리보기)와 같은 성격이다 — 실제 서비스
  * 화면을 흉내 내되, 지어낼 수 없는 값(좋아요·댓글 수)은 `—` 로 비운다.
  *
- * ⚠️ 카드뉴스 실제 이미지는 4단계(템플릿)에서 만든다. 이 단계에는 아직 없으므로
- *    자리표시자만 그린다 — 없는 이미지를 지어내 보여주면 안 된다.
+ * ⚠️ 카드형·노트형만 실제 카드뉴스 미리보기를 그린다(`CopyEditor` 가 `useCardDeck()` 으로
+ *    만들어 `deck`·`cardThumbs` 로 내려준다) — 매거진형·직관형은 아직 자리표시자만 보여준다.
+ *    없는 이미지를 지어내 보여주면 안 된다는 원칙은 그대로다.
+ * ⚠️ 캐러셀 이미지를 누르면 블로그 미리보기와 **같은 모달**(`CardEditModal.jsx`)이 뜬다
+ *    (2026-09-08, 요청자 지시) — `onEditCard(카드 번호)` 를 부모(`CopyEditor`)로 올려 보내면
+ *    부모가 모달을 연다. 이 컴포넌트는 지금 보고 있는 슬라이드 번호만 관리한다.
  */
 import { useEffect, useRef, useState } from "react";
 import { AVATAR_KEY, getImage, objectUrl } from "../../../lib/imagestore.js";
@@ -32,14 +36,26 @@ function splitCaption(raw) {
   return { body: lines.slice(0, bodyEnd).join("\n").trim(), tags };
 }
 
-export function InstagramPostPreview({ value, handle, cardCount = 1 }) {
+export function InstagramPostPreview({
+  value,
+  handle,
+  cardCount = 1,
+  deck = [],
+  cardThumbs = {},
+  onEditCard,
+}) {
   const [expanded, setExpanded] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState(null);
   const avatarLoaded = useRef(false);
+  const [slide, setSlide] = useState(0);
 
   useEffect(() => {
     setExpanded(false);
   }, [value]);
+
+  useEffect(() => {
+    setSlide(0);
+  }, [deck.length]);
 
   useEffect(() => {
     if (avatarLoaded.current) return;
@@ -64,7 +80,9 @@ export function InstagramPostPreview({ value, handle, cardCount = 1 }) {
   const { body, tags } = splitCaption(value);
   const name = handle || "instagram";
   const initial = name.replace(/^@/, "").charAt(0).toUpperCase() || "?";
-  const slides = Math.max(1, Number(cardCount) || 1);
+  const slides = deck.length || Math.max(1, Number(cardCount) || 1);
+  const activeSlide = Math.min(slide, slides - 1);
+  const thumb = cardThumbs[activeSlide];
 
   return (
     <div>
@@ -92,20 +110,44 @@ export function InstagramPostPreview({ value, handle, cardCount = 1 }) {
         </div>
 
         <div className="relative aspect-square bg-[#f2f4f6]">
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-[#8b95a1]">
-            <Icon name="image" className="size-9" />
-            <span className="text-[13px]">카드뉴스 이미지 자리 (4단계에서 완성)</span>
-          </div>
+          {thumb ? (
+            <button
+              type="button"
+              onClick={() => onEditCard?.(activeSlide)}
+              aria-label={`카드뉴스 ${activeSlide + 1}번 편집하기`}
+              className="group/thumb absolute inset-0 block size-full focus-visible:outline focus-visible:outline-offset-[-3px] focus-visible:outline-[#287aff]"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element -- 캔버스로 그린 data URL */}
+              <img
+                src={thumb}
+                alt={`카드뉴스 ${activeSlide + 1}번 미리보기`}
+                className="block size-full object-cover"
+              />
+              <span className="pointer-events-none absolute inset-0 flex items-center justify-center gap-1.5 bg-black/0 text-[13px] font-bold text-white opacity-0 transition group-hover/thumb:bg-black/40 group-hover/thumb:opacity-100 group-focus-visible/thumb:bg-black/40 group-focus-visible/thumb:opacity-100">
+                <Icon name="edit" className="size-4" />
+                카드 편집
+              </span>
+            </button>
+          ) : (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-[#8b95a1]">
+              <Icon name="image" className="size-9" />
+              <span className="text-[13px]">카드뉴스 이미지 자리 (4단계에서 완성)</span>
+            </div>
+          )}
           {slides > 1 && (
             <>
-              <span className="absolute right-2.5 top-2.5 rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-semibold text-white">
-                1/{slides}
+              <span className="pointer-events-none absolute right-2.5 top-2.5 rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-semibold text-white">
+                {activeSlide + 1}/{slides}
               </span>
               <div className="absolute bottom-2.5 left-1/2 flex -translate-x-1/2 gap-1">
                 {Array.from({ length: slides }, (_, index) => (
-                  <span
+                  <button
                     key={index}
-                    className={`size-1.5 rounded-full ${index === 0 ? "bg-[#3897f0]" : "bg-white/70"}`}
+                    type="button"
+                    onClick={() => setSlide(index)}
+                    aria-label={`${index + 1}번째 카드로 이동`}
+                    aria-current={index === activeSlide}
+                    className={`size-1.5 rounded-full transition ${index === activeSlide ? "bg-[#3897f0]" : "bg-white/70"}`}
                   />
                 ))}
               </div>
@@ -146,7 +188,8 @@ export function InstagramPostPreview({ value, handle, cardCount = 1 }) {
         </p>
       </div>
       <p className="mt-3 text-center text-[12px] leading-[1.5] text-[#8b95a1]">
-        인스타그램 피드에서 보이는 모양을 흉내 낸 미리보기입니다. 실제 화면과는 다를 수 있어요.
+        인스타그램 피드에서 보이는 모양을 흉내 낸 미리보기입니다. 카드뉴스 이미지를 누르면
+        그 카드를 바로 편집할 수 있어요. 실제 화면과는 다를 수 있어요.
       </p>
     </div>
   );

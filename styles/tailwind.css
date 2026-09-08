@@ -9,12 +9,3 @@
 body {
   background: #1a1a1a;
 }
-
-.outline-modal-scroll {
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-.outline-modal-scroll::-webkit-scrollbar {
-  display: none;
-}

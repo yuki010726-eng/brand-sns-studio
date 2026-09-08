@@ -42,7 +42,9 @@ export function LibraryItemThumb({ item }) {
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [item]);
+  // A save can replace the item object for metadata-only changes. The thumbnail
+  // itself is addressed solely by the library id and its presence flag.
+  }, [item.id, item.hasThumb]);
 
   return (
     <div className="grid aspect-[4/5] place-items-center overflow-hidden rounded-[12px] bg-[#f2f4f6]">

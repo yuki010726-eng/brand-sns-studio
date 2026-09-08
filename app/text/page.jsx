@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { CHANNELS } from "../../data/channels.js";
 import { derivePosts, generateWithAI } from "../../lib/copyai.js";
 import { reviewCompliance } from "../../lib/compliance.js";
@@ -10,24 +9,46 @@ import {
   copyChatContextKey,
   getMemorySummary,
 } from "../../lib/copymemory.js";
+import { getConcept } from "../../lib/concepts.js";
 import { coreWithOutline, outlineKeyOf } from "../../lib/outline.js";
 import { reportMissingData } from "../../lib/missingdata.js";
 import { TONE_LABEL } from "../../lib/copywriter.js";
-import { saveToLibrary } from "../../lib/librarystore.js";
+import {
+  clearLibraryEdit,
+  getLibrary,
+  getLibraryEditId,
+  loadFromLibrary,
+  postKeyOf,
+  saveToLibrary,
+} from "../../lib/librarystore.js";
 import { loadLocalConfig } from "../../lib/localconfig.js";
-import { getProduct, loadProducts } from "../../lib/products.js";
+import {
+  getProduct,
+  loadProducts,
+  loadRandomTopicPresets,
+} from "../../lib/products.js";
+import { choiceModal, confirmModal } from "../../components/modal.js";
 import {
   aiRunsKeyOf,
   draftKeyOf,
   getState,
+  newPostId,
   setState,
-  STEPS,
   subscribe,
 } from "../../store.js";
 import { toast } from "../../components/toast.js";
 import { LoadingScreen } from "../_components/LoadingScreen.jsx";
 import { Icon } from "../_components/Icon.jsx";
+import { ProductSection } from "../_components/home/ProductSection.jsx";
+import { PostOutlineSection } from "../_components/home/PostOutlineSection.jsx";
+import {
+  hasRequiredConditions,
+  TONES,
+  TopicSection,
+} from "../_components/home/TopicSection.jsx";
+import { TemplateSection } from "../_components/home/TemplateSection.jsx";
 import { AiRunSelector } from "../_components/text/AiRunSelector.jsx";
+import { BlogConceptSelector } from "../_components/text/BlogConceptSelector.jsx";
 import {
   INSTAGRAM_FORMATS,
   InstagramFormatSelector,
@@ -36,8 +57,63 @@ import { ChannelTabs } from "../_components/text/ChannelTabs.jsx";
 import { MissingDataModal } from "../_components/text/MissingDataModal.jsx";
 // import { CopyActions } from "../_components/text/CopyActions.jsx";
 import { CopyEditor } from "../_components/text/CopyEditor.jsx";
-import { TextStepper } from "../_components/text/TextStepper.jsx";
 import { GenerationSummary } from "./_components/GenerationSummary.jsx";
+
+const EMPTY_OUTPUT = {
+  drafts: {},
+  generated: {},
+  variants: {},
+  sources: {},
+  draftKey: "",
+  aiKey: {},
+  outline: null,
+  researchStyle: null,
+  activeAiRun: null,
+  image: null,
+  images: {},
+  card: null,
+};
+
+/**
+ * 조건 편집(펼친 조건 요약 바)에서 「게시물 생성하기」를 눌렀을 때 시안 목록을
+ * 어떻게 이어받을지 정한다. 옛 `app/page.jsx` 의 `nextDraftState()` 그대로다 —
+ * 조건 편집이 별도 페이지에서 같은 페이지의 펼침 영역으로 옮겨졌을 뿐 로직은 그대로다.
+ */
+function nextDraftState(latest) {
+  const runsKey = `${latest.productId}|${String(latest.topic || "").trim()}`;
+  const currentRunsKey = aiRunsKeyOf(latest);
+
+  // 조건 수정 화면에 갔다가 아무것도 바꾸지 않고 돌아온 경우에는 기존
+  // 시안과 선택 상태를 그대로 둔다. 이전에는 이 경로에서도 빈 pending
+  // run을 하나 추가해서 내용 없는 시안 버튼이 계속 늘어났다.
+  if (latest.aiRuns?.key === currentRunsKey) {
+    return {
+      aiRuns: latest.aiRuns,
+      activeAiRun: latest.activeAiRun,
+    };
+  }
+
+  const sameTopicRuns =
+    latest.aiRuns?.key === currentRunsKey ||
+    latest.aiRuns?.key === runsKey ||
+    String(latest.aiRuns?.key || "").startsWith(`${runsKey}|`) ||
+    TONES.some(({ id }) => latest.aiRuns?.key === `${runsKey}|${id}`);
+
+  if (!sameTopicRuns) {
+    return { aiRuns: { key: "", list: [] }, activeAiRun: null };
+  }
+
+  return {
+    // 시안 버튼은 AI 결과가 실제로 생성된 뒤에만 추가한다. 조건만 바꾼
+    // 단계에서 빈 run을 선등록하면 생성하지 않았는데도 시안이 생겨 보인다.
+    aiRuns: {
+      ...latest.aiRuns,
+      key: currentRunsKey,
+      list: latest.aiRuns?.list || [],
+    },
+    activeAiRun: null,
+  };
+}
 
 /** 이 채널의 글을 담고 있는 AI 생성 벌들을, 원래 `aiRuns.list` 안 위치를 지킨 채로 골라낸다. */
 function aiRunsForChannel(state, channelId) {
@@ -82,10 +158,10 @@ function blogHeadingsFromRuns(state) {
  * 조건(상품·주제·톤·라운드·뼈대잡기 초안)이 그대로면 다시 만들지 않는다 — 있는 뼈대를
  * 또 사면 돈만 쓴다.
  *
- * ⚠️ `state.contentOutline`(홈 화면의 뼈대잡기 모달에서 담당자가 다듬은 서론/본론/결론
- *    초안)은 여기서 `coreWithOutline`에 **참고 자료**로 함께 넘어간다 — 강제 지시가 아니라
- *    각도·항목을 짤 때 반영하는 재료다. 초안이 바뀌면(`contentOutlineKey`) 캐시된 뼈대를
- *    다시 만든다.
+ * ⚠️ `state.contentOutline`(펼친 조건 요약 바의 뼈대잡기 모달에서 담당자가 다듬은
+ *    서론/본론/결론 초안)은 여기서 `coreWithOutline`에 **참고 자료**로 함께 넘어간다 —
+ *    강제 지시가 아니라 각도·항목을 짤 때 반영하는 재료다. 초안이 바뀌면
+ *    (`contentOutlineKey`) 캐시된 뼈대를 다시 만든다.
  */
 async function ensureOutline(
   state,
@@ -153,7 +229,7 @@ async function ensureOutline(
 }
 
 export default function CopyPage() {
-  const router = useRouter();
+  const topicRef = useRef(null);
   const [state, setViewState] = useState(null);
   const [activeId, setActiveId] = useState("");
   const [readMode, setReadMode] = useState(true);
@@ -167,16 +243,214 @@ export default function CopyPage() {
   const pausedRef = useRef(false);
   const pauseWaiters = useRef([]);
 
+  // ── 상품·주제 선택 (펼친 조건 요약 바) — 옛 app/page.jsx 를 그대로 옮겼다 ──
+  const [products, setProducts] = useState([]);
+  const [presets, setPresets] = useState([]);
+  const [presetsLoading, setPresetsLoading] = useState(false);
+  // 「글 구조 요약」 패널의 펼침 상태 — 「게시물 생성하기」를 누르면 펼친 채로
+  // 넘어온다. 옛 뼈대잡기 모달을 대체한 패널(PostOutlineSection.jsx)이 접힘/펼침을
+  // 직접 그린다. 여기서는 언제 펼쳐 보여줄지만 정한다.
+  const [outlineExpanded, setOutlineExpanded] = useState(true);
+  // 조건이 아직 안 갖춰졌으면(막 새 게시물을 시작했으면) 강제로 펼쳐서 보여준다 —
+  // 그래서 `panelExpanded` 는 이 값과 `hasConditions` 를 함께 본다(아래).
+  const [expanded, setExpanded] = useState(false);
+  const expandInitialized = useRef(false);
+  // 「1. 상품을 선택해주세요」 카드의 접힘/펼침 — 조건 패널이 펼쳐져 있는 동안에만
+  // 의미가 있고, 기본은 펼친 채로 시작한다(기존 화면과 동일).
+  const [productExpanded, setProductExpanded] = useState(true);
+  // 「게시물 생성하기」를 눌러 조건 요약 바가 접히는 순간, 그 접힌 바 맨 위로
+  // 화면을 이동시킨다 — 아래 `expanded` 감시 effect 가 이 ref 를 스크롤 대상으로 쓴다.
+  const summaryTopRef = useRef(null);
+  const wasExpandedRef = useRef(expanded);
+
   useEffect(() => {
     setViewState(getState());
     const unsubscribe = subscribe(setViewState);
-    Promise.all([loadLocalConfig(), loadProducts()]).finally(() =>
-      setProductsReady(true),
-    );
+    Promise.all([loadLocalConfig(), loadProducts()])
+      .then(([, items]) => setProducts([...items]))
+      .catch(() => toast("상품 정보를 불러오지 못했습니다."))
+      .finally(() => setProductsReady(true));
     return unsubscribe;
   }, []);
 
   useEffect(() => () => generationController.current?.abort(), []);
+
+  // 처음 이 페이지에 들어왔을 때 조건이 비어 있으면(상품·주제 미선택) 조건 요약
+  // 바를 펼친 채로 시작한다. 이후에는 사용자가 직접 펼치고/접는다.
+  // `?edit=1` 로 들어오면(마이페이지의 「상품·주제 선택하기」 등) 조건이 이미 있어도
+  // 펼친 채로 시작한다 — 그 링크의 목적 자체가 "조건을 고치러 왔다"이기 때문이다.
+  // ⚠️ `useSearchParams()` 대신 `window.location.search` 를 직접 읽는다 — Next.js
+  //    는 `useSearchParams()` 를 쓰는 페이지에 Suspense 경계를 요구해서 빌드가 깨진다.
+  useEffect(() => {
+    if (!state || expandInitialized.current) return;
+    expandInitialized.current = true;
+    const wantsEdit =
+      typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).get("edit") === "1";
+    if (wantsEdit || !(state.productId && String(state.topic || "").trim())) {
+      setExpanded(true);
+    }
+  }, [state]);
+
+  // 조건 요약 바가 펼침→접힘으로 바뀌는 순간(「게시물 생성하기」를 눌렀을 때 등)에만
+  // 그 접힌 바 맨 위로 화면을 이동한다 — 사용자가 직접 펼칠 때는 스크롤을 건드리지 않는다.
+  useEffect(() => {
+    if (wasExpandedRef.current && !expanded) {
+      requestAnimationFrame(() => {
+        summaryTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    }
+    wasExpandedRef.current = expanded;
+  }, [expanded]);
+
+  async function refreshPresets(productId = state?.productId) {
+    if (!productId) {
+      setPresets([]);
+      return;
+    }
+    setPresetsLoading(true);
+    try {
+      setPresets(await loadRandomTopicPresets(productId));
+    } catch (error) {
+      console.error("[topics] 추천 주제 조회에 실패했습니다.", error);
+      const fallback = products.find((item) => item.id === productId)?.topicPresets || [];
+      setPresets(fallback.slice(0, 4));
+      toast("추천 주제를 불러오지 못했습니다.");
+    } finally {
+      setPresetsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    refreshPresets(state?.productId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refreshPresets 는 매 렌더 새로 만들어진다
+  }, [state?.productId, products]);
+
+  function selectProduct(id) {
+    setState({
+      productId: id,
+      topic: "",
+      focusPoint: "",
+      tone: "",
+      customStyleUrl: "",
+      customStyleGuide: "",
+      customStyleGuideUrl: "",
+      customStyleSaveRequested: false,
+      cardCount: 0,
+      channels: [],
+      libraryTitle: "",
+      contentOutline: null,
+    });
+    requestAnimationFrame(() =>
+      topicRef.current?.focus({ preventScroll: true }),
+    );
+  }
+
+  function toggleChannel(id) {
+    const channels = state.channels.includes(id)
+      ? state.channels.filter((item) => item !== id)
+      : [...state.channels, id];
+    if (!channels.length) return toast("채널은 최소 1개를 선택해야 합니다.");
+    setState({ channels });
+  }
+
+  function clearTopic() {
+    setState({
+      topic: "",
+      focusPoint: "",
+      tone: "",
+      customStyleUrl: "",
+      customStyleGuide: "",
+      customStyleGuideUrl: "",
+      customStyleSaveRequested: false,
+      cardCount: 0,
+      channels: [],
+      libraryTitle: "",
+      contentOutline: null,
+    });
+    topicRef.current?.focus();
+    toast("주제를 비웠습니다.");
+  }
+
+  /**
+   * TopicSection 의 「게시물 생성하기」를 눌렀을 때 — 옛 `app/page.jsx` 의
+   * `goToCopy()` 를 그대로 옮겼다. 예전에는 여기서 뼈대잡기 모달을 띄우고 모달의
+   * 「확인」에서 이 로직을 실행했는데, 지금은 모달이 없어졌으므로(글 구조 요약이
+   * `PostOutlineSection` 이 되어 조건 요약 바 아래 상시 펼쳐진다) 검증을 마치는 즉시
+   * 이어서 실행한다. `contentOutline`(제목·서론·본론·결론) 은 더 이상 여기서 만들지
+   * 않는다 — `PostOutlineSection` 이 펼쳐지면 스스로 기본값을 채운다.
+   */
+  async function startGeneration() {
+    if (
+      !state.productId ||
+      state.topic.trim().length < 2 ||
+      !state.tone ||
+      (state.tone === "custom" && !String(state.customStyleUrl || "").trim()) ||
+      Number(state.cardCount) <= 0 ||
+      !state.channels.length
+    ) {
+      toast(
+        "주제, 글 스타일, 카드뉴스 장수, 내보낼 채널을 모두 선택해 주세요.",
+      );
+      topicRef.current?.focus();
+      return;
+    }
+    const current = getState();
+    const editingId = getLibraryEditId();
+    const editingItem = editingId
+      ? getLibrary().find((item) => item.id === editingId)
+      : null;
+    if (editingItem && editingItem.postKey !== postKeyOf(current)) {
+      const makeNew = await confirmModal("새 게시물을 만들까요?", {
+        title: "다른 주제를 선택했습니다",
+        okLabel: "만들기",
+        cancelLabel: "취소",
+      });
+      if (!makeNew) return;
+      clearLibraryEdit();
+      setState({
+        ...EMPTY_OUTPUT,
+        postId: newPostId(),
+        aiRuns: { key: "", list: [] },
+      });
+    }
+    const nextState = getState();
+    const existing = getLibrary().find(
+      (item) => item.postKey === postKeyOf(nextState),
+    );
+    const isEditingExisting = existing?.id === getLibraryEditId();
+    if (existing && !isEditingExisting) {
+      const choice = await choiceModal("보관함에 저장되어있는 주제입니다.", {
+        title: "보관함에 저장된 주제",
+        choices: [{ value: "load", label: "불러오기", primary: true }],
+      });
+      if (choice !== "load") return;
+      const result = await loadFromLibrary(existing.id);
+      if (!result.ok) return toast(result.error);
+      setExpanded(false);
+      setOutlineExpanded(true);
+      return;
+    }
+    if (!isEditingExisting) clearLibraryEdit();
+    const latest = getState();
+    const conditionsUnchanged = latest.aiRuns?.key === aiRunsKeyOf(latest);
+
+    // 기존 시안이 있는 글의 조건이 실제로 달라지지 않았다면 drafts,
+    // generated, card 등을 초기화하지 않는다. 선택했던 시안도 유지된다.
+    if (conditionsUnchanged && (latest.aiRuns?.list || []).length > 0) {
+      setExpanded(false);
+      setOutlineExpanded(true);
+      return;
+    }
+
+    setState({
+      ...EMPTY_OUTPUT,
+      postId: isEditingExisting ? latest.postId : newPostId(),
+      ...nextDraftState(latest),
+    });
+    setExpanded(false);
+    setOutlineExpanded(true);
+  }
 
   function waitIfPaused() {
     if (!pausedRef.current) return Promise.resolve();
@@ -206,16 +480,19 @@ export default function CopyPage() {
     [state?.channels],
   );
 
+  const hasConditions = Boolean(
+    state?.productId && String(state?.topic || "").trim(),
+  );
+  // 조건이 안 갖춰졌으면 사용자가 접으려 해도 무조건 펼친 채로 둔다 —
+  // 접힌 채 요약할 조건 자체가 없다.
+  const panelExpanded = expanded || !hasConditions;
+
   useEffect(() => {
     if (!state) return;
-    if (!state.productId || !state.topic?.trim()) {
-      router.replace("/");
-      return;
-    }
     if (!channels.some((channel) => channel.id === activeId)) {
       setActiveId(channels[0]?.id || "");
     }
-  }, [activeId, channels, router, state]);
+  }, [activeId, channels, state]);
 
   const activeChannel = channels.find((channel) => channel.id === activeId);
   const product = state ? getProduct(state.productId) : null;
@@ -469,10 +746,13 @@ export default function CopyPage() {
         generated: { ...drafts },
         // 이 시안을 만들 때 실제로 썼던 조건 — 나중에 다른 시안을 만들며 제목·톤을
         // 바꿔도, 이 시안을 다시 선택하면 그때 조건 그대로 보여줘야 하기 때문에 남긴다.
+        // `concept`(카드뉴스 템플릿)은 조건이 다 같은데 템플릿만 바꿔 다시 생성했을 때
+        // `AiRunSelector` 가 "시안 N" 대신 템플릿 이름으로 버튼을 보여주는 데 쓴다.
         conditions: {
           title: current.contentOutline?.title || "",
           focusPoint: current.focusPoint || "",
           tone: current.tone,
+          concept: current.concept,
         },
         ...(instagramDrafts
           ? {
@@ -630,6 +910,10 @@ export default function CopyPage() {
       ? entry.run.instagramGenerated?.[current.instagramFormat || "simple"]
         ?? instagramDraftOf(entry.run, current.instagramFormat || "simple", "generated")
       : entry.run.generated[activeId];
+    // 이 시안이 특정 카드뉴스 템플릿을 고른 상태로 만들어졌다면(다른 조건은 같고
+    // 템플릿만 바꿔 다시 생성한 경우), 시안을 고르는 즉시 그 템플릿으로 미리보기를
+    // 맞춰 준다 — 그래야 「노트형」 버튼을 눌렀을 때 실제로 노트형 카드가 보인다.
+    const runConcept = entry.run.conditions?.concept;
     setState({
       drafts: { ...current.drafts, [activeId]: selectedDraft },
       generated: {
@@ -641,8 +925,17 @@ export default function CopyPage() {
         ...(typeof current.activeAiRun === "object" ? current.activeAiRun : {}),
         [activeId]: index,
       },
+      ...(runConcept && runConcept !== current.concept
+        ? { concept: runConcept }
+        : {}),
       card: null,
     });
+  }
+
+  function selectConcept(conceptId) {
+    if (conceptId === state.concept) return;
+    setState({ concept: conceptId });
+    toast(`${getConcept(conceptId).name} 템플릿으로 골랐습니다.`);
   }
 
   function selectInstagramFormat(instagramFormat) {
@@ -676,34 +969,12 @@ export default function CopyPage() {
     }
   }
 
-  function moveToTemplate() {
-    const current = getState();
-    const hasGeneratedPost = channels.some((channel) =>
-      String(current.generated?.[channel.id] || "").trim(),
-    );
-    if (!hasGeneratedPost) {
-      toast("글 생성 후 이동할 수 있습니다.");
-      return;
-    }
-    // AI 생성을 한 채널만 했다면 나머지 선택 채널은 아직 글이 없다 — "게시글이
-    // 없다"는 것은 컴플라이언스 위반이 아니라 아직 안 만든 것뿐이므로, 실제로
-    // 글이 있는 채널만 검사한다.
-    const blockedChannel = channels.find((channel) => {
-      const text = current.drafts?.[channel.id];
-      if (!String(text || "").trim()) return false;
-      return reviewCompliance(text, channel, product).errors.length;
-    });
-    if (blockedChannel) {
-      setActiveId(blockedChannel.id);
-      toast(`${blockedChannel.name} 게시글에 수정이 필요한 컴플라이언스 항목이 있습니다.`, 5000);
-      return;
-    }
-    router.push("/template");
-  }
+  if (!state || !productsReady) return <LoadingScreen />;
 
-  if (!state || !productsReady || !activeChannel) return <LoadingScreen />;
-  const value = state.drafts?.[activeId] || "";
-  const compliance = reviewCompliance(value, activeChannel, product);
+  const value = activeChannel ? state.drafts?.[activeId] || "" : "";
+  const compliance = activeChannel
+    ? reviewCompliance(value, activeChannel, product)
+    : null;
   // 지금 선택된 시안이 실제로 어떤 조건으로 만들어졌는지 보여준다 — 없으면(아직 AI로
   // 만든 적 없거나 옛 저장본이라 조건이 안 남은 시안이면) 현재 화면의 조건으로 보여준다.
   const activeConditions = activeRunEntry?.run?.conditions;
@@ -714,101 +985,174 @@ export default function CopyPage() {
     ? activeConditions.focusPoint
     : state.focusPoint;
   const summaryTone = activeConditions ? activeConditions.tone : state.tone;
+
   return (
     <main className="min-h-dvh bg-[#1a1a1a] pb-[140px] text-[#4e5968]">
       <div className="w-full px-[clamp(20px,3.85vw,74px)]">
-        <div className="flex min-h-[1050px] items-stretch overflow-clip rounded-[15px] bg-white/10 max-[860px]:min-h-0 max-[860px]:flex-col">
-          <TextStepper steps={STEPS} activeIndex={1} />
-          <div className="min-w-0 flex-1 px-[clamp(24px,4vw,56px)] py-14">
+        <div className="min-h-[1050px] overflow-clip rounded-[15px] bg-white/10">
+          <div className="min-w-0 px-[clamp(24px,4vw,56px)] py-14">
             <header className="flex items-end gap-[14px] mb-8">
               <h1 className="text-[32px] font-bold tracking-[-0.04em] text-white">
-                {Object.keys(state.drafts || {}).length
-                  ? "상품의 글을 생성해보세요."
-                  : "상품의 글을 생성해보세요."}
+                상품의 글을 생성해보세요.
               </h1>
               <p className="mb-2 text-white/55">
                 AI 생성 결과는 주제와 채널별로 계속 쌓입니다.
               </p>
             </header>
             <div className="space-y-5">
-              <GenerationSummary
-                productName={product?.name}
-                topic={state.topic}
-                title={summaryTitle}
-                focusPoint={summaryFocusPoint}
-                writingStyle={TONE_LABEL[summaryTone] || summaryTone}
-                onEditConditions={() => router.push("/")}
-                onNext={moveToTemplate}
-              />
-              <div className="overflow-clip rounded-[15px] bg-[#595959]">
-                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-[21px] py-[33px]">
-                  <ChannelTabs
-                    channels={channels}
-                    activeId={activeId}
-                    onSelect={setActiveId}
+              {panelExpanded ? (
+                <div className="flex flex-col gap-12">
+                  <ProductSection
+                    loading={!productsReady}
+                    products={products}
+                    selectedId={state.productId}
+                    onSelect={selectProduct}
+                    expanded={productExpanded}
+                    onToggle={() => setProductExpanded((current) => !current)}
                   />
-                  <div className="flex min-w-[310px] flex-col items-end gap-3 max-[640px]:w-full max-[640px]:items-stretch">
-                    <div className="flex flex-wrap justify-end gap-2.5">
+                  <TopicSection
+                    product={product}
+                    presets={presets}
+                    presetsLoading={presetsLoading}
+                    onRefreshPresets={() => refreshPresets()}
+                    state={state}
+                    topicRef={topicRef}
+                    onUpdate={(patch) => setState(patch)}
+                    onToggleChannel={toggleChannel}
+                    onSaveCustomStyle={() => {
+                      if (!String(state.customStyleUrl || "").trim()) {
+                        toast("먼저 참고할 블로그 글 링크를 입력해 주세요.");
+                        return;
+                      }
+                      setState({ customStyleSaveRequested: true });
+                      toast("AI 글을 생성할 때 이 스타일을 마이페이지에 함께 저장합니다.");
+                    }}
+                  />
+                  <TemplateSection
+                    product={product}
+                    state={state}
+                    onUpdate={(patch) => setState(patch)}
+                  />
+                  {product && (
+                    <div className="flex items-center justify-end gap-4 max-[560px]:flex-col max-[560px]:items-stretch">
                       <button
-                        disabled={busy}
-                        onClick={() => generate([activeId])}
-                        className="inline-flex h-[45px] items-center gap-[5px] rounded-full border border-[#e5e8eb] bg-white px-[19px] text-[15px] font-medium text-[#4e5968] disabled:opacity-40"
+                        type="button"
+                        className="rounded-full bg-transparent px-3 py-2 text-[15px] font-bold text-white hover:bg-white/10"
+                        onClick={clearTopic}
                       >
-                        <Icon name="sparkles" className="size-[18px]" />
-                        현재 채널만 AI 생성
+                        초기화
                       </button>
                       <button
-                        disabled={busy}
-                        onClick={() =>
-                          generate(channels.map((channel) => channel.id))
-                        }
-                        className="inline-flex h-[45px] items-center gap-[5px] rounded-full border border-[#287aff] bg-[#287aff] px-[19px] text-[15px] font-bold text-white disabled:opacity-40"
+                        type="button"
+                        className="inline-flex items-center justify-center gap-2 rounded-full bg-[#287aff] px-7 py-3.5 text-[16px] font-bold text-white transition hover:bg-[#1b64da] disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/40"
+                        disabled={!hasRequiredConditions(state)}
+                        onClick={startGeneration}
                       >
-                        <Icon name="sparkles" className="size-[18px]" />
-                        전체 채널 AI 생성
+                        게시물 생성하기{" "}
+                        <Icon name="arrowRight" className="size-[18px] stroke-[1.75]" />
                       </button>
                     </div>
-                  </div>
+                  )}
                 </div>
-                <CopyEditor
-                  channel={activeChannel}
-                  value={value}
-                  generatedValue={state.generated?.[activeId] || ""}
-                  readMode={readMode}
-                  compliance={compliance}
-                  showChat={Boolean(state.aiRuns?.list?.length)}
-                  chatContextKey={chatContextKey}
-                  draftLabel={activeRun == null ? "" : `시안 ${activeRun + 1}`}
-                  generation={busy ? generation : null}
-                  onToggleGenerationPause={toggleGenerationPause}
-                  onCancelGeneration={cancelGeneration}
-                  runSelector={
-                    <div className="flex flex-col gap-3">
-                      <AiRunSelector
-                        runs={matchingRuns}
-                        activeIndex={activeRun}
-                        onSelect={selectRun}
-                      />
-                      {activeId === "instagram" && (
-                        <InstagramFormatSelector
-                          value={state.instagramFormat || "simple"}
-                          disabled={busy}
-                          onChange={selectInstagramFormat}
+              ) : (
+                <>
+                  <div ref={summaryTopRef} className="scroll-mt-[116px]">
+                    <GenerationSummary
+                      productName={product?.name}
+                      topic={state.topic}
+                      focusPoint={summaryFocusPoint}
+                      writingStyle={TONE_LABEL[summaryTone] || summaryTone}
+                      onEditConditions={() => setExpanded(true)}
+                    />
+                  </div>
+                  <PostOutlineSection
+                    product={product}
+                    state={state}
+                    expanded={outlineExpanded}
+                    onToggle={() => setOutlineExpanded((current) => !current)}
+                  />
+                  {activeChannel && (
+                    <div className="overflow-clip rounded-[15px] bg-[#595959]">
+                      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-[21px] py-[33px]">
+                        <ChannelTabs
+                          channels={channels}
+                          activeId={activeId}
+                          onSelect={setActiveId}
                         />
-                      )}
+                        <div className="flex min-w-[310px] flex-col items-end gap-3 max-[640px]:w-full max-[640px]:items-stretch">
+                          <div className="flex flex-wrap justify-end gap-2.5">
+                            <button
+                              disabled={busy}
+                              onClick={() => generate([activeId])}
+                              className="inline-flex h-[45px] items-center gap-[5px] rounded-full border border-[#e5e8eb] bg-white px-[19px] text-[15px] font-medium text-[#4e5968] disabled:opacity-40"
+                            >
+                              <Icon name="sparkles" className="size-[18px]" />
+                              현재 채널만 AI 생성
+                            </button>
+                            <button
+                              disabled={busy}
+                              onClick={() =>
+                                generate(channels.map((channel) => channel.id))
+                              }
+                              className="inline-flex h-[45px] items-center gap-[5px] rounded-full border border-[#287aff] bg-[#287aff] px-[19px] text-[15px] font-bold text-white disabled:opacity-40"
+                            >
+                              <Icon name="sparkles" className="size-[18px]" />
+                              전체 채널 AI 생성
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                      <CopyEditor
+                        channel={activeChannel}
+                        value={value}
+                        generatedValue={state.generated?.[activeId] || ""}
+                        readMode={readMode}
+                        compliance={compliance}
+                        showChat={Boolean(state.aiRuns?.list?.length)}
+                        chatContextKey={chatContextKey}
+                        draftLabel={activeRun == null ? "" : `시안 ${activeRun + 1}`}
+                        generation={busy ? generation : null}
+                        onToggleGenerationPause={toggleGenerationPause}
+                        onCancelGeneration={cancelGeneration}
+                        runSelector={
+                          <div className="flex flex-col gap-3">
+                            <AiRunSelector
+                              runs={matchingRuns}
+                              activeIndex={activeRun}
+                              onSelect={selectRun}
+                            />
+                            {activeId === "instagram" && (
+                              <InstagramFormatSelector
+                                value={state.instagramFormat || "simple"}
+                                disabled={busy}
+                                onChange={selectInstagramFormat}
+                              />
+                            )}
+                            {activeId === "blog" && (
+                              <BlogConceptSelector
+                                value={state.concept}
+                                disabled={busy}
+                                onChange={selectConcept}
+                              />
+                            )}
+                          </div>
+                        }
+                        onChange={updateDraft}
+                        onToggleMode={() => setReadMode((mode) => !mode)}
+                        onCopy={() =>
+                          copy(value, `${activeChannel.name} 글귀를 복사했습니다.`)
+                        }
+                        instagramHandle={product?.handle}
+                        cardCount={state.cardCount}
+                        blogTitle={summaryTitle}
+                        productName={product?.name}
+                        state={state}
+                        product={product}
+                      />
                     </div>
-                  }
-                  onChange={updateDraft}
-                  onToggleMode={() => setReadMode((mode) => !mode)}
-                  onCopy={() =>
-                    copy(value, `${activeChannel.name} 글귀를 복사했습니다.`)
-                  }
-                  instagramHandle={product?.handle}
-                  cardCount={state.cardCount}
-                  blogTitle={summaryTitle}
-                  productName={product?.name}
-                />
-              </div>
+                  )}
+                </>
+              )}
             </div>
           </div>
         </div>

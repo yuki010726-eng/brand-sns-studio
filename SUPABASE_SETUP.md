@@ -9,11 +9,11 @@ Supabase **SQL Editor**에서 다음 파일을 순서대로 실행합니다.
 1. `supabase/003_create_products.sql`
 2. `supabase/004_move_all_products_to_supabase.sql`
 3. `supabase/005_create_copy_selections.sql`
-4. `supabase/006_create_user_copy_preferences.sql`
-5. `supabase/009_create_copy_chat_memory.sql`
-6. `supabase/010_create_openai_usage_logs.sql`
+4. `supabase/009_create_copy_chat_memory.sql`
+5. `supabase/010_create_openai_usage_logs.sql`
+6. `supabase/017_drop_unused_copy_preference_tables.sql`
 
-이미 `003`과 `004`를 실행했다면 새 기능을 위해 `005`, `006`만 추가로 실행하면 됩니다. `004`는 `prompt_settings` 열을 추가하고 기존
+이미 `003`과 `004`를 실행했다면 새 기능을 위해 `005`, `009`, `010`, `017`을 추가로 실행하면 됩니다. `004`는 `prompt_settings` 열을 추가하고 기존
 4개 상품과 생성 자료를 한 번에 저장합니다. 이후 상품/근거 수정은 Supabase Table Editor에서
 합니다. `product_proofs.is_active`를 끄면 다음 AI 생성부터 해당 묶음을 제외할 수 있습니다.
 
@@ -73,8 +73,8 @@ create policy "본인 줄만 수정" on public.studio_state
 
 | 항목 | 값 |
 |---|---|
-| Site URL | `http://localhost:5610` |
-| Redirect URLs | `http://localhost:5610` |
+| Site URL | `http://localhost:3000` |
+| Redirect URLs | `http://localhost:3000` |
 
 > ⚠️ 나중에 도메인에 올리면 그 주소도 **여기에 추가**해야 한다.
 > 등록 안 된 주소로 돌아오면 로그인이 조용히 실패한다.
@@ -110,7 +110,7 @@ export const SUPABASE = {
    gh repo clone yuki010726-eng/brand-sns-studio
    ```
 
-2. `serve.cmd` 를 더블클릭하고 <http://localhost:5610> 로 들어간다
+2. `npm run dev` 를 실행하고 <http://localhost:3000> 로 들어간다
 3. **회원가입** 탭에서 아이디·이름·비밀번호를 넣는다
    (아이디만 넣으면 된다. 뒤에 `@openxgroup.co.kr` 은 앱이 붙인다)
 4. "관리자 확인 중" 화면이 뜬다. 여기서 멈춘다 — 4)까지 끝나야 들어갈 수 있다

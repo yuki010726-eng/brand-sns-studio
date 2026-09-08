@@ -23,7 +23,7 @@ import {
   DEFAULT_MAGAZINE_TEMPLATE,
   getMagazineTemplate,
 } from "../../lib/concepts.js";
-import { slotsFor, roleOf, objectsFor } from "../../lib/templates.js";
+import { slotsFor, roleOf, objectsFor, slotIdForObject } from "../../lib/templates.js";
 import { buildDeck, TONE_LABEL } from "../../lib/copywriter.js";
 import { outlineKeyOf } from "../../lib/outline.js";
 import {
@@ -121,16 +121,25 @@ const effectiveAdConcept = (s) =>
   s.adConceptTone === s.tone ? s.adConcept : adConceptForTone(s.tone);
 
 /**
- * 매거진 t2·t4 구분선의 오버라이드는 `magazineTemplate` 별로 따로 저장한다
- * (`layout[i]["divider:t2"]` / `layout[i]["divider:t4"]`). 구분선의 기본 위치가
- * 템플릿마다 달라서, 한 키를 같이 쓰면 t4 에서 고친 값이 t2 로 전환했을 때 그대로
- * 새어 들어오고(t2 는 원래 자기 자리가 있는데 엉뚱한 좌표를 받는다), t4 에서 지운
- * 것이 t2 의 선까지 함께 지워 버린다(요청자 지적 2026-09-02). 렌더러에는 이 키를
- * 그대로 넘기지 않는다 — `buildRenderOpts` 가 지금 템플릿 것만 골라 `divider` 라는
- * 평범한 키로 바꿔서 넘긴다(cardrender.js·CanvasPreview 는 매거진 하위 템플릿을 모른다).
+ * 매거진형 오브젝트(계정 이름·제목+강조문구·계정 아이디·배경 이미지·구분선·추가 텍스트)의
+ * 위치·크기 오버라이드는 `magazineTemplate` 별로 따로 저장한다(`layout[i]["title:t2"]`
+ * 처럼 objId 뒤에 템플릿 id 를 붙인다). **문구·이미지 내용은 템플릿과 무관하게 공유한다**
+ * (요청자 지시) — 계정 이름·제목·강조 문구·계정 아이디를 고치면 t1~t4 전부에 반영돼야
+ * 한다. 하지만 위치·크기는 템플릿마다 배치가 전혀 달라서, 한 키를 같이 쓰면 t1 에서
+ * 옮긴 상자가 나머지 세 템플릿에도 그대로 번진다(요청자 지적 2026-09-08).
+ *
+ * 원래 구분선(`divider`)에만 있던 규칙이었는데(2026-09-02), 같은 문제가 브랜드·제목·
+ * 계정 아이디·이미지 상자에도 있어 전부로 넓혔다. 렌더러에는 이 키를 그대로 넘기지
+ * 않는다 — `buildRenderOpts` 가 지금 템플릿 것만 골라 평범한 objId 키로 바꿔서 넘긴다
+ * (cardrender.js·CanvasPreview 는 매거진 하위 템플릿을 모른다).
+ *
+ * 카드형·노트형은 애초에 카드 탭(카드 인덱스)으로 이미 나뉘어 있어 여기 해당하지 않는다
+ * — `s.concept !== 'magazine'` 이면 objId 를 그대로 돌려준다.
  */
-const dividerKey = (s) =>
-  `divider:${s.magazineTemplate || DEFAULT_MAGAZINE_TEMPLATE}`;
+const magazineLayoutKey = (s, objId) =>
+  s.concept === "magazine"
+    ? `${objId}:${s.magazineTemplate || DEFAULT_MAGAZINE_TEMPLATE}`
+    : objId;
 
 /** 클립보드 복사 — 권한이 막힌 환경을 위해 execCommand 폴백을 둔다 */
 async function copyText(text, okMessage) {
@@ -152,9 +161,15 @@ async function copyText(text, okMessage) {
   }
 }
 
-const EDITOR_STATE_KEYS = [
-  "concept",
-  "magazineTemplate",
+/**
+ * 되돌리기/다시 실행은 "지금 템플릿 안에서 고친 것"만 대상으로 한다. 템플릿(컨셉) 탭이나
+ * 매거진 서브 템플릿(t1~t4)을 바꾸는 것은 편집이 아니라 이동이라 기록에 남기지 않는다
+ * (요청자 지적: "되돌리기를 누르면 템플릿 탭까지 왔다갔다한다"). 그래서 컨셉마다
+ * 되돌리기 스택을 따로 두고(`history.current.byConcept`), `concept`·`magazineTemplate`
+ * 자체는 스냅샷에 넣지 않는다. 스타일 값(accent/mark/…)은 그 값을 바꿀 수 있는 화면이
+ * 컨셉마다 다르므로(StylePanel.jsx) 자연히 그 컨셉의 스택에만 쌓인다.
+ */
+const CONTENT_STYLE_KEYS = [
   "accent",
   "mark",
   "cardTheme",
@@ -162,16 +177,15 @@ const EDITOR_STATE_KEYS = [
   "notePaper",
   "noteInk",
   "noteGrain",
-  "card",
 ];
 
-const editorSnapshot = (s) =>
-  Object.fromEntries(
-    EDITOR_STATE_KEYS.map((key) => [
-      key,
-      s[key] == null ? s[key] : structuredClone(s[key]),
-    ]),
-  );
+const contentSnapshot = (s) =>
+  structuredClone({
+    style: Object.fromEntries(CONTENT_STYLE_KEYS.map((key) => [key, s[key]])),
+    card: s.card
+      ? { texts: s.card.texts, layout: s.card.layout, extraTexts: s.card.extraTexts }
+      : null,
+  });
 
 export default function TemplatePage() {
   const router = useRouter();
@@ -188,23 +202,14 @@ export default function TemplatePage() {
   const [historyRevision, setHistoryRevision] = useState(0);
   const [selectedObj, setSelectedObj] = useState(null);
   const lastReconciled = useRef("");
-  const history = useRef({
-    past: [],
-    current: null,
-    future: [],
-    initial: null,
-  });
+  // 컨셉(템플릿)별로 되돌리기 스택을 따로 둔다 — 자세한 이유는 contentSnapshot 머리말 참고.
+  const history = useRef({ postId: null, byConcept: {} });
   const applyingHistory = useRef(false);
-  const historyPostId = useRef(null);
 
   useEffect(() => {
-    // 카드뉴스 스텝에 들어올 때는 이전 작업에서 마지막으로 골랐던 유형과 관계없이
-    // 항상 매거진형부터 보여 준다. 이 초기화는 마운트 때 한 번만 실행되므로,
-    // 페이지 안에서 사용자가 다른 유형을 고르는 동작에는 영향을 주지 않는다.
-    const initialState = getState();
-    if (initialState.concept !== "magazine") {
-      setState({ concept: "magazine" });
-    }
+    // 카드뉴스 템플릿은 이제 조건을 고르는 단계(`TemplateSection`, `/text`)에서 미리
+    // 정한다 — 여기서는 그 선택을 그대로 이어받는다. 예전에는 이 화면에 들어올 때마다
+    // 무조건 매거진형으로 되돌렸는데, 그러면 조건 단계에서 고른 템플릿이 무시된다.
     setViewState(getState());
     const unsubscribe = subscribe(setViewState);
     loadProducts().finally(() => setProductsReady(true));
@@ -312,65 +317,84 @@ export default function TemplatePage() {
   }, [state]);
 
   useEffect(() => {
-    if (!state?.card) return;
+    // card가 아직 지금 컨셉으로 재조정되지 않은 과도기 상태(reconcileCard 직전)는
+    // 건너뛴다 — 여기서 기록하면 템플릿 전환 자체가 되돌리기 한 칸으로 잘못 남는다.
+    if (!state?.card || state.card.concept !== state.concept) return;
 
     const postKey = `${state.postId}|${state.productId}`;
-    const next = editorSnapshot(state);
-    const nextJson = JSON.stringify(next);
+    if (history.current.postId !== postKey) {
+      history.current = { postId: postKey, byConcept: {} };
+    }
 
-    if (historyPostId.current !== postKey) {
-      historyPostId.current = postKey;
-      history.current = { past: [], current: next, future: [], initial: next };
+    const concept = state.concept;
+    const snapshot = contentSnapshot(state);
+    const snapshotJson = JSON.stringify(snapshot);
+    const entry = history.current.byConcept[concept];
+
+    if (!entry) {
+      history.current.byConcept[concept] = {
+        past: [],
+        current: snapshot,
+        future: [],
+        initial: snapshot,
+      };
       setHistoryRevision((value) => value + 1);
       return;
     }
 
-    const entry = history.current;
-    if (JSON.stringify(entry.current) === nextJson) {
+    if (JSON.stringify(entry.current) === snapshotJson) {
       applyingHistory.current = false;
       return;
     }
 
     if (applyingHistory.current) {
       applyingHistory.current = false;
-      entry.current = next;
+      entry.current = snapshot;
     } else {
-      if (entry.current) entry.past.push(entry.current);
-      entry.current = next;
+      entry.past.push(entry.current);
+      entry.current = snapshot;
       entry.future = [];
       if (entry.past.length > 100) entry.past.shift();
     }
     setHistoryRevision((value) => value + 1);
   }, [state]);
 
-  function applyHistorySnapshot(snapshot) {
+  function applyContentSnapshot(snapshot) {
     applyingHistory.current = true;
-    setState(editorSnapshot(snapshot));
+    const s = getState();
+    const patch = { ...snapshot.style };
+    if (snapshot.card && s.card) {
+      patch.card = { ...s.card, ...snapshot.card };
+    }
+    setState(patch);
   }
 
   function handleUndo() {
-    const entry = history.current;
+    const entry = history.current.byConcept[getState().concept];
+    if (!entry) return;
     const previous = entry.past.pop();
     if (!previous) return;
     entry.future.unshift(entry.current);
     entry.current = previous;
-    applyHistorySnapshot(previous);
+    applyContentSnapshot(previous);
     setHistoryRevision((value) => value + 1);
   }
 
   function handleRedo() {
-    const entry = history.current;
+    const entry = history.current.byConcept[getState().concept];
+    if (!entry) return;
     const next = entry.future.shift();
     if (!next) return;
     entry.past.push(entry.current);
     entry.current = next;
-    applyHistorySnapshot(next);
+    applyContentSnapshot(next);
     setHistoryRevision((value) => value + 1);
   }
 
   function handleResetInitial() {
-    const entry = history.current;
+    const entry = history.current.byConcept[getState().concept];
     if (
+      !entry ||
       !entry.initial ||
       JSON.stringify(entry.current) === JSON.stringify(entry.initial)
     )
@@ -378,7 +402,7 @@ export default function TemplatePage() {
     entry.past.push(entry.current);
     entry.current = entry.initial;
     entry.future = [];
-    applyHistorySnapshot(entry.initial);
+    applyContentSnapshot(entry.initial);
     setActive(0);
     setHistoryRevision((value) => value + 1);
   }
@@ -386,12 +410,23 @@ export default function TemplatePage() {
   const buildRenderOpts = useCallback(
     (s, i) => {
       const rawLayout = s.card?.layout?.[i] || {};
-      // 저장은 템플릿별 키(`divider:t2`/`divider:t4`)로 하지만, 렌더러와 CanvasPreview 는
-      // 매거진 하위 템플릿을 모르고 평범한 `divider` 키만 본다 — 지금 템플릿 것만 골라 준다.
-      const layout =
-        s.concept === "magazine"
-          ? { ...rawLayout, divider: rawLayout[dividerKey(s)] }
-          : rawLayout;
+      // 저장은 템플릿별 키(`title:t2`처럼 objId 뒤에 템플릿 id)로 하지만, 렌더러와
+      // CanvasPreview 는 매거진 하위 템플릿을 모르고 평범한 objId 키만 본다 — 지금
+      // 템플릿 것만 골라 그 이름으로 바꿔 준다.
+      let layout = rawLayout;
+      if (s.concept === "magazine") {
+        const ids = [
+          ...objectsFor(s.concept, deck[i]?.kind, s.magazineTemplate).map(
+            (o) => o.id,
+          ),
+          ...(s.card?.extraTexts?.[i] || []).map((item) => `extra-${item.id}`),
+        ];
+        layout = {};
+        for (const id of ids) {
+          const value = rawLayout[magazineLayoutKey(s, id)];
+          if (value !== undefined) layout[id] = value;
+        }
+      }
       return {
         conceptId: s.concept,
         kind: deck[i]?.kind,
@@ -513,7 +548,17 @@ export default function TemplatePage() {
     const layout = (s.card.layout || deck.map(() => ({}))).map((items) => ({
       ...(items || {}),
     }));
-    if (layout[active]) delete layout[active][`extra-${id}`];
+    if (layout[active]) {
+      if (s.concept === "magazine") {
+        // 템플릿별로 나뉜 위치 오버라이드가 최대 4개(t1~t4)까지 있을 수 있다 —
+        // 지금 템플릿 것만 지우면 나머지 템플릿에 죽은 오버라이드가 남는다.
+        for (const tpl of MAGAZINE_TEMPLATES) {
+          delete layout[active][`extra-${id}:${tpl.id}`];
+        }
+      } else {
+        delete layout[active][`extra-${id}`];
+      }
+    }
     setState({ card: { ...s.card, extraTexts, layout } });
     if (selectedObj === `extra-${id}`) setSelectedObj(null);
   }
@@ -530,20 +575,20 @@ export default function TemplatePage() {
     const s = getState();
     const layout = deck.map((_, i) => ({ ...(s.card.layout?.[i] || {}) }));
     const obj = objects.find((o) => o.id === objId);
+    // 매거진형은 지금 서브 템플릿(t1~t4) 이름을 붙인 키로 저장한다 — 안 나누면 한
+    // 템플릿에서 고친 위치·크기가 나머지 템플릿에도 그대로 번진다(요청자 지적 2026-09-08).
+    const key = magazineLayoutKey(s, objId);
 
     // 선(구분선)은 상자(x,y,w,h)가 아니라 두 끝점(x1,y1,x2,y2)이라 아래의 상자 전용
     // 폴백·서체 기본값 로직을 타면 안 된다 — 값을 병합만 하고 그대로 저장한다.
-    // 저장 키는 지금 매거진 템플릿(t2/t4)별로 나눈다 — 안 나누면 한쪽에서 고친 선이
-    // 다른 템플릿에도 그대로 보인다(요청자 지적 2026-09-02).
     if (obj?.type === "line") {
-      const key = objId === "divider" ? dividerKey(s) : objId;
       const previous = layout[active][key] || {};
       layout[active] = { ...layout[active], [key]: { ...previous, ...box } };
       setState({ card: { ...s.card, layout } });
       return;
     }
 
-    const previous = layout[active][objId] || {};
+    const previous = layout[active][key] || {};
 
     let nextBox = { ...previous, ...box };
 
@@ -569,16 +614,17 @@ export default function TemplatePage() {
         footer: 500,
       };
       nextBox.fontSize =
-        lastSizes()[objId]?.size ||
+        lastSizes()[slotIdForObject(state.concept, deck[active].kind, objId)]?.size ||
         defaultSizes[objId] ||
         (objId.startsWith("extra-") ? 40 : 30);
       nextBox.fontWeight =
         Number(nextBox.fontWeight) ||
+        lastSizes()[slotIdForObject(state.concept, deck[active].kind, objId)]?.weight ||
         defaultWeights[objId] ||
         (objId.startsWith("extra-") ? 400 : 500);
     }
 
-    layout[active] = { ...layout[active], [objId]: nextBox };
+    layout[active] = { ...layout[active], [key]: nextBox };
     setState({ card: { ...s.card, layout } });
   }
 
@@ -591,7 +637,7 @@ export default function TemplatePage() {
   function handleToggleDivider() {
     const s = getState();
     const layout = deck.map((_, i) => ({ ...(s.card.layout?.[i] || {}) }));
-    const key = dividerKey(s);
+    const key = magazineLayoutKey(s, "divider");
     const hidden = Boolean(layout[active][key]?.hidden);
     if (hidden) {
       delete layout[active][key];
@@ -615,7 +661,7 @@ export default function TemplatePage() {
       setState({
         images: {
           ...getState().images,
-          [index]: { ...previous, source, at: Date.now() },
+          [index]: { ...previous, concept: s.concept, source, at: Date.now() },
         },
       });
       const img = await loadImage(blob).catch(() => null);
@@ -841,7 +887,7 @@ export default function TemplatePage() {
       <main className="min-h-dvh bg-[#1a1a1a] pb-[40px] text-[#4e5968]">
         <div className="w-full px-[clamp(20px,3.85vw,74px)]">
           <div className="flex min-h-[1050px] items-stretch rounded-[15px] bg-white/10 max-[860px]:min-h-0 max-[860px]:flex-col max-[860px]:overflow-clip">
-            <TextStepper steps={STEPS} activeIndex={2} />
+            <TextStepper steps={STEPS} activeIndex={1} />
             <div className="min-w-0 flex-1 px-[clamp(24px,calc((39/1920)*100vw),39px)] py-14">
               <header className="mb-6">
                 <p className="text-[25px] font-bold leading-[22.4px] text-white">
@@ -939,12 +985,18 @@ export default function TemplatePage() {
   const selectedLayoutObj = objects.find((o) => o.id === selectedObj) || null;
   const dividerObj = objects.find((o) => o.id === "divider") || null;
   const dividerHidden = Boolean(
-    state.card?.layout?.[active]?.[dividerKey(state)]?.hidden,
+    state.card?.layout?.[active]?.[magazineLayoutKey(state, "divider")]
+      ?.hidden,
   );
   const clippedLabels = [...new Set(clippedSlots)].map(
     (id) => slots.find((s) => s.id === id)?.label || id,
   );
-  const historyEntry = history.current;
+  const historyEntry = history.current.byConcept[state.concept] || {
+    past: [],
+    current: null,
+    future: [],
+    initial: null,
+  };
   const canUndo = historyRevision >= 0 && historyEntry.past.length > 0;
   const canRedo = historyEntry.future.length > 0;
   const canResetInitial = Boolean(
@@ -962,7 +1014,7 @@ export default function TemplatePage() {
     <main className="min-h-dvh bg-[#1a1a1a] pb-[40px] text-[#4e5968]">
       <div className="w-full px-[clamp(20px,3.85vw,74px)]">
         <div className="flex min-h-[1050px] items-stretch rounded-[15px] bg-white/10 max-[860px]:min-h-0 max-[860px]:flex-col max-[860px]:overflow-clip">
-          <TextStepper steps={STEPS} activeIndex={2} />
+          <TextStepper steps={STEPS} activeIndex={1} />
           <div className="min-w-0 flex-1 px-[clamp(24px,calc((39/1920)*100vw),39px)] py-14">
             <header className="mb-6">
               <p className="text-[25px] font-bold leading-[22.4px] text-white">
@@ -1191,14 +1243,22 @@ export default function TemplatePage() {
                   <LayoutPanel
                     objId={selectedObj}
                     label={selectedLayoutObj.label}
-                    saved={state.card?.layout?.[active]?.[selectedObj] || {}}
+                    saved={
+                      state.card?.layout?.[active]?.[
+                        magazineLayoutKey(state, selectedObj)
+                      ] || {}
+                    }
                     onChange={(next) => handleCommitLayout(selectedObj, next)}
                   />
                 )}
 
                 {selectedLayoutObj?.type === "line" && (
                   <DividerPanel
-                    saved={state.card?.layout?.[active]?.[dividerKey(state)] || {}}
+                    saved={
+                      state.card?.layout?.[active]?.[
+                        magazineLayoutKey(state, "divider")
+                      ] || {}
+                    }
                     onChange={(next) => handleCommitLayout(selectedObj, next)}
                   />
                 )}
@@ -1220,8 +1280,8 @@ export default function TemplatePage() {
                 <ImagePanel
                   label={IMAGE_ROLE[concept.id] || IMAGE_ROLE.magazine}
                   disabled={!usesImage(state.concept, card.kind)}
-                  hasImage={Boolean(state.images?.[active])}
-                  source={state.images?.[active]?.source || null}
+                  hasImage={state.images?.[active]?.concept === state.concept}
+                  source={state.images?.[active]?.concept === state.concept ? state.images[active].source : null}
                   prompt={buildPrompt(card, state.concept, {
                     index: active,
                     title: texts.title || card.title,
