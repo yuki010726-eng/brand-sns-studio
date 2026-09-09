@@ -19,9 +19,25 @@ import { getConcept, getCardTheme, getNoteInk } from "../../../lib/concepts.js";
 import { objectsFor, roleOf, slotIdForObject } from "../../../lib/templates.js";
 import { buildPrompt } from "../../../lib/imageprompt.js";
 import { buildAdPrompts } from "../../../lib/adprompt.js";
-import { getImage, putImage, deleteImage, imageKey } from "../../../lib/imagestore.js";
-import { loadImage, ensureFonts, lastBoxes, lastSizes, W, H } from "../../../lib/cardrender.js";
-import { reconcileCard, cloneTexts, imageCaptionFor } from "../../template/_lib/deckBuilder.js";
+import {
+  getImage,
+  putImage,
+  deleteImage,
+  imageKey,
+} from "../../../lib/imagestore.js";
+import {
+  loadImage,
+  ensureFonts,
+  lastBoxes,
+  lastSizes,
+  W,
+  H,
+} from "../../../lib/cardrender.js";
+import {
+  reconcileCard,
+  cloneTexts,
+  imageCaptionFor,
+} from "../../template/_lib/deckBuilder.js";
 import { getState, setState, subscribe } from "../../../store.js";
 import { toast } from "../../../components/toast.js";
 import { Icon } from "../Icon.jsx";
@@ -31,7 +47,13 @@ import { LayoutPanel } from "../../template/_components/LayoutPanel.jsx";
 import { ImagePanel } from "../../template/_components/ImagePanel.jsx";
 import { AdPromptPanel } from "../../template/_components/AdPromptPanel.jsx";
 
-export function CardEditModal({ product, cardIndex, deck, previewCard, onClose }) {
+export function CardEditModal({
+  product,
+  cardIndex,
+  deck,
+  previewCard,
+  onClose,
+}) {
   const router = useRouter();
   const [state, setViewState] = useState(getState());
   const [bitmap, setBitmap] = useState(null);
@@ -39,7 +61,8 @@ export function CardEditModal({ product, cardIndex, deck, previewCard, onClose }
   const [textSelection, setTextSelection] = useState(null);
   const dialogRef = useRef(null);
 
-  const open = cardIndex != null && Boolean(deck?.[cardIndex]) && Boolean(product);
+  const open =
+    cardIndex != null && Boolean(deck?.[cardIndex]) && Boolean(product);
 
   useEffect(() => subscribe(setViewState), []);
 
@@ -81,31 +104,81 @@ export function CardEditModal({ product, cardIndex, deck, previewCard, onClose }
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 이미지가 바뀐 카드만 다시 읽는다
-  }, [open, state.productId, state.concept, state.postId, cardIndex, state.images?.[cardIndex]]);
+  }, [
+    open,
+    state.productId,
+    state.concept,
+    state.postId,
+    cardIndex,
+    state.images?.[cardIndex],
+  ]);
 
   useEffect(() => {
     if (!open) return undefined;
     const previous = document.activeElement;
+    const scrollY = window.scrollY;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousBodyPosition = document.body.style.position;
+    const previousBodyTop = document.body.style.top;
+    const previousBodyWidth = document.body.style.width;
     const frame = requestAnimationFrame(() => dialogRef.current?.focus());
     const onKeyDown = (event) => event.key === "Escape" && onClose();
     document.addEventListener("keydown", onKeyDown);
+    document.documentElement.style.overflow = "hidden";
     document.body.style.overflow = "hidden";
+    document.body.style.position = "fixed";
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.width = "100%";
     return () => {
       cancelAnimationFrame(frame);
       document.removeEventListener("keydown", onKeyDown);
-      document.body.style.overflow = "";
+      document.documentElement.style.overflow = previousHtmlOverflow;
+      document.body.style.overflow = previousBodyOverflow;
+      document.body.style.position = previousBodyPosition;
+      document.body.style.top = previousBodyTop;
+      document.body.style.width = previousBodyWidth;
+      window.scrollTo(0, scrollY);
       previous?.focus?.();
     };
   }, [open, onClose]);
 
-  useEffect(() => { setSelectedObj(null); setTextSelection(null); }, [cardIndex]);
+  useEffect(() => {
+    setSelectedObj(null);
+    setTextSelection(null);
+  }, [cardIndex]);
 
   if (!open) return null;
 
   const concept = getConcept(state.concept);
   if (concept?.promptOnly) {
-    const item = buildAdPrompts({ product, topic: state.topic, deck, conceptId: state.adConcept })[cardIndex];
+    const item = buildAdPrompts({
+      product,
+      topic: state.topic,
+      deck,
+      conceptId: state.adConcept,
+      copyOverrides: state.adCopyOverrides,
+    })[cardIndex];
     if (!item) return null;
+    const changeAdCopy = (patch) => {
+      const current = getState();
+      const all = current.adCopyOverrides || {};
+      setState({
+        adCopyOverrides: {
+          ...all,
+          [cardIndex]: { ...all[cardIndex], ...patch },
+        },
+      });
+    };
+    const resetAdCopy = () => {
+      const current = getState();
+      const all = { ...(current.adCopyOverrides || {}) };
+      delete all[cardIndex];
+      setState({ adCopyOverrides: all });
+      toast("추천 문구로 되돌렸습니다.");
+    };
+    const regenerateAdPrompt = () =>
+      toast("수정한 문구로 이미지 프롬프트를 다시 만들었습니다.");
     const copyPrompt = async (promptItem) => {
       try {
         await navigator.clipboard.writeText(promptItem.prompt);
@@ -115,33 +188,96 @@ export function CardEditModal({ product, cardIndex, deck, previewCard, onClose }
       }
     };
     const uploadAdImage = async (file) => {
-      if (!file.type.startsWith("image/")) return toast("이미지 파일만 올릴 수 있습니다.");
+      if (!file.type.startsWith("image/"))
+        return toast("이미지 파일만 올릴 수 있습니다.");
       const current = getState();
-      await putImage(imageKey(current.productId, current.concept, cardIndex, current.postId), file);
-      setState({ images: { ...current.images, [cardIndex]: { concept: current.concept, source: "upload", at: Date.now() } } });
+      await putImage(
+        imageKey(current.productId, current.concept, cardIndex, current.postId),
+        file,
+      );
+      setState({
+        images: {
+          ...current.images,
+          [cardIndex]: {
+            concept: current.concept,
+            source: "upload",
+            at: Date.now(),
+          },
+        },
+      });
       toast(`${cardIndex + 1}번 광고 이미지를 올렸습니다.`);
     };
     return (
-      <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/60 px-4 py-8" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-        <section ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="card-edit-title" className="w-full max-w-[900px] overflow-hidden rounded-[15px] border border-[#e5e8eb] bg-white shadow-[0_24px_70px_rgba(0,0,0,0.25)] outline-none">
+      <div
+        className="fixed inset-0 z-50 grid place-items-center overflow-hidden bg-black/60 p-4"
+        onMouseDown={(event) =>
+          event.target === event.currentTarget && onClose()
+        }
+      >
+        <section
+          ref={dialogRef}
+          tabIndex={-1}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="card-edit-title"
+          className="flex max-h-[calc(100dvh-32px)] w-full max-w-[900px] flex-col overflow-hidden rounded-[15px] border border-[#e5e8eb] bg-white shadow-[0_24px_70px_rgba(0,0,0,0.25)] outline-none"
+        >
           <header className="flex items-center justify-between border-b border-[#e5e8eb] px-6 py-4">
-            <h2 id="card-edit-title" className="text-[17px] font-bold text-black">{cardIndex + 1}번 광고형 이미지 · {item.concept.name}</h2>
-            <button type="button" onClick={onClose} aria-label="닫기" className="grid size-9 place-items-center rounded-full text-[#8b95a1] transition hover:bg-[#f2f4f6] hover:text-[#333d4b]"><Icon name="close" className="size-5" /></button>
+            <h2
+              id="card-edit-title"
+              className="text-[17px] font-bold text-black"
+            >
+              {cardIndex + 1}번 광고형 이미지 · {item.concept.name}
+            </h2>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="닫기"
+              className="grid size-9 place-items-center rounded-full text-[#8b95a1] transition hover:bg-[#f2f4f6] hover:text-[#333d4b]"
+            >
+              <Icon name="close" className="size-5" />
+            </button>
           </header>
-          <div className="p-6"><AdPromptPanel item={item} tools={[{ name: "ChatGPT", url: "https://chatgpt.com/" }, { name: "Gemini", url: "https://gemini.google.com/app" }]} onCopy={copyPrompt} onUpload={uploadAdImage} /></div>
-          <footer className="flex justify-end border-t border-[#e5e8eb] px-6 py-4"><button type="button" onClick={onClose} className="inline-flex h-[42px] items-center justify-center rounded-full border border-[#287aff] bg-[#287aff] px-6 text-[14px] font-bold text-white">닫기</button></footer>
+          <div className="min-h-0 flex-1 overflow-y-auto p-6">
+            <AdPromptPanel
+              item={item}
+              tools={[
+                { name: "ChatGPT", url: "https://chatgpt.com/" },
+                { name: "Gemini", url: "https://gemini.google.com/app" },
+              ]}
+              onCopy={copyPrompt}
+              onUpload={uploadAdImage}
+              editable
+              onChange={changeAdCopy}
+              onRegenerate={regenerateAdPrompt}
+              onReset={resetAdCopy}
+            />
+          </div>
+          <footer className="flex justify-end border-t border-[#e5e8eb] px-6 py-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="inline-flex h-[42px] items-center justify-center rounded-full border border-[#287aff] bg-[#287aff] px-6 text-[14px] font-bold text-white"
+            >
+              닫기
+            </button>
+          </footer>
         </section>
       </div>
     );
   }
-  const cardReady = state.card && state.card.concept === state.concept && (
-    !previewCard || JSON.stringify(state.card) === JSON.stringify(previewCard)
-  );
+  const cardReady =
+    state.card &&
+    state.card.concept === state.concept &&
+    (!previewCard ||
+      JSON.stringify(state.card) === JSON.stringify(previewCard));
 
   if (!cardReady) {
     return (
       <div className="fixed inset-0 z-50 grid place-items-center bg-black/60">
-        <p className="text-[15px] font-medium text-white/80">카드를 불러오는 중입니다…</p>
+        <p className="text-[15px] font-medium text-white/80">
+          카드를 불러오는 중입니다…
+        </p>
       </div>
     );
   }
@@ -170,19 +306,42 @@ export function CardEditModal({ product, cardIndex, deck, previewCard, onClose }
   function handleEditText(objId, value) {
     const current = getState();
     const oldText = objId.startsWith("extra-")
-      ? current.card.extraTexts?.[cardIndex]?.find(item => String(item.id) === objId.slice(6))?.text || ""
-      : current.card.texts[cardIndex]?.[slotIdForObject(state.concept, card.kind, objId)] || "";
+      ? current.card.extraTexts?.[cardIndex]?.find(
+          (item) => String(item.id) === objId.slice(6),
+        )?.text || ""
+      : current.card.texts[cardIndex]?.[
+          slotIdForObject(state.concept, card.kind, objId)
+        ] || "";
     const saved = current.card.layout?.[cardIndex]?.[objId];
     if (oldText !== value && saved?.colorRanges?.length) {
       let start = 0;
-      while (start < oldText.length && start < value.length && oldText[start] === value[start]) start++;
-      let oldEnd = oldText.length, newEnd = value.length;
-      while (oldEnd > start && newEnd > start && oldText[oldEnd - 1] === value[newEnd - 1]) { oldEnd--; newEnd--; }
+      while (
+        start < oldText.length &&
+        start < value.length &&
+        oldText[start] === value[start]
+      )
+        start++;
+      let oldEnd = oldText.length,
+        newEnd = value.length;
+      while (
+        oldEnd > start &&
+        newEnd > start &&
+        oldText[oldEnd - 1] === value[newEnd - 1]
+      ) {
+        oldEnd--;
+        newEnd--;
+      }
       const delta = newEnd - oldEnd;
-      const colorRanges = saved.colorRanges.flatMap(range => {
+      const colorRanges = saved.colorRanges.flatMap((range) => {
         const parts = [];
-        if (range.start < start) parts.push({ ...range, end: Math.min(range.end, start) });
-        if (range.end > oldEnd) parts.push({ ...range, start: Math.max(range.start, oldEnd) + delta, end: range.end + delta });
+        if (range.start < start)
+          parts.push({ ...range, end: Math.min(range.end, start) });
+        if (range.end > oldEnd)
+          parts.push({
+            ...range,
+            start: Math.max(range.start, oldEnd) + delta,
+            end: range.end + delta,
+          });
         return parts;
       });
       handleCommitLayout(objId, { colorRanges });
@@ -190,11 +349,12 @@ export function CardEditModal({ product, cardIndex, deck, previewCard, onClose }
     if (objId.startsWith("extra-")) {
       const id = objId.slice("extra-".length);
       const s = getState();
-      const nextExtraTexts = (s.card.extraTexts || deck.map(() => [])).map((items) =>
-        Array.isArray(items) ? items.map((item) => ({ ...item })) : [],
+      const nextExtraTexts = (s.card.extraTexts || deck.map(() => [])).map(
+        (items) =>
+          Array.isArray(items) ? items.map((item) => ({ ...item })) : [],
       );
-      nextExtraTexts[cardIndex] = (nextExtraTexts[cardIndex] || []).map((item) =>
-        item.id === id ? { ...item, text: value } : item,
+      nextExtraTexts[cardIndex] = (nextExtraTexts[cardIndex] || []).map(
+        (item) => (item.id === id ? { ...item, text: value } : item),
       );
       setState({ card: { ...s.card, extraTexts: nextExtraTexts } });
       return;
@@ -209,13 +369,18 @@ export function CardEditModal({ product, cardIndex, deck, previewCard, onClose }
     const previous = layout[cardIndex][objId] || {};
     const drawn = lastBoxes()[objId];
     const nextBox = {
-      ...(drawn ? { x: drawn.x / W, y: drawn.y / H, w: drawn.w / W, h: drawn.h / H } : {}),
-      ...previous, ...box,
+      ...(drawn
+        ? { x: drawn.x / W, y: drawn.y / H, w: drawn.w / W, h: drawn.h / H }
+        : {}),
+      ...previous,
+      ...box,
     };
     if (obj?.type === "text" && !nextBox.fontSize) {
-      const measured = lastSizes()[slotIdForObject(state.concept, card.kind, objId)];
+      const measured =
+        lastSizes()[slotIdForObject(state.concept, card.kind, objId)];
       nextBox.fontSize = measured?.size || 40;
-      nextBox.fontWeight = Number(nextBox.fontWeight) || measured?.weight || 400;
+      nextBox.fontWeight =
+        Number(nextBox.fontWeight) || measured?.weight || 400;
     }
     layout[cardIndex] = { ...layout[cardIndex], [objId]: nextBox };
     setState({ card: { ...s.card, layout } });
@@ -229,8 +394,18 @@ export function CardEditModal({ product, cardIndex, deck, previewCard, onClose }
     const s = getState();
     const extraTexts = deck.map((_, i) => [...(s.card.extraTexts?.[i] || [])]);
     const id = crypto.randomUUID();
-    extraTexts[cardIndex].push({ id, text: "텍스트를 입력하세요", x: 0.1, y: 0.42, w: 0.8, h: 0.14,
-      fontSize: 40, fontWeight: 400, textAlign: "left", color: state.concept === "note" ? "#191F28" : "#FFFFFF" });
+    extraTexts[cardIndex].push({
+      id,
+      text: "텍스트를 입력하세요",
+      x: 0.1,
+      y: 0.42,
+      w: 0.8,
+      h: 0.14,
+      fontSize: 40,
+      fontWeight: 400,
+      textAlign: "left",
+      color: state.concept === "note" ? "#191F28" : "#FFFFFF",
+    });
     setState({ card: { ...s.card, extraTexts } });
     setSelectedObj(`extra-${id}`);
     setTextSelection(null);
@@ -253,9 +428,13 @@ export function CardEditModal({ product, cardIndex, deck, previewCard, onClose }
 
     const id = selectedObj.slice("extra-".length);
     const extraTexts = deck.map((_, index) =>
-      (s.card.extraTexts?.[index] || []).filter((item) => String(item.id) !== id),
+      (s.card.extraTexts?.[index] || []).filter(
+        (item) => String(item.id) !== id,
+      ),
     );
-    const layout = deck.map((_, index) => ({ ...(s.card.layout?.[index] || {}) }));
+    const layout = deck.map((_, index) => ({
+      ...(s.card.layout?.[index] || {}),
+    }));
     delete layout[cardIndex][selectedObj];
     setState({ card: { ...s.card, extraTexts, layout } });
     setSelectedObj(null);
@@ -264,26 +443,50 @@ export function CardEditModal({ product, cardIndex, deck, previewCard, onClose }
   }
 
   function applyTextColor() {
-    if (!textSelection || textSelection.objId !== selectedObj || textSelection.start === textSelection.end) return;
+    if (
+      !textSelection ||
+      textSelection.objId !== selectedObj ||
+      textSelection.start === textSelection.end
+    )
+      return;
     document.activeElement?.blur();
     handleEditText(selectedObj, textSelection.text);
     const saved = getState().card.layout?.[cardIndex]?.[selectedObj] || {};
-    const color = state.concept === "card" ? getCardTheme(state.cardTheme).hex
-      : state.concept === "note" ? getNoteInk(state.noteInk).hex : state.accent || "#B9F73E";
-    handleCommitLayout(selectedObj, { colorRanges: [...(saved.colorRanges || []), {
-      start: textSelection.start, end: textSelection.end, color,
-    }] });
+    const color =
+      state.concept === "card"
+        ? getCardTheme(state.cardTheme).hex
+        : state.concept === "note"
+          ? getNoteInk(state.noteInk).hex
+          : state.accent || "#B9F73E";
+    handleCommitLayout(selectedObj, {
+      colorRanges: [
+        ...(saved.colorRanges || []),
+        {
+          start: textSelection.start,
+          end: textSelection.end,
+          color,
+        },
+      ],
+    });
   }
 
   async function applyImage(blob, source) {
     const s = getState();
     if (blob) {
-      await putImage(imageKey(s.productId, s.concept, cardIndex, s.postId), blob);
+      await putImage(
+        imageKey(s.productId, s.concept, cardIndex, s.postId),
+        blob,
+      );
       const previous = getState().images[cardIndex] || {};
       setState({
         images: {
           ...getState().images,
-          [cardIndex]: { ...previous, concept: s.concept, source, at: Date.now() },
+          [cardIndex]: {
+            ...previous,
+            concept: s.concept,
+            source,
+            at: Date.now(),
+          },
         },
       });
       setBitmap(await loadImage(blob).catch(() => null));
@@ -344,7 +547,7 @@ export function CardEditModal({ product, cardIndex, deck, previewCard, onClose }
 
   return (
     <div
-      className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/60 px-4 py-8"
+      className="fixed inset-0 z-50 grid place-items-center overflow-hidden bg-black/60 p-4"
       onMouseDown={(event) => event.target === event.currentTarget && onClose()}
     >
       <section
@@ -353,7 +556,7 @@ export function CardEditModal({ product, cardIndex, deck, previewCard, onClose }
         role="dialog"
         aria-modal="true"
         aria-labelledby="card-edit-title"
-        className="w-full max-w-[900px] overflow-hidden rounded-[15px] border border-[#e5e8eb] bg-white shadow-[0_24px_70px_rgba(0,0,0,0.25)] outline-none"
+        className="flex max-h-[calc(100dvh-32px)] w-full max-w-[900px] flex-col overflow-hidden rounded-[15px] border border-[#e5e8eb] bg-white shadow-[0_24px_70px_rgba(0,0,0,0.25)] outline-none"
       >
         <header className="flex items-center justify-between border-b border-[#e5e8eb] px-6 py-4">
           <h2 id="card-edit-title" className="text-[17px] font-bold text-black">
@@ -369,7 +572,7 @@ export function CardEditModal({ product, cardIndex, deck, previewCard, onClose }
           </button>
         </header>
 
-        <div className="grid max-h-[calc(100dvh-168px)] grid-cols-[minmax(0,1fr)_280px] gap-7 overflow-y-auto p-6 max-[720px]:grid-cols-1">
+        <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_280px] gap-7 overflow-y-auto p-6 max-[720px]:grid-cols-1">
           <div>
             <CanvasPreview
               texts={texts}
@@ -383,8 +586,8 @@ export function CardEditModal({ product, cardIndex, deck, previewCard, onClose }
               onTextSelection={setTextSelection}
             />
             <p className="mt-3 text-[13px] leading-[1.5] text-[#8b95a1]">
-              글자 상자를 더블클릭하면 그 자리에서 바로 고칠 수 있어요. 위치·크기는
-              드래그하거나 선택 후 방향키로 옮기세요.
+              글자 상자를 더블클릭하면 그 자리에서 바로 고칠 수 있어요.
+              위치·크기는 드래그하거나 선택 후 방향키로 옮기세요.
             </p>
           </div>
 
@@ -403,11 +606,15 @@ export function CardEditModal({ product, cardIndex, deck, previewCard, onClose }
               onChange={handleStyleChange}
             >
               <div className="flex gap-2">
-                <button type="button" onClick={handleAddTextBox}
-                  className="min-w-0 flex-1 rounded-lg border border-[#287aff] px-3 py-2 text-sm font-bold text-[#287aff]">
+                <button
+                  type="button"
+                  onClick={handleAddTextBox}
+                  className="min-w-0 flex-1 rounded-lg border border-[#287aff] px-3 py-2 text-sm font-bold text-[#287aff]"
+                >
                   + 텍스트 상자 추가
                 </button>
-                {objects.find((object) => object.id === selectedObj)?.type === "text" && (
+                {objects.find((object) => object.id === selectedObj)?.type ===
+                  "text" && (
                   <button
                     type="button"
                     onClick={handleDeleteTextBox}
@@ -419,19 +626,37 @@ export function CardEditModal({ product, cardIndex, deck, previewCard, onClose }
                   </button>
                 )}
               </div>
-              {objects.find(o => o.id === selectedObj)?.type === "text" && (
+              {objects.find((o) => o.id === selectedObj)?.type === "text" && (
                 <>
-                  <LayoutPanel key={selectedObj} objId={selectedObj}
-                    measured={lastSizes()[slotIdForObject(state.concept, card.kind, selectedObj)]}
-                    label={objects.find(o => o.id === selectedObj)?.label}
+                  <LayoutPanel
+                    key={selectedObj}
+                    objId={selectedObj}
+                    measured={
+                      lastSizes()[
+                        slotIdForObject(state.concept, card.kind, selectedObj)
+                      ]
+                    }
+                    label={objects.find((o) => o.id === selectedObj)?.label}
                     saved={state.card.layout?.[cardIndex]?.[selectedObj] || {}}
-                    onChange={patch => handleCommitLayout(selectedObj, patch)} />
-                  <button type="button" onMouseDown={e => e.preventDefault()} onClick={applyTextColor}
-                    disabled={!textSelection || textSelection.objId !== selectedObj || textSelection.start === textSelection.end}
-                    className="w-full rounded-lg bg-[#287aff] px-3 py-2 text-sm font-bold text-white disabled:opacity-40">
+                    onChange={(patch) => handleCommitLayout(selectedObj, patch)}
+                  />
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={applyTextColor}
+                    disabled={
+                      !textSelection ||
+                      textSelection.objId !== selectedObj ||
+                      textSelection.start === textSelection.end
+                    }
+                    className="w-full rounded-lg bg-[#287aff] px-3 py-2 text-sm font-bold text-white disabled:opacity-40"
+                  >
                     선택한 글자에 색상 적용
                   </button>
-                  <p className="text-xs text-[#5f6b7a]">상자를 더블클릭하고 글자를 드래그한 뒤, 아래에서 색상을 골라 적용하세요.</p>
+                  <p className="text-xs text-[#5f6b7a]">
+                    상자를 더블클릭하고 글자를 드래그한 뒤, 아래에서 색상을 골라
+                    적용하세요.
+                  </p>
                 </>
               )}
             </StylePanel>
@@ -447,6 +672,7 @@ export function CardEditModal({ product, cardIndex, deck, previewCard, onClose }
                 subject: imageCaptionFor(state, cardIndex),
               })}
               cardIndex={cardIndex}
+              recommendChatGPT={state.concept === "note"}
               onUpload={handleUpload}
               onDelete={handleDeleteImage}
               onCopy={handleCopyPrompt}
@@ -454,8 +680,8 @@ export function CardEditModal({ product, cardIndex, deck, previewCard, onClose }
           </div>
         </div>
 
-        <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-[#e5e8eb] px-6 py-4">
-          <button
+        <footer className="flex flex-wrap items-center justify-end gap-3 border-t border-[#e5e8eb] px-6 py-4">
+          {/* <button
             type="button"
             onClick={() => {
               onClose();
@@ -464,7 +690,7 @@ export function CardEditModal({ product, cardIndex, deck, previewCard, onClose }
             className="text-[13px] font-bold text-[#5f6b7a] underline decoration-[#c4c9cf] underline-offset-4 transition hover:text-[#287aff]"
           >
             카드뉴스 제작 단계에서 전체 편집하기
-          </button>
+          </button> */}
           <button
             type="button"
             onClick={onClose}

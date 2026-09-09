@@ -37,3 +37,5 @@ lib/apikeys.local.js
 .naver-profile/
 
 .next/
+
+dev-restart.log

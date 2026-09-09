@@ -254,7 +254,6 @@ export default function CopyPage() {
   const expandInitialized = useRef(false);
   // 「1. 상품을 선택해주세요」 카드의 접힘/펼침 — 조건 패널이 펼쳐져 있는 동안에만
   // 의미가 있고, 기본은 펼친 채로 시작한다(기존 화면과 동일).
-  const [productExpanded, setProductExpanded] = useState(true);
   // 「게시물 생성하기」를 눌러 조건 요약 바가 접히는 순간, 그 접힌 바 맨 위로
   // 화면을 이동시킨다 — 아래 `expanded` 감시 effect 가 이 ref 를 스크롤 대상으로 쓴다.
   const summaryTopRef = useRef(null);
@@ -966,6 +965,13 @@ export default function CopyPage() {
     toast(`${getConcept(conceptId).name} 템플릿으로 골랐습니다.`);
   }
 
+  function selectChannel(channelId) {
+    setActiveId(channelId);
+    if (channelId === "blog" && getState().concept !== "magazine") {
+      setState({ concept: "magazine" });
+    }
+  }
+
   function selectInstagramFormat(instagramFormat) {
     const current = getState();
     const entry = matchingRuns[activeRun];
@@ -1036,8 +1042,7 @@ export default function CopyPage() {
                     products={products}
                     selectedId={state.productId}
                     onSelect={selectProduct}
-                    expanded={productExpanded}
-                    onToggle={() => setProductExpanded((current) => !current)}
+                    onProceed={startGeneration}
                   />
                   <TopicSection
                     product={product}
@@ -1111,7 +1116,7 @@ export default function CopyPage() {
                         <ChannelTabs
                           channels={channels}
                           activeId={activeId}
-                          onSelect={setActiveId}
+                          onSelect={selectChannel}
                         />
                         <div className="flex min-w-[310px] flex-col items-end gap-3 max-[640px]:w-full max-[640px]:items-stretch">
                           <div className="flex flex-wrap justify-end gap-2.5">
@@ -1160,8 +1165,10 @@ export default function CopyPage() {
                             {activeId === "instagram" && (
                               <InstagramFormatSelector
                                 value={state.instagramFormat || "simple"}
+                                conceptValue={state.concept}
                                 disabled={busy}
                                 onChange={selectInstagramFormat}
+                                onConceptChange={selectConcept}
                               />
                             )}
                             {activeId === "blog" && (

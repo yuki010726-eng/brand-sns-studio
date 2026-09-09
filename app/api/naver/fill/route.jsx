@@ -121,13 +121,21 @@ export async function POST(request) {
   const pickedTitle = typeof body?.title === "string" ? body.title.trim() : "";
   const title = pickedTitle || titleFromDraft(rawDraft) || "(제목 없음)";
 
+  // ⚠️ 성공하면 사람이 눈으로 확인할 때까지 브라우저를 열어 둔다(의도적, 파일 머리말 참고).
+  //    하지만 실패하면 반드시 닫는다 — 안 닫으면 그 창이 `.naver-profile/`를 계속 잠가서
+  //    다음 시도가 브라우저를 열지도 못하고 곧바로(1초 안팎) 또 500으로 떨어진다
+  //    (`scripts/naver-fill-test.mjs`의 finally 와 같은 이유로 겪은 실제 버그, 2026-09-09).
+  let context;
   try {
-    const { page } = await openBrowser();
+    const opened = await openBrowser();
+    context = opened.context;
+    const { page } = opened;
     const frame = await openWritePage(page, blogId);
     await fillTitle(page, frame, title);
     await fillBody(page, frame, rawDraft, images, imageLayout);
     return Response.json({ ok: true, title });
   } catch (error) {
+    if (context) await context.close().catch(() => {});
     return fail(500, error?.message || "네이버 글쓰기 화면을 채우지 못했습니다.");
   }
 }

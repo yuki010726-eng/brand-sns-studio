@@ -26,6 +26,7 @@ export function ImagePanel({
   source,
   prompt,
   cardIndex,
+  recommendChatGPT = false,
   onUpload,
   onDelete,
   onCopy,
@@ -37,7 +38,9 @@ export function ImagePanel({
     return (
       <div>
         <h3 className="text-[15px] font-bold text-black">{label}</h3>
-        <p className="mt-1.5 text-[13px] text-[#5f6b7a]">이 카드는 단색 배경으로 고정입니다 — 이미지를 쓰지 않습니다.</p>
+        <p className="mt-1.5 text-[13px] text-[#5f6b7a]">
+          이 카드는 단색 배경으로 고정입니다 — 이미지를 쓰지 않습니다.
+        </p>
       </div>
     );
   }
@@ -60,7 +63,11 @@ export function ImagePanel({
         </span>
         <span className="flex shrink-0 items-center gap-2">
           <span className="inline-flex items-center whitespace-nowrap rounded-full bg-[#f2f4f6] px-[11px] py-[3px] text-[12px] font-bold text-[#5f6b7a]">
-            {hasImage ? (source === "upload" ? "업로드됨" : "생성됨") : "선택 사항"}
+            {hasImage
+              ? source === "upload"
+                ? "업로드됨"
+                : "생성됨"
+              : "선택 사항"}
           </span>
           <Icon
             name="chevronRight"
@@ -71,22 +78,20 @@ export function ImagePanel({
 
       {open && (
         <div className="mt-4 space-y-3">
-          <h4 className="text-[15px] font-bold text-[#333d4b]">이미지 프롬프트</h4>
-
-          <div className="rounded-[8px] bg-[#f2f4f6] px-3 py-2.5">
-            <p className="whitespace-pre-wrap text-[12px] leading-[1.6] text-[#5f6b7a]">{prompt}</p>
-          </div>
-
-          <p className="text-[15px] font-bold text-[#333d4b]">
-            프롬프트를 복사해 원하는 이미지 생성 도구에서 만든 뒤, 「파일 올리기」로 넣으세요.
+          <h4 className="text-[15px] font-bold text-[#333d4b]">
+            이미지 프롬프트
+          </h4>
+          <p className="text-[12px] leading-[1.5] text-[#8b95a1]">
+            프롬프트를 복사해 원하는 이미지 생성 도구에서 만든 뒤, 「파일
+            올리기」로 넣으세요.
           </p>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={onCopy}
               aria-label={`${n}번 카드 프롬프트 복사하기`}
-              className="inline-flex items-center gap-[5px] rounded-full border border-[#e5e8eb] bg-white px-[19px] py-[11px] text-[15px] font-bold text-[#5f6b7a] shadow-[0_0_2px_rgba(0,30,78,0.07)] transition hover:bg-[#f7f8fa]"
+              className="inline-flex items-center gap-[5px] rounded-full border border-[#e5e8eb] bg-white px-4 py-2.5 text-[13px] font-bold text-[#5f6b7a] shadow-[0_0_2px_rgba(0,30,78,0.07)] transition hover:bg-[#f7f8fa]"
             >
               <Icon name="copy" className="size-[18px]" />
               프롬프트 복사
@@ -99,14 +104,19 @@ export function ImagePanel({
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label={`${t.name} 를 새 탭에서 열기`}
-                className="inline-flex items-center gap-1.5 text-[14px] font-bold text-[#333d4b] transition hover:text-[#287aff]"
+                className="relative inline-flex items-center gap-1.5 rounded-full border border-[#e5e8eb] bg-white px-4 py-2.5 text-[13px] font-bold text-[#5f6b7a] shadow-[0_0_2px_rgba(0,30,78,0.07)] transition hover:border-[#bfdbfe] hover:text-[#287aff]"
               >
                 <Icon name="external" className="size-[15px]" />
                 {t.name}
+                {recommendChatGPT && t.name === "ChatGPT" && (
+                  <span className="absolute -right-2 -top-2 rounded-full bg-[#ff6b35] px-1.5 py-0.5 text-[9px] font-bold leading-none text-white shadow-sm">
+                    추천
+                  </span>
+                )}
               </a>
             ))}
 
-            <label className="inline-flex cursor-pointer items-center gap-[5px] rounded-full border border-[#287aff] bg-[#287aff] px-[19px] py-[11px] text-[15px] font-bold text-white shadow-[0_0_2px_rgba(0,30,78,0.07)] transition hover:border-[#1b64da] hover:bg-[#1b64da]">
+            <label className="inline-flex cursor-pointer items-center gap-[5px] rounded-full border border-[#287aff] bg-[#287aff] px-4 py-2.5 text-[13px] font-bold text-white shadow-[0_0_2px_rgba(0,30,78,0.07)] transition hover:border-[#1b64da] hover:bg-[#1b64da]">
               <Icon name="image" className="size-[18px]" />
               파일 올리기
               <input
@@ -134,6 +144,11 @@ export function ImagePanel({
                 지우기
               </button>
             )}
+          </div>
+          <div className="rounded-[8px] bg-[#f2f4f6] px-3 py-2.5">
+            <p className="whitespace-pre-wrap text-[12px] leading-[1.6] text-[#5f6b7a]">
+              {prompt}
+            </p>
           </div>
         </div>
       )}

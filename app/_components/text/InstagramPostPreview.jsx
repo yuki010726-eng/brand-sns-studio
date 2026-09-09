@@ -42,6 +42,7 @@ export function InstagramPostPreview({
   cardCount = 1,
   deck = [],
   cardThumbs = {},
+  concept,
   onEditCard,
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -83,6 +84,7 @@ export function InstagramPostPreview({
   const slides = deck.length || Math.max(1, Number(cardCount) || 1);
   const activeSlide = Math.min(slide, slides - 1);
   const thumb = cardThumbs[activeSlide];
+  const isAd = concept === "intuitive";
 
   return (
     <div>
@@ -109,23 +111,30 @@ export function InstagramPostPreview({
           <Icon name="more-horizontal" className="size-5 text-[#191f28]" />
         </div>
 
-        <div className="relative aspect-[4/5] bg-[#f2f4f6]">
-          {thumb ? (
+        <div className={`group/carousel relative bg-[#f2f4f6] ${isAd ? "aspect-square" : "aspect-[4/5]"}`}>
+          {thumb || isAd ? (
             <button
               type="button"
               onClick={() => onEditCard?.(activeSlide)}
-              aria-label={`카드뉴스 ${activeSlide + 1}번 편집하기`}
+              aria-label={isAd ? `${activeSlide + 1}번 광고 이미지 프롬프트 보기` : `카드뉴스 ${activeSlide + 1}번 편집하기`}
               className="group/thumb absolute inset-0 block size-full focus-visible:outline focus-visible:outline-offset-[-3px] focus-visible:outline-[#287aff]"
             >
-              {/* eslint-disable-next-line @next/next/no-img-element -- 캔버스로 그린 data URL */}
-              <img
-                src={thumb}
-                alt={`카드뉴스 ${activeSlide + 1}번 미리보기`}
-                className="block size-full object-cover"
-              />
+              {thumb ? (
+                // eslint-disable-next-line @next/next/no-img-element -- 캔버스로 그린 data URL
+                <img
+                  src={thumb}
+                  alt={`${isAd ? "광고 이미지" : "카드뉴스"} ${activeSlide + 1}번 미리보기`}
+                  className="block size-full object-cover"
+                />
+              ) : (
+                <span className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-[#8b95a1]">
+                  <Icon name="image" className="size-9" />
+                  <span className="text-[13px]">광고 이미지 자리</span>
+                </span>
+              )}
               <span className="pointer-events-none absolute inset-0 flex items-center justify-center gap-1.5 bg-black/0 text-[13px] font-bold text-white opacity-0 transition group-hover/thumb:bg-black/40 group-hover/thumb:opacity-100 group-focus-visible/thumb:bg-black/40 group-focus-visible/thumb:opacity-100">
                 <Icon name="edit" className="size-4" />
-                카드 편집
+                {isAd ? "광고 프롬프트 보기" : "카드 편집"}
               </span>
             </button>
           ) : (
@@ -138,6 +147,26 @@ export function InstagramPostPreview({
           )}
           {slides > 1 && (
             <>
+              {activeSlide > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSlide((current) => Math.max(0, current - 1))}
+                  aria-label="이전 카드 보기"
+                  className="absolute left-2 top-1/2 z-10 flex size-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/55 text-white opacity-0 transition hover:bg-black/75 focus-visible:opacity-100 group-hover/carousel:opacity-100"
+                >
+                  <Icon name="chevronLeft" className="size-5" />
+                </button>
+              )}
+              {activeSlide < slides - 1 && (
+                <button
+                  type="button"
+                  onClick={() => setSlide((current) => Math.min(slides - 1, current + 1))}
+                  aria-label="다음 카드 보기"
+                  className="absolute right-2 top-1/2 z-10 flex size-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/55 text-white opacity-0 transition hover:bg-black/75 focus-visible:opacity-100 group-hover/carousel:opacity-100"
+                >
+                  <Icon name="chevronRight" className="size-5" />
+                </button>
+              )}
               <span className="pointer-events-none absolute right-2.5 top-2.5 rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-semibold text-white">
                 {activeSlide + 1}/{slides}
               </span>

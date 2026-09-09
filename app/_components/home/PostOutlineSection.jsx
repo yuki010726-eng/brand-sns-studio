@@ -80,7 +80,6 @@ export function PostOutlineSection({ product, state, expanded, onToggle }) {
   const outline = state.contentOutline;
   const [suggestedTitles, setSuggestedTitles] = useState([]);
   const [titlesLoading, setTitlesLoading] = useState(false);
-  const [titleError, setTitleError] = useState("");
   const [dragIndex, setDragIndex] = useState(null);
   const [dragPreview, setDragPreview] = useState(null);
   const dragIndexRef = useRef(null);
@@ -110,14 +109,12 @@ export function PostOutlineSection({ product, state, expanded, onToggle }) {
     if (generatedTitles?.length) {
       setSuggestedTitles(generatedTitles);
       setTitlesLoading(false);
-      setTitleError("");
       return;
     }
     const controller = new AbortController();
     const fallback = titleSuggestions(state, product);
     setSuggestedTitles([]);
     setTitlesLoading(true);
-    setTitleError("");
     getTitleSuggestions(product, state, { signal: controller.signal })
       .then((titles) => {
         setSuggestedTitles(titles);
@@ -137,7 +134,6 @@ export function PostOutlineSection({ product, state, expanded, onToggle }) {
           error,
         );
         setSuggestedTitles(fallback);
-        setTitleError("AI 제목을 불러오지 못해 임시 제목을 표시했습니다.");
       })
       .finally(() => {
         if (!controller.signal.aborted) setTitlesLoading(false);
@@ -287,11 +283,6 @@ export function PostOutlineSection({ product, state, expanded, onToggle }) {
                     );
                   })}
                 </div>
-                {titleError && (
-                  <p className="mt-2 text-xs leading-relaxed text-[#e5484d]">
-                    {titleError}
-                  </p>
-                )}
                 <p className="mt-2 text-xs leading-relaxed text-[#8b95a1]">
                   선택한 제목과 주제를 바탕으로 카드뉴스 표지 문구를 만듭니다.
                 </p>

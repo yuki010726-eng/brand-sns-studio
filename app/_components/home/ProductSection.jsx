@@ -8,7 +8,7 @@ export function ProductSection({
   selectedId,
   onSelect,
   expanded = true,
-  onToggle,
+  onProceed,
 }) {
   const product = products.find((item) => item.id === selectedId) || null;
   return (
@@ -23,18 +23,17 @@ export function ProductSection({
         <p className="text-[15px] text-[#8e8e8e]">
           기준 정보는 사내 브랜드 자료(2026-07-23 기준)를 따릅니다.
         </p>
-        {onToggle && (
+        {onProceed && (
           <button
             type="button"
-            onClick={onToggle}
-            aria-expanded={expanded}
+            onClick={onProceed}
             className="ml-auto inline-flex h-[38px] shrink-0 items-center gap-[5px] rounded-full border border-white/20 bg-white/10 px-4 text-[14px] font-medium text-white transition hover:bg-white/20"
           >
             <Icon
               name="chevronDown"
               className={`size-4 transition-transform ${expanded ? "rotate-180" : ""}`}
             />
-            {expanded ? "접기" : "펼치기"}
+            접기
           </button>
         )}
       </div>

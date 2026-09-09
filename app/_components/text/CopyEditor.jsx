@@ -505,8 +505,9 @@ export function CopyEditor({
                     value={value}
                     handle={instagramHandle}
                     cardCount={cardCount}
-                    deck={deck}
+                    deck={state?.concept === "magazine" ? deck.slice(0, 1) : deck}
                     cardThumbs={cardThumbs}
+                    concept={state?.concept}
                     onEditCard={setEditIndex}
                   />
                 </div>

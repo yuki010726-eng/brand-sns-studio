@@ -472,6 +472,24 @@ export default function TemplatePage() {
     copyText(item.prompt, "프롬프트를 복사했습니다.");
   }
 
+  function handleAdCopyChange(index, patch) {
+    const s = getState();
+    const all = s.adCopyOverrides || {};
+    setState({ adCopyOverrides: { ...all, [index]: { ...all[index], ...patch } } });
+  }
+
+  function handleAdCopyReset(index) {
+    const s = getState();
+    const next = { ...(s.adCopyOverrides || {}) };
+    delete next[index];
+    setState({ adCopyOverrides: next });
+    toast("추천 문구로 되돌렸습니다.");
+  }
+
+  function handleAdPromptRegenerate() {
+    toast("수정한 문구로 이미지 프롬프트를 다시 만들었습니다.");
+  }
+
   function handleFieldChange(slotId, value) {
     const s = getState();
     const texts = cloneTexts(s.card.texts);
@@ -881,6 +899,7 @@ export default function TemplatePage() {
       topic: state.topic.trim(),
       deck,
       conceptId: adConceptId,
+      copyOverrides: state.adCopyOverrides,
     });
 
     return (
@@ -944,7 +963,7 @@ export default function TemplatePage() {
                           이미지 {item.n} · {item.concept.name}
                         </p>
                       )}
-                      <AdPromptPanel item={item} tools={AD_TOOLS} onCopy={handleCopyAdPrompt} />
+                      <AdPromptPanel item={item} tools={AD_TOOLS} onCopy={handleCopyAdPrompt} editable onChange={(patch) => handleAdCopyChange(item.n - 1, patch)} onRegenerate={handleAdPromptRegenerate} onReset={() => handleAdCopyReset(item.n - 1)} />
                     </div>
                   ))}
                 </div>

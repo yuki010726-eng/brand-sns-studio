@@ -65,6 +65,8 @@ const INITIAL = {
    * 비어 있으면 톤이 컨셉을 정한다 (`adConceptForTone`, `lib/adprompt.js`).
    */
   adConceptTone: "",
+  // 광고형 배너별로 사용자가 고친 말풍선·CTA 등의 문구. 원본 추천 문구는 lib/adprompt.js에서 유지한다.
+  adCopyOverrides: {},
   drafts: {},
   generated: {},
   variants: {}, // 채널별 재생성 횟수 — 누를 때마다 다른 후킹·근거 조합이 나온다
