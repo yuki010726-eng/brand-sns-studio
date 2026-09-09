@@ -66,6 +66,7 @@ export function CanvasPreview({
   // turn interrupts a contentEditable element (and is unnecessarily costly).
   const editingValueRef = useRef("");
   const editingInitialValueRef = useRef("");
+  const editorRef = useRef(null);
   const [previewScale, setPreviewScale] = useState(1);
 
   // The canvas is always drawn at 1080px wide but displayed responsively.
@@ -84,14 +85,20 @@ export function CanvasPreview({
     (renderOpts, renderTexts = texts) => {
       const canvas = canvasRef.current;
       if (!canvas) return;
-      renderCard(canvas, renderTexts, { ...renderOpts, suppressText: Boolean(onEditText) });
+      // DOM contentEditable과 캔버스 원본이 겹치지 않도록, 편집 중인 문구만
+      // 캔버스에서 뺀다. 같은 상자에 함께 있는 매거진 강조 문구는 그대로 남긴다.
+      const editingText = editingObj ? valueForObject(editingObj) : "";
+      renderCard(canvas, renderTexts, {
+        ...renderOpts,
+        suppressTextValues: editingText ? [editingText] : [],
+      });
       canvas.setAttribute("aria-label", cardAlt(renderTexts, cardIndex));
       onClipped?.(lastClipped());
       sizesRef.current = lastSizes();
       setBoxes(lastBoxes());
       setLines(lastLines());
     },
-    [texts, cardIndex, onClipped],
+    [texts, cardIndex, onClipped, editingObj, opts],
   );
 
   // 문구 편집 등 일반 변경 — 120ms 모아서 그린다. 드래그 중에는 rAF 경로가 대신 그린다.
@@ -135,6 +142,39 @@ export function CanvasPreview({
     return () => document.removeEventListener("pointerdown", onDocDown);
   }, [onSelectObj, selectedObj, idle]);
 
+  // A contentEditable does not expose selectionStart/selectionEnd like an
+  // input. Translate the browser selection into character offsets so callers
+  // can apply a style to exactly the highlighted range.
+  useEffect(() => {
+    if (!editingObj || !onTextSelection) return undefined;
+
+    function offsetInEditor(root, node, offset) {
+      const range = document.createRange();
+      range.selectNodeContents(root);
+      range.setEnd(node, offset);
+      return range.toString().length;
+    }
+
+    function reportSelection() {
+      const root = editorRef.current;
+      const selection = window.getSelection();
+      if (!root || !selection?.rangeCount) return;
+      const range = selection.getRangeAt(0);
+      if (!root.contains(range.startContainer) || !root.contains(range.endContainer)) return;
+      const start = offsetInEditor(root, range.startContainer, range.startOffset);
+      const end = offsetInEditor(root, range.endContainer, range.endOffset);
+      onTextSelection({
+        objId: editingObj,
+        start: Math.min(start, end),
+        end: Math.max(start, end),
+        text: editingValueRef.current,
+      });
+    }
+
+    document.addEventListener("selectionchange", reportSelection);
+    return () => document.removeEventListener("selectionchange", reportSelection);
+  }, [editingObj, onTextSelection]);
+
   function selectObj(objId) {
     onSelectObj?.(objId);
     setFlashObj(objId);
@@ -167,10 +207,12 @@ export function CanvasPreview({
     if (!editingObj) return;
     const value = editingValueRef.current;
     if (value !== editingInitialValueRef.current) onEditText?.(editingObj, value);
+    onTextSelection?.(null);
     setEditingObj(null);
   }
 
   function cancelEdit() {
+    onTextSelection?.(null);
     setEditingObj(null);
   }
 
@@ -438,7 +480,9 @@ export function CanvasPreview({
               // modal on that same face as well, rather than switching to a
               // concept-specific display font only while editing.
               fontFamily: "'Noto Sans KR', sans-serif",
-              color: opts.conceptId === "card" ? "#FFFFFF" : "#191F28",
+              // 카드·매거진은 어두운 배경 위의 흰 글자, 노트만 검은 잉크가 기본이다.
+              // 사용자가 따로 지정한 색상은 그 값을 우선한다.
+              color: savedTextStyle.color || (opts.conceptId === "note" ? "#191F28" : "#FFFFFF"),
             };
             return (
               <div
@@ -468,7 +512,10 @@ export function CanvasPreview({
               >
                 {isEditing ? (
                   <div
-                    ref={(node) => node?.focus()}
+                    ref={(node) => {
+                      editorRef.current = node;
+                      node?.focus();
+                    }}
                     contentEditable
                     suppressContentEditableWarning
                     role="textbox"
@@ -477,6 +524,7 @@ export function CanvasPreview({
                     onInput={(e) => {
                       const value = e.currentTarget.innerText.replace(/\n$/, "");
                       editingValueRef.current = value;
+                      onTextSelection?.(null);
                     }}
                     onBlur={commitEdit}
                     onPointerDown={(e) => e.stopPropagation()}
@@ -497,15 +545,6 @@ export function CanvasPreview({
                   </div>
                 ) : (
                   <>
-                    {editable && (
-                      <div
-                        aria-hidden="true"
-                        style={editorStyle}
-                        className="pointer-events-none size-full overflow-hidden whitespace-pre-wrap break-words leading-[1.35]"
-                      >
-                        {valueForObject(o.id)}
-                      </div>
-                    )}
                     <span
                       className={`pointer-events-none absolute -top-[22px] left-0 whitespace-nowrap rounded-full bg-[#1b64da] px-2 py-0.5 text-[11px] font-bold text-white transition-opacity duration-500 ${o.id === flashObj ? "opacity-100" : "opacity-0"}`}
                     >

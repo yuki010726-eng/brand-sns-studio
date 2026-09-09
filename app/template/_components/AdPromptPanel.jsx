@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { Icon } from "../../_components/Icon.jsx";
 
 /**
@@ -9,7 +10,8 @@ import { Icon } from "../../_components/Icon.jsx";
  * 에서 배너 한 장으로 바뀌어 `buildAdPrompts()` 는 이제 항상 길이 1인 배열을
  * 돌려준다 — 목록도, 번호도, 접었다 펴는 토글도 필요 없다.
  */
-export function AdPromptPanel({ item, tools, onCopy }) {
+export function AdPromptPanel({ item, tools, onCopy, onUpload }) {
+  const uploadRef = useRef(null);
   const c = item.copy;
   const headline = [c.line1, c.line2].filter(Boolean).join(" ");
   const rows = [
@@ -47,6 +49,10 @@ export function AdPromptPanel({ item, tools, onCopy }) {
             <Icon name="copy" className="size-4" />
             복사
           </button>
+          {onUpload && <>
+            <input ref={uploadRef} type="file" accept="image/*" className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; if (file) onUpload(file); event.target.value = ""; }} />
+            <button type="button" onClick={() => uploadRef.current?.click()} className="inline-flex items-center gap-1.5 rounded-full border border-[#e5e8eb] bg-white px-3 py-1.5 text-[13px] font-bold text-[#5f6b7a] transition hover:bg-[#f7f8fa]"><Icon name="image" className="size-4" />파일 올리기</button>
+          </>}
         </div>
       </div>
 

@@ -5,10 +5,7 @@ import { CHANNELS } from "../../data/channels.js";
 import { derivePosts, generateWithAI } from "../../lib/copyai.js";
 import { reviewCompliance } from "../../lib/compliance.js";
 import { analyzeCustomBlogStyle } from "./_lib/customBlogStyle.js";
-import {
-  copyChatContextKey,
-  getMemorySummary,
-} from "../../lib/copymemory.js";
+import { copyChatContextKey, getMemorySummary } from "../../lib/copymemory.js";
 import { getConcept } from "../../lib/concepts.js";
 import { coreWithOutline, outlineKeyOf } from "../../lib/outline.js";
 import { reportMissingData } from "../../lib/missingdata.js";
@@ -46,7 +43,7 @@ import {
   TONES,
   TopicSection,
 } from "../_components/home/TopicSection.jsx";
-import { TemplateSection } from "../_components/home/TemplateSection.jsx";
+// import { TemplateSection } from "../_components/home/TemplateSection.jsx";
 import { AiRunSelector } from "../_components/text/AiRunSelector.jsx";
 import { BlogConceptSelector } from "../_components/text/BlogConceptSelector.jsx";
 import {
@@ -126,9 +123,9 @@ function aiRunsForChannel(state, channelId) {
 const instagramDraftOf = (run, format, field = "drafts") =>
   (field === "generated"
     ? run?.instagramGenerated?.[format]
-    : run?.instagramDrafts?.[format])
-  ?? run?.[field]?.instagram
-  ?? "";
+    : run?.instagramDrafts?.[format]) ??
+  run?.[field]?.instagram ??
+  "";
 
 const contentOutlineKeyOf = (contentOutline) =>
   contentOutline ? JSON.stringify(contentOutline) : "";
@@ -297,7 +294,10 @@ export default function CopyPage() {
   useEffect(() => {
     if (wasExpandedRef.current && !expanded) {
       requestAnimationFrame(() => {
-        summaryTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        summaryTopRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
       });
     }
     wasExpandedRef.current = expanded;
@@ -313,7 +313,8 @@ export default function CopyPage() {
       setPresets(await loadRandomTopicPresets(productId));
     } catch (error) {
       console.error("[topics] 추천 주제 조회에 실패했습니다.", error);
-      const fallback = products.find((item) => item.id === productId)?.topicPresets || [];
+      const fallback =
+        products.find((item) => item.id === productId)?.topicPresets || [];
       setPresets(fallback.slice(0, 4));
       toast("추천 주제를 불러오지 못했습니다.");
     } finally {
@@ -483,6 +484,11 @@ export default function CopyPage() {
   const hasConditions = Boolean(
     state?.productId && String(state?.topic || "").trim(),
   );
+  // 글 구조 요약에서 고른 제목은 생성 조건의 일부다. 제목이 비어 있으면
+  // 어떤 경로로도 AI 생성 버튼을 활성화하지 않는다.
+  const hasSelectedOutlineTitle = Boolean(
+    String(state?.contentOutline?.title || "").trim(),
+  );
   // 조건이 안 갖춰졌으면 사용자가 접으려 해도 무조건 펼친 채로 둔다 —
   // 접힌 채 요약할 조건 자체가 없다.
   const panelExpanded = expanded || !hasConditions;
@@ -540,11 +546,16 @@ export default function CopyPage() {
 
   async function generate(channelIds, extraNote = "") {
     if (!product || busy) return;
+    if (!String(getState().contentOutline?.title || "").trim()) {
+      toast("글 구조 요약에서 제목을 선택해 주세요.");
+      return;
+    }
     const controller = new AbortController();
     generationController.current = controller;
     pausedRef.current = false;
     const totalJobs = channelIds.reduce(
-      (total, id) => total + (id === "instagram" ? INSTAGRAM_FORMATS.length : 1),
+      (total, id) =>
+        total + (id === "instagram" ? INSTAGRAM_FORMATS.length : 1),
       0,
     );
     setGeneration({ current: 0, total: totalJobs, paused: false });
@@ -648,51 +659,57 @@ export default function CopyPage() {
           throw new DOMException("취소되었습니다.", "AbortError");
         }
         const channelId = channelIds[index];
-        const formats = channelId === "instagram"
-          ? INSTAGRAM_FORMATS
-          : [{ id: null, label: null }];
+        const formats =
+          channelId === "instagram"
+            ? INSTAGRAM_FORMATS
+            : [{ id: null, label: null }];
         for (const format of formats) {
           setGeneration((progress) => ({
             ...progress,
             current: completedJobs + 1,
             channelName: format.id
               ? `인스타그램 ${format.label}`
-              : CHANNELS.find((channel) => channel.id === channelId)?.name || channelId,
+              : CHANNELS.find((channel) => channel.id === channelId)?.name ||
+                channelId,
           }));
           const generatedDraft = await generateWithAI(
             channelId,
             {
-            product,
-            topic: current.topic.trim(),
-            focusPoint: String(current.focusPoint || "").trim(),
-            tone: current.tone,
-            round,
-            avoidHeadings: blogHeadingsFromRuns(current),
-            variant: (current.variants?.[channelId] || 0) + 1,
-            cardCount: current.cardCount,
-            core,
-            contentOutline: current.contentOutline || null,
-            researchStyle,
-            userMemory: memory?.summary || "",
-            extraNote,
-            instagramFormat: format.id || current.instagramFormat || "simple",
-          },
-          {
-            signal: controller.signal,
-            waitIfPaused,
-          },
+              product,
+              topic: current.topic.trim(),
+              focusPoint: String(current.focusPoint || "").trim(),
+              tone: current.tone,
+              round,
+              avoidHeadings: blogHeadingsFromRuns(current),
+              variant: (current.variants?.[channelId] || 0) + 1,
+              cardCount: current.cardCount,
+              core,
+              contentOutline: current.contentOutline || null,
+              researchStyle,
+              userMemory: memory?.summary || "",
+              extraNote,
+              instagramFormat: format.id || current.instagramFormat || "simple",
+            },
+            {
+              signal: controller.signal,
+              waitIfPaused,
+            },
           );
           completedJobs += 1;
           if (channelId === "instagram") {
-            instagramDrafts = { ...(instagramDrafts || {}), [format.id]: generatedDraft };
+            instagramDrafts = {
+              ...(instagramDrafts || {}),
+              [format.id]: generatedDraft,
+            };
           } else {
             drafts[channelId] = generatedDraft;
           }
         }
       }
       if (instagramDrafts) {
-        drafts.instagram = instagramDrafts[current.instagramFormat || "simple"]
-          || instagramDrafts.simple;
+        drafts.instagram =
+          instagramDrafts[current.instagramFormat || "simple"] ||
+          instagramDrafts.simple;
       }
       // 카드뉴스는 아웃라인의 소제목을 재사용하지 않고, 완성된 블로그 전체를
       // OpenAI가 다시 읽어 카드 전용 핵심 문구로 압축한다. 이번 생성에 블로그가
@@ -896,20 +913,31 @@ export default function CopyPage() {
       sentence: pending.sentence,
       userInput: "",
     });
-    toast("AI 생성을 취소했습니다. 담당자에게 자료 보완을 요청해 주세요.", 4000);
+    toast(
+      "AI 생성을 취소했습니다. 담당자에게 자료 보완을 요청해 주세요.",
+      4000,
+    );
   }
 
   function selectRun(index) {
     const entry = matchingRuns[index];
     if (!entry) return;
     const current = getState();
-    const selectedDraft = activeId === "instagram"
-      ? instagramDraftOf(entry.run, current.instagramFormat || "simple")
-      : entry.run.drafts[activeId];
-    const selectedGenerated = activeId === "instagram"
-      ? entry.run.instagramGenerated?.[current.instagramFormat || "simple"]
-        ?? instagramDraftOf(entry.run, current.instagramFormat || "simple", "generated")
-      : entry.run.generated[activeId];
+    const selectedDraft =
+      activeId === "instagram"
+        ? instagramDraftOf(entry.run, current.instagramFormat || "simple")
+        : entry.run.drafts[activeId];
+    const selectedGenerated =
+      activeId === "instagram"
+        ? (entry.run.instagramGenerated?.[
+            current.instagramFormat || "simple"
+          ] ??
+          instagramDraftOf(
+            entry.run,
+            current.instagramFormat || "simple",
+            "generated",
+          ))
+        : entry.run.generated[activeId];
     // 이 시안이 특정 카드뉴스 템플릿을 고른 상태로 만들어졌다면(다른 조건은 같고
     // 템플릿만 바꿔 다시 생성한 경우), 시안을 고르는 즉시 그 템플릿으로 미리보기를
     // 맞춰 준다 — 그래야 「노트형」 버튼을 눌렀을 때 실제로 노트형 카드가 보인다.
@@ -953,8 +981,9 @@ export default function CopyPage() {
       },
       generated: {
         ...current.generated,
-        instagram: entry.run.instagramGenerated?.[instagramFormat]
-          ?? instagramDraftOf(entry.run, instagramFormat, "generated"),
+        instagram:
+          entry.run.instagramGenerated?.[instagramFormat] ??
+          instagramDraftOf(entry.run, instagramFormat, "generated"),
       },
     });
   }
@@ -1025,14 +1054,16 @@ export default function CopyPage() {
                         return;
                       }
                       setState({ customStyleSaveRequested: true });
-                      toast("AI 글을 생성할 때 이 스타일을 마이페이지에 함께 저장합니다.");
+                      toast(
+                        "AI 글을 생성할 때 이 스타일을 마이페이지에 함께 저장합니다.",
+                      );
                     }}
                   />
-                  <TemplateSection
+                  {/* <TemplateSection
                     product={product}
                     state={state}
                     onUpdate={(patch) => setState(patch)}
-                  />
+                  /> */}
                   {product && (
                     <div className="flex items-center justify-end gap-4 max-[560px]:flex-col max-[560px]:items-stretch">
                       <button
@@ -1049,7 +1080,10 @@ export default function CopyPage() {
                         onClick={startGeneration}
                       >
                         게시물 생성하기{" "}
-                        <Icon name="arrowRight" className="size-[18px] stroke-[1.75]" />
+                        <Icon
+                          name="arrowRight"
+                          className="size-[18px] stroke-[1.75]"
+                        />
                       </button>
                     </div>
                   )}
@@ -1082,7 +1116,7 @@ export default function CopyPage() {
                         <div className="flex min-w-[310px] flex-col items-end gap-3 max-[640px]:w-full max-[640px]:items-stretch">
                           <div className="flex flex-wrap justify-end gap-2.5">
                             <button
-                              disabled={busy}
+                              disabled={busy || !hasSelectedOutlineTitle}
                               onClick={() => generate([activeId])}
                               className="inline-flex h-[45px] items-center gap-[5px] rounded-full border border-[#e5e8eb] bg-white px-[19px] text-[15px] font-medium text-[#4e5968] disabled:opacity-40"
                             >
@@ -1090,7 +1124,7 @@ export default function CopyPage() {
                               현재 채널만 AI 생성
                             </button>
                             <button
-                              disabled={busy}
+                              disabled={busy || !hasSelectedOutlineTitle}
                               onClick={() =>
                                 generate(channels.map((channel) => channel.id))
                               }
@@ -1110,7 +1144,9 @@ export default function CopyPage() {
                         compliance={compliance}
                         showChat={Boolean(state.aiRuns?.list?.length)}
                         chatContextKey={chatContextKey}
-                        draftLabel={activeRun == null ? "" : `시안 ${activeRun + 1}`}
+                        draftLabel={
+                          activeRun == null ? "" : `시안 ${activeRun + 1}`
+                        }
                         generation={busy ? generation : null}
                         onToggleGenerationPause={toggleGenerationPause}
                         onCancelGeneration={cancelGeneration}
@@ -1140,7 +1176,10 @@ export default function CopyPage() {
                         onChange={updateDraft}
                         onToggleMode={() => setReadMode((mode) => !mode)}
                         onCopy={() =>
-                          copy(value, `${activeChannel.name} 글귀를 복사했습니다.`)
+                          copy(
+                            value,
+                            `${activeChannel.name} 글귀를 복사했습니다.`,
+                          )
                         }
                         instagramHandle={product?.handle}
                         cardCount={state.cardCount}

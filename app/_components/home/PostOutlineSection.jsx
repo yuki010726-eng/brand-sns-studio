@@ -38,8 +38,7 @@ function titleSuggestions(state, product) {
 export function makeOutline(state, product) {
   if (state?.contentOutline) {
     return {
-      title:
-        state.contentOutline.title || titleSuggestions(state, product)[0] || "",
+      title: state.contentOutline.title || "",
       intro: state.contentOutline.intro || "",
       bodies: Array.isArray(state.contentOutline.bodies)
         ? [...state.contentOutline.bodies]
@@ -62,7 +61,9 @@ export function makeOutline(state, product) {
   ];
 
   return {
-    title: titleSuggestions(state, product)[0] || "",
+    // 제목은 추천 목록이 준비되어도 자동으로 선택하지 않는다. 사용자가 제목을
+    // 직접 골라야 AI 생성 버튼이 활성화된다.
+    title: "",
     intro: "독자가 공감할 만한 상황을 제시하고 글에서 다룰 내용을 소개합니다.",
     bodies: Array.from({ length: bodyCount }, (_, index) =>
       focusParts[index]
@@ -98,7 +99,6 @@ export function PostOutlineSection({ product, state, expanded, onToggle }) {
 
   useEffect(() => {
     if (!product || !outline) return;
-    const selectedTitle = String(outline.title || "").trim();
     const savedTitles = Array.isArray(outline.titleOptions)
       ? outline.titleOptions
           .map((title) => String(title || "").trim())
@@ -109,7 +109,6 @@ export function PostOutlineSection({ product, state, expanded, onToggle }) {
       : cachedTitleSuggestions(product, state);
     if (generatedTitles?.length) {
       setSuggestedTitles(generatedTitles);
-      if (!selectedTitle) patchOutline({ title: generatedTitles[0] });
       setTitlesLoading(false);
       setTitleError("");
       return;
@@ -126,8 +125,7 @@ export function PostOutlineSection({ product, state, expanded, onToggle }) {
         setState({
           contentOutline: {
             ...latest,
-            title:
-              String(latest.title || "").trim() || titles[0] || latest.title,
+            title: latest.title || "",
             titleOptions: titles,
           },
         });

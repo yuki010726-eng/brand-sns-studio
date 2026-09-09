@@ -5,13 +5,15 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "naver:setup": "node scripts/naver-setup.mjs",
+    "naver:test": "node scripts/naver-fill-test.mjs",
+    "naver:verify": "node scripts/naver-verify.mjs"
   },
   "dependencies": {
-    "@sparticuz/chromium": "^149.0.0",
     "@supabase/supabase-js": "^2.112.4",
     "next": "^16.3.3",
-    "playwright-core": "^1.62.1",
+    "playwright": "^1.63.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },

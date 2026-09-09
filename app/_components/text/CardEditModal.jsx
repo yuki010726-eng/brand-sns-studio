@@ -18,6 +18,7 @@ import { useRouter } from "next/navigation";
 import { getConcept, getCardTheme, getNoteInk } from "../../../lib/concepts.js";
 import { objectsFor, roleOf, slotIdForObject } from "../../../lib/templates.js";
 import { buildPrompt } from "../../../lib/imageprompt.js";
+import { buildAdPrompts } from "../../../lib/adprompt.js";
 import { getImage, putImage, deleteImage, imageKey } from "../../../lib/imagestore.js";
 import { loadImage, ensureFonts, lastBoxes, lastSizes, W, H } from "../../../lib/cardrender.js";
 import { reconcileCard, cloneTexts, imageCaptionFor } from "../../template/_lib/deckBuilder.js";
@@ -28,8 +29,9 @@ import { CanvasPreview } from "../../template/_components/CanvasPreview.jsx";
 import { StylePanel } from "../../template/_components/StylePanel.jsx";
 import { LayoutPanel } from "../../template/_components/LayoutPanel.jsx";
 import { ImagePanel } from "../../template/_components/ImagePanel.jsx";
+import { AdPromptPanel } from "../../template/_components/AdPromptPanel.jsx";
 
-export function CardEditModal({ product, cardIndex, deck, onClose }) {
+export function CardEditModal({ product, cardIndex, deck, previewCard, onClose }) {
   const router = useRouter();
   const [state, setViewState] = useState(getState());
   const [bitmap, setBitmap] = useState(null);
@@ -46,6 +48,16 @@ export function CardEditModal({ product, cardIndex, deck, onClose }) {
   useEffect(() => {
     if (!open) return;
     const current = getState();
+    // 카드 썸네일은 `previewCard`의 문구·배치·추가 텍스트로 이미 그려졌다.
+    // 같은 스냅샷을 먼저 설치해야 모달이 보이는 카드와 정확히 같은 상태에서 시작한다.
+    if (
+      previewCard?.key === current.card?.key &&
+      previewCard?.concept === current.concept &&
+      JSON.stringify(previewCard) !== JSON.stringify(current.card)
+    ) {
+      setState({ card: previewCard });
+      return;
+    }
     const next = reconcileCard(current, deck, product);
     if (next) setState({ card: next });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- deck·product 참조만 본다
@@ -91,7 +103,40 @@ export function CardEditModal({ product, cardIndex, deck, onClose }) {
   if (!open) return null;
 
   const concept = getConcept(state.concept);
-  const cardReady = state.card && state.card.concept === state.concept;
+  if (concept?.promptOnly) {
+    const item = buildAdPrompts({ product, topic: state.topic, deck, conceptId: state.adConcept })[cardIndex];
+    if (!item) return null;
+    const copyPrompt = async (promptItem) => {
+      try {
+        await navigator.clipboard.writeText(promptItem.prompt);
+        toast(`${cardIndex + 1}번 광고 프롬프트를 복사했습니다.`);
+      } catch {
+        toast("프롬프트를 복사하지 못했습니다.");
+      }
+    };
+    const uploadAdImage = async (file) => {
+      if (!file.type.startsWith("image/")) return toast("이미지 파일만 올릴 수 있습니다.");
+      const current = getState();
+      await putImage(imageKey(current.productId, current.concept, cardIndex, current.postId), file);
+      setState({ images: { ...current.images, [cardIndex]: { concept: current.concept, source: "upload", at: Date.now() } } });
+      toast(`${cardIndex + 1}번 광고 이미지를 올렸습니다.`);
+    };
+    return (
+      <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/60 px-4 py-8" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+        <section ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="card-edit-title" className="w-full max-w-[900px] overflow-hidden rounded-[15px] border border-[#e5e8eb] bg-white shadow-[0_24px_70px_rgba(0,0,0,0.25)] outline-none">
+          <header className="flex items-center justify-between border-b border-[#e5e8eb] px-6 py-4">
+            <h2 id="card-edit-title" className="text-[17px] font-bold text-black">{cardIndex + 1}번 광고형 이미지 · {item.concept.name}</h2>
+            <button type="button" onClick={onClose} aria-label="닫기" className="grid size-9 place-items-center rounded-full text-[#8b95a1] transition hover:bg-[#f2f4f6] hover:text-[#333d4b]"><Icon name="close" className="size-5" /></button>
+          </header>
+          <div className="p-6"><AdPromptPanel item={item} tools={[{ name: "ChatGPT", url: "https://chatgpt.com/" }, { name: "Gemini", url: "https://gemini.google.com/app" }]} onCopy={copyPrompt} onUpload={uploadAdImage} /></div>
+          <footer className="flex justify-end border-t border-[#e5e8eb] px-6 py-4"><button type="button" onClick={onClose} className="inline-flex h-[42px] items-center justify-center rounded-full border border-[#287aff] bg-[#287aff] px-6 text-[14px] font-bold text-white">닫기</button></footer>
+        </section>
+      </div>
+    );
+  }
+  const cardReady = state.card && state.card.concept === state.concept && (
+    !previewCard || JSON.stringify(state.card) === JSON.stringify(previewCard)
+  );
 
   if (!cardReady) {
     return (
@@ -105,7 +150,7 @@ export function CardEditModal({ product, cardIndex, deck, onClose }) {
   const texts = state.card.texts[cardIndex] || {};
   const extraTexts = state.card.extraTexts?.[cardIndex] || [];
   const objects = [
-    ...objectsFor(state.concept, card.kind),
+    ...objectsFor(state.concept, card.kind, state.magazineTemplate),
     ...extraTexts.map((item, n) => ({
       id: `extra-${item.id}`,
       type: "text",
@@ -191,6 +236,33 @@ export function CardEditModal({ product, cardIndex, deck, onClose }) {
     setTextSelection(null);
   }
 
+  function handleDeleteTextBox() {
+    if (!selectedObj) return;
+    const s = getState();
+
+    // Built-in text objects belong to the template, so removing their text is
+    // the safe per-card equivalent of deleting the box. Custom boxes can be
+    // removed from the card data entirely.
+    if (!selectedObj.startsWith("extra-")) {
+      handleEditText(selectedObj, "");
+      setSelectedObj(null);
+      setTextSelection(null);
+      toast("텍스트 상자를 삭제했습니다.");
+      return;
+    }
+
+    const id = selectedObj.slice("extra-".length);
+    const extraTexts = deck.map((_, index) =>
+      (s.card.extraTexts?.[index] || []).filter((item) => String(item.id) !== id),
+    );
+    const layout = deck.map((_, index) => ({ ...(s.card.layout?.[index] || {}) }));
+    delete layout[cardIndex][selectedObj];
+    setState({ card: { ...s.card, extraTexts, layout } });
+    setSelectedObj(null);
+    setTextSelection(null);
+    toast("텍스트 상자를 삭제했습니다.");
+  }
+
   function applyTextColor() {
     if (!textSelection || textSelection.objId !== selectedObj || textSelection.start === textSelection.end) return;
     document.activeElement?.blur();
@@ -263,6 +335,7 @@ export function CardEditModal({ product, cardIndex, deck, onClose }) {
     notePaper: state.notePaper,
     noteInk: state.noteInk,
     noteGrain: state.noteGrain,
+    magazineTemplate: state.magazineTemplate,
     layout: state.card.layout?.[cardIndex] || {},
     extraTexts,
   };
@@ -329,10 +402,23 @@ export function CardEditModal({ product, cardIndex, deck, onClose }) {
               }}
               onChange={handleStyleChange}
             >
-              <button type="button" onClick={handleAddTextBox}
-                className="w-full rounded-lg border border-[#287aff] px-3 py-2 text-sm font-bold text-[#287aff]">
-                + 텍스트 상자 추가
-              </button>
+              <div className="flex gap-2">
+                <button type="button" onClick={handleAddTextBox}
+                  className="min-w-0 flex-1 rounded-lg border border-[#287aff] px-3 py-2 text-sm font-bold text-[#287aff]">
+                  + 텍스트 상자 추가
+                </button>
+                {objects.find((object) => object.id === selectedObj)?.type === "text" && (
+                  <button
+                    type="button"
+                    onClick={handleDeleteTextBox}
+                    className="grid size-10 shrink-0 place-items-center rounded-lg border border-[#fecaca] text-[#dc2626] transition hover:bg-[#fff1f2]"
+                    aria-label="선택한 텍스트 상자 삭제"
+                    title="선택한 텍스트 상자 삭제"
+                  >
+                    <Icon name="trash" className="size-4" />
+                  </button>
+                )}
+              </div>
               {objects.find(o => o.id === selectedObj)?.type === "text" && (
                 <>
                   <LayoutPanel key={selectedObj} objId={selectedObj}

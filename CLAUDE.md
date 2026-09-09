@@ -1,38 +1,81 @@
 # CLAUDE.md — 브랜드 SNS 스튜디오
 
 Claude Code가 세션 시작 시 자동으로 읽는 프로젝트 지침이다.
-**PART 1(STEP 5까지) 완료. API 키는 개인이 발급해 넣는다 — 8-7 참고(현재 방식).
-⚠️ 배포하지 않는다. 관계자가 각자 로컬에서 띄워 쓴다 (요청자 결정 2026-08-10).
-서버 프록시(8-6)와 `DEPLOY.md` 는 되돌릴 때를 위한 코드·문서일 뿐 쓰지 않는다.**
+**API 키는 서버(Vercel 환경 변수)에 있고 `/api/text`를 거친다 — 8-7·8-6 참고(2026-09 갱신, 아래 0절 필독).
+⚠️ 배포 여부·로그인 요구 사항은 최근 다시 바뀌었을 수 있다 — Instagram 로그인/발행 기능이 생기면서
+"관계자가 각자 로컬에서" 라는 전제가 흔들렸다. 실제 배포 상태는 코드로 재확인할 것.**
+
+---
+
+## 0. ⚠️ 구조 전환 안내 — 이 문서를 읽기 전에 먼저 볼 것 (2026-09-09 갱신)
+
+**이 문서(1~11절, 특히 8절의 결정 로그)는 대부분 2026-08-21 이전, "빌드 도구 없는 vanilla JS(DOM 직접 렌더링) + `pages/*.js`" 구조를 기준으로 쓰였다.**
+그런데 2026-08-26부터 2026-09-08 사이(커밋 `7172adf` 전후, 약 2주) **Next.js App Router(`app/` 디렉터리, `.jsx`, React, "use client")로 전면 전환**됐다.
+아래 표 없이 8절을 그대로 믿으면 존재하지 않는 파일(`pages/copy.js` 등)을 찾게 된다 — **파일 경로는 이 표로 변환하고, "왜 이렇게 했는가"라는 결정의 이유 자체는 여전히 유효하다.**
+
+### 옛 경로 → 현재 경로
+
+| 옛 표기 (8절 결정 로그 전체) | 현재 실제 파일 |
+|---|---|
+| `pages/profile.js` | `app/library/profile/page.jsx` (+ 하위 `_components/`) — "1단계 프로필"이지만 경로는 마이페이지 밑이다 |
+| `pages/home.js` (2단계 상품·주제) | `app/text/page.jsx` 상단의 "글 생성 조건 요약" 바(접힌 상태) — 별도 라우트가 아니라 `/text` 안의 토글 UI. `app/_components/home/*.jsx`(ProductSection·TopicSection·TemplateSection 등)를 그대로 가져다 쓴다 |
+| `pages/copy.js` (3단계 아이디어 문서화) | `app/text/page.jsx` (조건 요약 바를 펼치면 나오는 나머지 전부) + `app/_components/text/*.jsx` |
+| `pages/research.js` (스타일 수집 화면) | **입력 폼 자체는 사라졌다.** 수집 액션은 `/text` 안에서 URL을 넣으면 `app/text/_lib/customBlogStyle.js` → `/api/research/collect`가 처리한다. `app/research/page.jsx`는 **이미 모아 둔 스타일 목록을 보고 관리하는 화면**(마이페이지 하위 「글 스타일」)으로 성격이 바뀌었다 |
+| `pages/template.js` (4단계 카드뉴스) | `app/template/page.jsx` + `app/template/_components/*.jsx` + `app/template/_lib/deckBuilder.js`. `lib/templates.js`·`lib/cardrender.js`·`lib/concepts.js`는 이름 그대로 살아 있다. **진입 경로가 바뀌었다** — `/text`에 직접 링크가 없고, 블로그 미리보기의 카드뉴스 이미지 자리를 눌러 뜨는 `CardEditModal`의 "전체 편집"에서 `/template`로 이동한다 |
+| `components/imagepanel.js` | `app/template/_components/ImagePanel.jsx` |
+| `pages/library.js` (보관함) | `app/library/page.jsx` — 8-35가 이미 예고한 "마이페이지"로 개편 완료. 저장한 게시물 그리드 + `MyPageSidebar`(설정 진입점) |
+| `store.js` | 그대로 루트에 있다. 이름·역할 안 바뀜 |
+| `lib/*.js` | **거의 다 그대로다.** 지난 대화에서 확인한 대로 `lib/topicSuggestions.js`·`lib/apikeys.local.js` 2개만 죽은 파일이고 나머지 30개는 지금도 실사용 중 |
+
+### 이 전환으로 완전히 새로 생긴 것 (문서에 없던 기능)
+
+- **Instagram 연동** — 로그인(`app/login/page.jsx`의 OAuth 버튼), 계정 연결(`app/library/profile/page.jsx`의 `InstagramAccounts`), **카드뉴스를 실제로 인스타그램에 캐러셀로 발행**(`app/template/_components/InstagramPublishDialog.jsx` → `lib/instagram.js` → `/api/instagram/publish` → Meta Graph API). 관련 파일: `lib/instagram.js` `lib/instagram-accounts.js`(브라우저용) `lib/instagram-server.js`(서버 전용) + `app/api/auth/instagram/*` `app/api/instagram/*`.
+- **상품 관리 어드민** — `app/products-admin/page.jsx`. 블로그·카페 링크에서 상품 근거(Supabase `product_proofs`)에 없는 사실만 골라 관리자가 반영하는 화면. `role === 'admin'`만 접근.
+- **AI 챗 기반 시안 수정** — `app/api/chat/route.jsx` + `lib/copymemory.js`. 스타일 메모리를 두고 대화형으로 초안을 고치는 기능.
+
+### ⚠️ 8-6·8-7 절이 뒤집혔다 — API 키는 이제 서버에 있다
+
+8-7("개인 키 방식, 최종 결정")은 **더 이상 사실이 아니다.** 실제 텍스트 생성 경로는
+`app/text/page.jsx`/`lib/copyai.js` → `lib/llm.js` → `lib/serverapi.js` → **`/api/text`(서버, Vercel 환경 변수의 키 사용)** 이다.
+브라우저에서 키를 직접 받아 `https://api.openai.com`을 호출하던 `lib/openai.js`는 **파일은 남아 있지만 어디서도 import되지 않는 죽은 코드**로 보인다(정적 검색 기준. 동적 로드 가능성까지 100% 배제하지는 못했다).
+즉 8-6("서버 프록시, 현재 미사용")이 지금은 **현재 사용 중**이고, 8-7("개인 키, 현재 방식")이 지금은 **미사용**이다 — 두 절의 제목이 가리키는 현재/과거가 정반대가 됐다.
+**이 문서의 8-6·8-7 본문은 아직 옛 상태 그대로 두었다** — 되돌릴 때의 참고 가치가 있는 서술이라 지우지 않았지만, "지금 방식이 뭔지"를 판단할 때는 이 0절을 우선한다. 키를 다루는 작업을 할 때는 반드시 `/api/text`·`app/api/` 쪽 코드를 먼저 확인할 것.
+
+### CSS — 디자인 토큰과 Tailwind가 공존한다
+
+`styles/tokens.css`·`styles/components.css`는 여전히 로드된다(`app/layout.jsx`). 그런데 App Router로 새로 짜인 화면은 **거의 전부 Tailwind 유틸리티 클래스**(임의값 `bg-[#1a1a1a]` 식 포함)로 작성돼 있고, 3절의 CSS 변수(`--primary` 등)를 직접 쓰는 곳은 코드베이스 전체에서 사실상 1곳뿐이다. `styles/base.css`·`styles/pages.css`는 어디서도 import되지 않는 죽은 파일이다.
+**3절의 색상·대비 수치(어떤 색을 얼마의 배경 대비로 쓰는가) 자체는 여전히 유효한 기준이지만, 그걸 구현하는 방법이 CSS 변수에서 Tailwind 클래스로 바뀌었다.** 새 화면을 만들 때 `.pick`·`.channel` 같은 옛 클래스를 새로 쓰지 말 것 — 그 클래스들은 이제 `components/modal.js`(순수 JS 모달) 정도에만 남아 있다.
 
 ---
 
 ## 1. 이 프로젝트가 뭔가
 
-브랜드 4개 상품의 SNS 게시물을 만드는 도구. 흐름은 4단계다.
+브랜드 4개 상품의 SNS 게시물을 만드는 도구다. **옛 "4단계 마법사" 흐름은 2026-09-08에 접혔다** —
+지금은 크게 두 화면이다.
 
 ```
-1단계 프로필 세팅 → 2단계 상품·주제 선택 → 3단계 아이디어 문서화 → 4단계 카드뉴스 템플릿(이미지 포함)
+/text  (상품·주제 선택 + 문구 작성/AI 생성, 한 페이지)  →  /template  (카드뉴스 템플릿 + 이미지 프롬프트 + 인스타 발행)
 ```
 
-**1단계 프로필 세팅은 건너뛸 수 있다.** 게시물마다 하는 일이 아니라 계정을 한 번 잡는 단계다.
-`reachedStep()` 이 최소 2를 돌려주는 이유다 — 1을 돌려주면 프로필을 만들기 전에는 상품 선택으로 못 넘어간다.
-
-**이미지 제작은 원래 별도 단계(`pages/image.js`)였다가 3단계 안으로 합쳤다.**
-이미지가 필수가 아닌데 단계로 세워 두니 흐름을 막는 것처럼 보였기 때문이다.
-지금은 문구 입력칸 반대쪽(미리보기 아래)에 이미지 패널로 붙어 있고, 원할 때만 쓰면 된다.
+- `/text` 위쪽 「글 생성 조건 요약」 바를 펼치면 옛 1~3단계(프로필 제외)가 그 안에서 전부 이루어진다.
+- `/template`은 옛 4단계와 같지만, 이제 여기서 **인스타그램 계정에 실제로 캐러셀 발행**까지 할 수 있다(위 0절 참고).
+- 프로필 세팅은 여전히 "게시물마다 하는 일이 아니라 계정을 한 번 잡는 일"이라 마이페이지(`/library/profile`) 밑으로 옮겨졌고 건너뛸 수 있다.
+- 이미지 제작은 여전히 선택 사항이며 `/template` 안의 이미지 패널로 통합돼 있다 (프롬프트 표시 + 파일 올리기, 자체 API 생성 없음 — 8-11 참고, 여전히 유효).
 
 상품 4종: KBS N 브랜드어워즈 / 포브스 브랜드어워즈 / KCST 대한민국 고객만족도 신뢰도 대상 / 중소기업 AI TV CF
 
-| 단계 | 파일 | 상태 |
+| 화면(옛 단계) | 현재 파일 | 상태 |
 |---|---|---|
-| 1 | `pages/profile.js` + `lib/profile.js` | ✅ 완료 (8-5 참고) |
-| 2 | `pages/home.js` | ✅ 완료 |
-| 3 | `pages/copy.js` + `lib/copywriter.js` | ✅ 완료 (블로그 형식은 8-3 참고) |
-| 4 | `pages/template.js` + `lib/templates.js` `lib/cardrender.js` `lib/concepts.js` | ✅ 완료 |
-| 4의 이미지 | `components/imagepanel.js` + `lib/imageprompt.js` `lib/imagestore.js` | ✅ 완료 (프롬프트만 표시, API 생성 없음 — 2026-08-11) |
-| 보관함 | `pages/library.js` + `lib/librarystore.js` | ✅ 완료 (8-1 참고) |
-| 로그인·동기화 | `lib/supabase.js` `lib/auth.js` `lib/sync.js` | ✅ 코드 완료 · **설정 대기** (11 참고) |
+| 프로필 (옛 1단계) | `app/library/profile/page.jsx` + `lib/profile.js` | ✅ (8-5 참고, 경로만 갱신) |
+| 상품·주제 선택 (옛 2단계) | `app/text/page.jsx` 상단 요약 바 + `app/_components/home/*.jsx` | ✅ |
+| 문구 작성 (옛 3단계) | `app/text/page.jsx` + `app/_components/text/*.jsx` + `lib/copywriter.js` `lib/outline.js` `lib/copyai.js` | ✅ (블로그 형식은 8-3, AI 흐름은 8-8·8-19·8-26 참고) |
+| 카드뉴스 템플릿 (옛 4단계) | `app/template/page.jsx` + `app/template/_components/*.jsx` `app/template/_lib/deckBuilder.js` + `lib/templates.js` `lib/cardrender.js` `lib/concepts.js` | ✅ |
+| 이미지 패널 | `app/template/_components/ImagePanel.jsx` + `lib/imageprompt.js` `lib/imagestore.js` | ✅ (프롬프트만 표시, API 생성 없음) |
+| 마이페이지·보관함 (옛 STEP5) | `app/library/page.jsx` + `lib/librarystore.js` | ✅ (8-1·8-35 참고) |
+| 스타일 목록 | `app/research/page.jsx` (수집 자체는 `/text` 안에서) + `lib/blogstyles.js` | ✅ (8-27·8-28 참고, 위 0절도 볼 것) |
+| Instagram 연동 | `lib/instagram*.js` + `app/api/auth/instagram/*` `app/api/instagram/*` | ✅ 신규 (0절 참고, 별도 히스토리 없음) |
+| 상품 관리 어드민 | `app/products-admin/page.jsx` | ✅ 신규 (0절 참고) |
+| 로그인·동기화 | `lib/supabase.js` `lib/auth.js` `lib/sync.js` + `app/login/*` | ✅ |
 
 ---
 
@@ -275,7 +318,7 @@ JS 모듈까지 바꿨다면 해당 파일도 `fetch(path,{cache:'reload'})` 한
 
 | 결정 | 이유 |
 |---|---|
-| 빌드 도구 없는 정적 구조 | 작업 PC에 node/npm이 없다. Vite를 쓰면 실행·검증이 불가능하다. |
+| ~~빌드 도구 없는 정적 구조~~ (2026-08-26 전면 폐기) | 원래는 작업 PC에 node/npm이 없어 vanilla JS + `pages/*.js`로 시작했다. 이후 node 환경이 갖춰지면서 Next.js App Router(`app/`)로 완전히 옮겨갔다 — 0절 참고. 이 결정 자체는 더 이상 유효하지 않다, 기록만 남긴다. |
 | 카드뉴스 **1080×1350 (4:5)** | 레퍼런스 세 계정이 모두 세로형이고, 인스타 피드에서 화면을 더 크게 차지한다. **원래는 1080×1080이었다** — 블로그 본문 재사용 때문이었는데, 레퍼런스 반영을 우선해 2026-07-28에 요청자 승인을 받아 바꿨다. 되돌리려면 `lib/cardrender.js` 의 `H` 한 줄이다. |
 | 채널별 화법 완전 분리 | 처음엔 데이터를 불릿으로 덤프해서 "AI로 뽑은 것 같다"는 지적을 받았다. 지금은 `product.voice`의 문장 재료를 조합한다. |
 | 쓰레드만 별도 화법(`voice.threads`) | 공지 톤이 아니라 "알게 된 걸 흘리는" 톤이 필요하다. **해시태그·계정·CTA를 넣지 않는다** — 하나라도 붙으면 광고 티가 나서 톤이 무너진다. |
@@ -325,7 +368,12 @@ Gemini 를 완전히 뺐다 — `lib/gemini.js` · `lib/imagegen.js` 는 삭제�
 
 ## 8. 완료된 STEP 4 — 카드뉴스 템플릿 (구조 메모)
 
-`pages/template.js` + `lib/templates.js` + `lib/cardrender.js`. 손댈 때 알아야 할 것만 적는다.
+> ⚠️ **`pages/template.js`는 이제 `app/template/page.jsx` + `app/template/_components/*.jsx`
+> + `app/template/_lib/deckBuilder.js` 로 나뉘어 있다** (0절 참고). `lib/templates.js`·
+> `lib/cardrender.js`·`lib/concepts.js`는 이름 그대로다. 진입 경로도 바뀌었다 — `CardEditModal`의
+> "전체 편집"에서 들어간다. `components/imagepanel.js`는 `app/template/_components/ImagePanel.jsx`다.
+
+`app/template/page.jsx` + `lib/templates.js` + `lib/cardrender.js`. 손댈 때 알아야 할 것만 적는다.
 
 ### 화면 구조
 
@@ -2110,6 +2158,12 @@ state.cardCopy (파생 1회)  →  blogCardSource() (블로그 소제목)  →  
 
 ## 8-27. 스타일 수집을 단계에서 설정으로 옮겼다 (2026-08-20)
 
+> ⚠️ **경로가 한 번 더 바뀌었다 (2026-09, 0절 참고).** 이 절이 말하는 `/research`(수집 폼)는
+> 지금 사라졌다 — 수집 자체는 `/text` 페이지 안에서 URL을 넣으면 `app/text/_lib/customBlogStyle.js`가
+> `/api/research/collect`를 호출해 처리하고, `app/research/page.jsx`는 **이미 모아 둔 스타일을
+> 보고 이름 바꾸고 지우는 목록 화면**(마이페이지 하위 「글 스타일」)만 남았다. 아래 본문은
+> "왜 단계에서 뺐는가"라는 이유 설명으로는 여전히 유효하지만, 화면 구조는 다시 갱신됐다.
+
 요청자: **"할 때마다 스타일 수집이 너무 번거로워서 프로필 세팅처럼 하는 게 좋겠다."**
 
 ### 왜 번거로웠나 — 주제에 묶여 있었다
@@ -2872,6 +2926,10 @@ API 를 한 번도 부르지 않는다. 게다가 **고른 컨셉 하나로만**
 
 ⚠️ **경로(`/profile`·`/research`)는 그대로다.** 화면을 옮긴 게 아니라 문만 옮겼다.
    두 화면 안에 「← 마이페이지」 줄을 넣었다 — 메뉴에서 뺐으니 돌아갈 길이 화면에 있어야 한다.
+   > **2026-09 갱신**: App Router 전환 이후 프로필 경로가 `/library/profile`로 한 번 더 옮겨졌다
+   > (0절 참고). `MY_PAGE_PATHS`(`app/_components/layout/Header.jsx`)가 지금은
+   > `["/library", "/library/profile", "/research"]`다 — 이 절이 말하는 "경로는 그대로"라는
+   > 문장은 8-27→8-28 사이 기준이고, 그 뒤 한 번 더 바뀌었다.
 ⚠️ `isActive()` 는 `/profile`·`/research` 에서도 **마이페이지 탭을 켠다.** 안 그러면 설정에
    들어간 순간 어느 탭도 안 켜져 길을 잃은 것처럼 보인다.
 
@@ -3211,6 +3269,9 @@ buildCore(ctx) → { hook, summary[3], points[3], extra, objection, closing, cta
 
 ## 8-5. 1단계 프로필 세팅 (2026-08-03)
 
+> ⚠️ **파일 경로가 바뀌었다.** `pages/profile.js`는 이제 `app/library/profile/page.jsx`다(0절 참고).
+> 같은 화면에 Instagram 계정 연결(`InstagramAccounts` 컴포넌트, 완전히 새 기능)이 함께 있다.
+
 인스타그램 계정 프로필 초안을 만든다. 요청자가 정한 순서 그대로다.
 ① 유형(+어워즈형은 브랜드) 선택 → ② 이름·이미지·소개 무작위 제작 → ③ litt.ly 링크.
 
@@ -3349,7 +3410,11 @@ seed 400회 × 3종:
 
 ## 8-1. STEP 5 — 보관함 (2026-08-10 완료)
 
-`pages/library.js` + `lib/librarystore.js`. 저장은 **수동**이다.
+> ⚠️ **`pages/library.js`는 이제 `app/library/page.jsx`다** (0절 참고). 8-35 에서 이 화면 자체가
+> "마이페이지"로 개편됐으니 화면 구조는 8-35 를 함께 볼 것 — 여기 적힌 저장 로직·`postKeyOf` 등
+> `lib/librarystore.js` 쪽 내용은 그대로 유효하다.
+
+`app/library/page.jsx` + `lib/librarystore.js`. 저장은 **수동**이다.
 
 ### 왜 저장 버튼을 따로 뒀나
 
@@ -3407,9 +3472,11 @@ seed 400회 × 3종:
 
 ---
 
-## 8-7. 개인 키 방식 (2026-08-10, 최종 결정)
+## 8-7. 개인 키 방식 (2026-08-10, 최종 결정) — ⚠️ 2026-09 기준 더 이상 사실이 아니다
 
-> ⚠️ **이게 현재 방식이다.** 아래 8-6(서버 프록시)은 코드만 남아 있고 **쓰이지 않는다.**
+> ⚠️ **뒤집혔다 (0절 참고).** 아래 내용은 2026-08-10 당시 결정 기록으로 남겨 두지만,
+> 실제 텍스트 생성은 지금 `/api/text` 서버 경유로 바뀌었고 아래 8-6 이 오히려 **현재 사용 중**이다.
+> 이 절을 읽고 "브라우저에서 개인 키를 직접 넣는 게 지금 방식"이라고 판단하지 말 것 — 코드로 재확인할 것.
 
 요청자 결정: **API 키는 각자 발급받아 각자 넣는다.** 공용 키를 서버에 두지 않는다.
 
@@ -3486,9 +3553,11 @@ OpenAI·Terra 는 이미 `PROVIDERS[0]` · `TEXT_MODELS[0]` 이라 **기본값 �
 
 ---
 
-## 8-6. PART 2 — 서버 프록시 (2026-08-10) · 현재 미사용
+## 8-6. PART 2 — 서버 프록시 (2026-08-10) · ⚠️ 2026-09 기준 다시 현재 사용 중
 
-> ⚠️ 8-7 결정으로 **쓰이지 않는다.** 되돌릴 때를 위해 코드와 설명을 남겨 둔다.
+> ⚠️ **8-7 이 뒤집히면서 이 절이 다시 현재 방식이 됐다** (0절 참고). 아래 "현재 미사용"이라는
+> 제목과 본문은 2026-08-10 당시 서술이라 그대로 남겨 뒀지만, `app/api/text/route.jsx` 가
+> 실제로 살아서 호출되고 있다. 상세 구현은 0절에서 확인한 파일(`lib/serverapi.js`→`/api/text`)을 볼 것.
 >
 > 지우지 않은 이유: **비용이 0이다.** 앱이 부르지 않고, `OPENAI_API_KEY` 가 없으면
 > 요청이 와도 벤더 호출 전에 503 으로 끊긴다. 배포도 하지 않으므로 켜질 일 자체가 없다.

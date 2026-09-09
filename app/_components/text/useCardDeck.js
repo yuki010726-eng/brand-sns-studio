@@ -30,9 +30,10 @@ export function useCardDeck(state, product, { suspendThumbs = false } = {}) {
       : null;
 
   const previewable = Boolean(state && product && canGenerateImage(state.concept));
+  const hasDeck = Boolean(state && product);
 
   const deckSignature = useMemo(() => {
-    if (!previewable) return "";
+    if (!hasDeck) return "";
     return JSON.stringify({
       productId: state.productId,
       concept: state.concept,
@@ -53,7 +54,7 @@ export function useCardDeck(state, product, { suspendThumbs = false } = {}) {
       images: state.images,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 위 문자열이 곧 의존값이다
-  }, [previewable, state, savedCard]);
+  }, [hasDeck, state, savedCard]);
 
   // `deckSignature` 가 같으면 늘 같은 덱이 나온다(순수 함수) — 카드 편집 모달도 이 배열을
   // 그대로 받아써야 미리보기 썸네일과 모달 안 카드 번호가 어긋나지 않는다.
@@ -71,6 +72,21 @@ export function useCardDeck(state, product, { suspendThumbs = false } = {}) {
     if (suspendThumbs) return undefined;
     let cancelled = false;
     (async () => {
+      if (!previewable) {
+        const next = {};
+        for (let i = 0; i < deck.length; i += 1) {
+          const blob = await getImage(imageKey(state.productId, state.concept, i, state.postId)).catch(() => null);
+          if (cancelled) return;
+          if (blob) next[i] = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(blob);
+          });
+        }
+        if (!cancelled) setCardThumbs(next);
+        return;
+      }
       await ensureFonts();
       const base = baseOf(state.concept, deck, product, []);
       const savedTexts = savedCard?.texts;
@@ -98,7 +114,11 @@ export function useCardDeck(state, product, { suspendThumbs = false } = {}) {
           notePaper: state.notePaper,
           noteInk: state.noteInk,
           noteGrain: state.noteGrain,
+          // 블로그/인스타 썸네일도 제작 화면과 같은 매거진 하위 템플릿과
+          // 추가 텍스트 상자를 그려야, 클릭해서 연 모달과 내용이 어긋나지 않는다.
+          magazineTemplate: state.magazineTemplate,
           layout: savedCard?.layout?.[i] || {},
+          extraTexts: savedCard?.extraTexts?.[i] || [],
         });
         next[i] = canvas.toDataURL("image/png");
       }
@@ -112,5 +132,7 @@ export function useCardDeck(state, product, { suspendThumbs = false } = {}) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- deckSignature 가 진짜 의존값이다
   }, [deckSignature, suspendThumbs]);
 
-  return { deck, cardThumbs, previewable };
+  // `cardThumbs`를 실제로 그릴 때 쓴 상태도 함께 내보낸다. 모달이 전역 상태를
+  // 다시 조합하는 사이 문구가 바뀌어, 눌렀던 미리보기와 다른 카드가 열리는 일을 막는다.
+  return { deck, cardThumbs, previewable, previewCard: savedCard };
 }

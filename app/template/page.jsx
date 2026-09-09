@@ -936,11 +936,18 @@ export default function TemplatePage() {
                   aria-hidden="true"
                 />
 
-                <AdPromptPanel
-                  item={adPrompts[0]}
-                  tools={AD_TOOLS}
-                  onCopy={handleCopyAdPrompt}
-                />
+                <div className="space-y-8">
+                  {adPrompts.map((item) => (
+                    <div key={item.n}>
+                      {adPrompts.length > 1 && (
+                        <p className="mb-3 text-[13px] font-bold text-[#5f6b7a]">
+                          이미지 {item.n} · {item.concept.name}
+                        </p>
+                      )}
+                      <AdPromptPanel item={item} tools={AD_TOOLS} onCopy={handleCopyAdPrompt} />
+                    </div>
+                  ))}
+                </div>
               </div>
 
               <div className="mt-8 flex flex-wrap justify-between gap-3">

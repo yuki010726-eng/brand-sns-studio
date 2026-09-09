@@ -21,7 +21,7 @@ export const CHANNELS = [
     id: 'threads',
     name: '쓰레드',
     icon: 'thread',
-    hint: '짧은 대화체 · 300자 제한 · 질문형 마무리',
+    hint: '짧은 대화체 · 300자 제한 · 질문형 마무리 + 해시태그',
     limit: 300,
     limitLabel: '최대 300자',
   },

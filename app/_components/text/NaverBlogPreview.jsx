@@ -14,6 +14,28 @@
  * — 이후 컴플라이언스 검사·카드뉴스 연동(`blogCardSource` 등)은 예전과 똑같이 이
  * 원문 문자열만 본다. **편집 UI가 바뀐 것이지 저장되는 형식은 그대로다.**
  *
+ * ⚠️ **글과 이미지는 한 번에 복사되지 않는다 — 세 번 시도하고 전부 되돌렸다** (2026-09-09).
+ *    1차: 카드 이미지를 `<img src="data:...">` 로 본문 HTML 안에 끼워 「복사」 한 번으로
+ *         텍스트+이미지를 같이 붙여넣게 했다 → **본문 붙여넣기 5MB 상한**(카드 원본이
+ *         장당 1~3MB)에 걸려 네이버가 거절했다.
+ *    2차: 이미지를 줄여서(JPEG 640px) 다시 → 이번엔 **"허용되지 않는 형식의 이미지가
+ *         있어 해당 이미지는 제외됩니다"** — 네이버가 data URL 이미지 자체를 형식으로
+ *         막는다는 게 드러났다. 크기와 무관한 오류라 더 줄여도 소용없었다.
+ *    3차: data URL 을 버리고 `navigator.clipboard.write()` 에 텍스트 아이템 하나 +
+ *         카드 이미지(진짜 PNG 파일) 아이템을 여러 개 배열로 같이 넣어 봤다 → **브라우저가
+ *         자체적으로 거절했다**("Support for multiple ClipboardItems is not implemented"
+ *         류 오류로 추정 — 크롬은 `write()` 에 아이템을 하나만 받는다). Naver 문제가
+ *         아니라 **Clipboard API 자체의 한계**다.
+ *    → 결론: 텍스트와 카드 이미지 여러 장을 한 번의 복사·붙여넣기로 합칠 방법이
+ *      브라우저 쪽에도 네이버 쪽에도 없다. 그래서 「복사」는 텍스트만 복사하고,
+ *      이미지는 카드마다 있는 **「이미지 복사」** 버튼(`ImageBlock` 아래)으로 한 장씩
+ *      따로 복사한다 — data URL 이 아니라 **진짜 PNG 바이트**를 클립보드에 올리는
+ *      것이라 스크린샷·사진을 복사해 붙여넣을 때와 같은 경로를 타서 네이버가 정상
+ *      업로드한다. 붙여넣을 위치를 클릭한 다음 Ctrl+V 해야 한다.
+ *    ⚠️ **다시 "한 번에 합치기"를 시도하기 전에 이 세 실패를 먼저 읽을 것** — 같은
+ *       실패를 반복하지 않으려면 HTML+data URL 도, 여러 ClipboardItem 배열도 답이
+ *       아니라는 걸 기억해야 한다.
+ *
  * ⚠️ **캔버스로 그릴 수 있는 컨셉(매거진형·카드형·노트형)만 실제 카드뉴스 미리보기를
  *    그린다.** 직관형(광고, promptOnly)은 캔버스 자체가 없어 여전히 자리표시자만
  *    보여준다 — `canGenerateImage()` 참고. `state.concept` 이 그 셋 중 하나면 3단계(템플릿)와
@@ -34,115 +56,76 @@ import { useEffect, useRef, useState } from "react";
 import { AVATAR_KEY, getImage, objectUrl } from "../../../lib/imagestore.js";
 import { Icon } from "../Icon.jsx";
 import { getState, setState } from "../../../store.js";
+import { toast } from "../../../components/toast.js";
+import { parseBlogDoc, serializeBlogDoc } from "../../../lib/blogDoc.js";
 
-const QUOTE_RE = /^\[[^\]]*인용구\]$/;
-const SLOT_RE = /^\s*📷\s*\[이미지\s*(\d+)(?:\s*[·・-]\s*([^\]]+))?\]/;
-const CAPTION_RE = /^⤷\s*(.+?)\s*$/;
-const HEAD_RE = /^(?:#{2,6}|■)\s+(.+)$/;
-const TAGS_RE = /^(#[^#\s]+\s*)+$/;
+/** 복사용으로 줄일 때 맞출 가로 폭. 네이버 블로그 본문 폭(약 700~850px)보다 넉넉히 크게 잡아
+ *  실제로 안 작아 보이면서도 원본(1080px)보다는 확실히 줄어들게 한다. */
+const COPY_IMAGE_MAX_WIDTH = 720;
+
+/**
+ * 카드 썸네일(canvas → PNG data URL, 1080×1350 원본)을 더 작은 **진짜 PNG 바이트**로
+ * 다시 그려 클립보드에 올린다. HTML 안에 data URL 로 끼워 넣는 것과는 다른 경로다 —
+ * 위 주석 참고. 이 경로는 실제 이미지 파일을 복사·붙여넣기하는 것과 같아서 네이버가
+ * 정상적으로 받아 준다.
+ *
+ * ⚠️ **JPEG 로 바꾸지 않고 PNG 그대로 해상도만 줄인다.** 카드뉴스는 사진이 아니라
+ *    단색 배경 위 굵은 텍스트라 JPEG 압축을 걸면 글자 가장자리가 뭉개진다(8절의
+ *    "제목은 900(Black)" 처럼 이 프로젝트가 텍스트 선명도에 민감한 것과 같은 이유).
+ *    PNG 는 이런 평면 그래픽에 원래 압축이 잘 먹으므로, 해상도만 줄여도 용량이
+ *    꽤 줄어든다(1080→720 이면 픽셀 수가 약 1/2.25).
+ */
+function shrinkToBlob(dataUrl, maxWidth) {
+  return new Promise((resolve) => {
+    const img = new window.Image();
+    img.onload = () => {
+      const scale = Math.min(1, maxWidth / img.width);
+      const w = Math.max(1, Math.round(img.width * scale));
+      const h = Math.max(1, Math.round(img.height * scale));
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+      canvas.toBlob((blob) => resolve(blob), "image/png");
+    };
+    img.onerror = () => resolve(null);
+    img.src = dataUrl;
+  });
+}
+
+async function copyCardImage(dataUrl, cardNo) {
+  if (!dataUrl) {
+    toast(`카드뉴스 ${cardNo}번 이미지가 아직 만들어지지 않았습니다.`);
+    return;
+  }
+  if (typeof window === "undefined" || !window.ClipboardItem) {
+    toast("이 브라우저는 이미지 복사를 지원하지 않습니다.");
+    return;
+  }
+  try {
+    const blob = await shrinkToBlob(dataUrl, COPY_IMAGE_MAX_WIDTH);
+    if (!blob) throw new Error("resize failed");
+    await navigator.clipboard.write([new window.ClipboardItem({ [blob.type]: blob })]);
+    toast(`카드뉴스 ${cardNo}번 이미지를 복사했습니다. 붙여넣을 위치를 클릭하고 Ctrl+V 하세요.`);
+  } catch {
+    // 줄이는 데 실패해도 이미지 복사 자체는 되던 기능이다 — 원본 그대로라도 복사한다.
+    try {
+      const blob = await (await fetch(dataUrl)).blob();
+      await navigator.clipboard.write([new window.ClipboardItem({ [blob.type]: blob })]);
+      toast(`카드뉴스 ${cardNo}번 이미지를 원본 크기로 복사했습니다.`);
+    } catch {
+      toast("이미지를 복사하지 못했습니다.");
+    }
+  }
+}
 
 let blockSeq = 0;
 const newBlockId = () => `blk-${Date.now().toString(36)}-${(blockSeq++).toString(36)}`;
 
-/**
- * 원고를 제목 두 줄 + 편집 가능한 블록 목록으로 나눈다. 읽기 전용이던 예전
- * `parseBlog()` 와 달리, 나중에 그대로 다시 합칠 수 있도록 role(이미지 라벨)까지
- * 전부 들고 있는다 — 하나라도 버리면 다시 합쳤을 때 그 정보가 사라진다.
- *
- * ⚠️ 예전 버전은 긴 문단을 4줄/170자 단위로 잘라 여러 `<p>` 로 나눠 보여줬다
- *    (`paragraphChunks`). 편집 단위로는 그게 오히려 헷갈려서(문단 하나를 고치는데
- *    조각이 여러 개로 나뉜다) 여기서는 뺐다 — 원문에 실제로 빈 줄이 있는 경계만
- *    문단 경계로 본다. 화면에 보이는 형태만 살짝 달라질 뿐 내용 손실은 없다.
- */
-function parseBlogDoc(raw) {
-  const lines = String(raw || "").split("\n");
-  let quoteLine = "";
-  const title = [];
-  let cursor = 0;
-
-  if (QUOTE_RE.test(lines[0]?.trim() || "")) {
-    quoteLine = lines[0].trim();
-    let index = 1;
-    while (index < lines.length && title.length < 2) {
-      const text = lines[index]?.trim();
-      if (text) title.push(text);
-      index += 1;
-    }
-    cursor = index;
-  }
-
-  const blocks = [];
-  let paraLines = [];
-  const flushPara = () => {
-    if (!paraLines.length) return;
-    blocks.push({ id: newBlockId(), type: "para", text: paraLines.join("\n") });
-    paraLines = [];
-  };
-
-  for (let index = cursor; index < lines.length; index += 1) {
-    const line = lines[index].trim();
-    if (!line) {
-      flushPara();
-      continue;
-    }
-
-    const slot = line.match(SLOT_RE);
-    if (slot) {
-      flushPara();
-      const captionLine = lines[index + 1]?.trim() || "";
-      const captionMatch = captionLine.match(CAPTION_RE);
-      const caption = captionMatch ? captionMatch[1] : "";
-      if (caption) index += 1;
-      blocks.push({
-        id: newBlockId(),
-        type: "image",
-        no: Number(slot[1]),
-        role: (slot[2] || "").trim(),
-        caption,
-      });
-      continue;
-    }
-
-    const head = line.match(HEAD_RE);
-    if (head) {
-      flushPara();
-      blocks.push({ id: newBlockId(), type: "head", text: head[1].trim() });
-      continue;
-    }
-
-    if (TAGS_RE.test(line)) {
-      flushPara();
-      blocks.push({ id: newBlockId(), type: "tags", text: line });
-      continue;
-    }
-
-    paraLines.push(line);
-  }
-  flushPara();
-
-  return { quoteLine, title, blocks };
-}
-
-/** `parseBlogDoc()` 의 역연산 — 편집한 블록을 같은 원문 형식으로 되돌린다. */
-function serializeBlogDoc({ quoteLine, title, blocks }) {
-  const parts = [];
-  if (quoteLine) parts.push([quoteLine, ...title].join("\n"));
-  for (const block of blocks) {
-    if (block.type === "head") {
-      parts.push(`## ${block.text}`);
-    } else if (block.type === "tags") {
-      parts.push(block.text);
-    } else if (block.type === "image") {
-      const label = block.role
-        ? `📷 [이미지 ${block.no} · ${block.role}]`
-        : `📷 [이미지 ${block.no}]`;
-      parts.push(block.caption ? `${label}\n⤷ ${block.caption}` : label);
-    } else {
-      parts.push(block.text);
-    }
-  }
-  return parts.join("\n\n");
-}
+// ⚠️ 원고 파싱 규칙(`parseBlogDoc`·`serializeBlogDoc`)은 `lib/blogDoc.js` 로 옮겼다
+//    (2026-09-09) — 네이버 자동 발행 스크립트(Node, React·브라우저 API 없음)도
+//    같은 파서를 써야 화면·복사·자동 발행이 서로 다른 걸 보지 않는다. `blockSeq` 는
+//    이 파일 안에서 새 블록을 만들 때(문단 추가·블록 나누기)만 따로 쓰는 지역 카운터다.
 
 const IMAGE_SIZES = [
   { id: "sm", label: "S" },
@@ -276,6 +259,7 @@ function ImageBlock({
   onLayoutChange,
   onDelete,
   onEdit,
+  isPromptOnly = false,
   dragging,
   onPointerDown,
 }) {
@@ -318,6 +302,10 @@ function ImageBlock({
               <Icon name="edit" className="size-4" />
               카드 편집
             </span>
+          </button>
+        ) : isPromptOnly && onEdit ? (
+          <button type="button" onClick={onEdit} className="flex aspect-[4/3] w-full items-center justify-center rounded-md bg-[#f2f4f6] text-[#8b95a1] transition hover:bg-[#e9edf2]">
+            <span className="flex items-center gap-2 text-[13px] font-bold"><Icon name="image" className="size-6" />광고 이미지 프롬프트 보기</span>
           </button>
         ) : (
           <div className="flex aspect-[4/3] w-full items-center justify-center rounded-md bg-[#f2f4f6] text-[#b0b8c1]">
@@ -364,6 +352,15 @@ function ImageBlock({
             </button>
           ))}
         </div>
+        <button
+          type="button"
+          onClick={() => copyCardImage(thumb, block.no)}
+          aria-label={`카드뉴스 ${block.no}번 이미지 복사`}
+          title="복사한 뒤 네이버 에디터에서 붙여넣을 위치를 클릭하고 Ctrl+V 하세요"
+          className="rounded-full border border-[#e5e8eb] bg-white p-1.5 text-[#8b95a1] transition hover:border-[#287aff] hover:text-[#287aff]"
+        >
+          <Icon name="copy" className="size-3.5" />
+        </button>
         <button
           type="button"
           onClick={onDelete}
@@ -768,6 +765,7 @@ export function NaverBlogPreview({
                   onLayoutChange={(patch) => updateImageLayout(block.no, patch)}
                   onDelete={() => deleteBlock(block.id)}
                   onEdit={() => onEditCard?.(block.no - 1)}
+                  isPromptOnly={state?.concept === "intuitive"}
                   dragging={draggingImageId === block.id}
                   onPointerDown={startImageDrag}
                 />

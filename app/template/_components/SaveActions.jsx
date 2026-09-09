@@ -7,7 +7,7 @@ import { SectionDivider } from "./SectionDivider.jsx";
  * PNG 저장(1장/전체) 버튼. 옛 pages/template.js 의 saveOne/saveAll UI.
  * 피그마: https://www.figma.com/design/jRjBo4LUHkohSoPRqSaEAv/sns?node-id=72-1399
  */
-export function SaveActions({ cardCount, savingAll, publishing, onSaveOne, onSaveAll, onInstagram }) {
+export function SaveActions({ cardCount, savingAll, onSaveOne, onSaveAll }) {
   return (
     <div className="space-y-4">
       <SectionDivider title="저장 · 내보내기" />
@@ -21,15 +21,15 @@ export function SaveActions({ cardCount, savingAll, publishing, onSaveOne, onSav
           <Icon name="download" className="size-[18px]" />
           이 카드 저장
         </button>
-        <button
+        {false && <button
           type="button"
-          onClick={onInstagram}
-          disabled={publishing}
+          onClick={() => {}}
+          disabled
           className="inline-flex items-center gap-[5px] rounded-full border border-[#e1306c] bg-[#e1306c] px-[19px] py-[11px] text-[15px] font-bold text-white transition hover:bg-[#c82361] disabled:opacity-40"
         >
           <Icon name="instagram" className="size-[18px]" />
           Instagram에 게시
-        </button>
+        </button>}
         {cardCount > 1 && (
           <button
             type="button"

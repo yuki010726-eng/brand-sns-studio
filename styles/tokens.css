@@ -12,15 +12,16 @@
  */
 /* @import url("https://fonts.googleapis.com/css2?family=Do+Hyeon&display=swap"); */
 /**
- * 카드형(card) 제목·소제목 전용 서체 — 요청자가 public/font/BMEULJIROTTF.ttf 를 직접 넣어 줬다.
- * Next.js 는 public/ 을 루트에 그대로 서빙하므로 public/font/BMEULJIROTTF.ttf → /font/BMEULJIROTTF.ttf.
+ * 카드형(card) 제목·소제목 전용 서체 — 원본은 요청자가 넣어 준 public/font/BMEULJIROTTF.ttf(2.1MB).
+ * 용량 때문에 WOFF2로 변환해 둔다(2026-09-09, fonttools 무손실 변환 — 글립·힌팅 동일, 약 500KB).
+ * Next.js 는 public/ 을 루트에 그대로 서빙하므로 public/font/BMEULJIROTTF.woff2 → /font/BMEULJIROTTF.woff2.
  * cardrender.js 의 CARD_TITLE_FAMILY 와 짝이다 — 이름을 바꾸면 두 곳을 같이 고칠 것.
- * font-weight 를 범위(400 900)로 열어 둔 이유: 이 TTF 는 굵기가 하나뿐인데 카드형 제목은
+ * font-weight 를 범위(400 900)로 열어 둔 이유: 이 폰트는 굵기가 하나뿐인데 카드형 제목은
  * weight:900 으로 그린다 — 범위를 안 열면 900 요청이 이 얼굴과 안 맞다고 판단해 폴백으로 빠질 수 있다.
  */
 @font-face {
   font-family: "BM Euljiro";
-  src: url("/font/BMEULJIROTTF.ttf") format("truetype");
+  src: url("/font/BMEULJIROTTF.woff2") format("woff2");
   font-weight: 400 900;
   font-style: normal;
   font-display: swap;

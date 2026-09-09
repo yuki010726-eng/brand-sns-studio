@@ -109,7 +109,7 @@ export function InstagramPostPreview({
           <Icon name="more-horizontal" className="size-5 text-[#191f28]" />
         </div>
 
-        <div className="relative aspect-square bg-[#f2f4f6]">
+        <div className="relative aspect-[4/5] bg-[#f2f4f6]">
           {thumb ? (
             <button
               type="button"
@@ -131,7 +131,9 @@ export function InstagramPostPreview({
           ) : (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-[#8b95a1]">
               <Icon name="image" className="size-9" />
-              <span className="text-[13px]">카드뉴스 이미지 자리 (4단계에서 완성)</span>
+              <span className="text-[13px]">
+                카드뉴스 이미지 자리 (4단계에서 완성)
+              </span>
             </div>
           )}
           {slides > 1 && (
@@ -167,7 +169,13 @@ export function InstagramPostPreview({
         <p className="px-3 pt-2 text-[13px] font-semibold">좋아요 —개</p>
 
         <div className="px-3 pt-1 text-[13px] leading-[19px]">
-          <p className={expanded ? "whitespace-pre-wrap" : "line-clamp-2 whitespace-pre-wrap"}>
+          <p
+            className={
+              expanded
+                ? "whitespace-pre-wrap"
+                : "line-clamp-2 whitespace-pre-wrap"
+            }
+          >
             <span className="font-semibold">{name}</span> {body}
           </p>
           {expanded && tags && (
@@ -182,14 +190,17 @@ export function InstagramPostPreview({
           </button>
         </div>
 
-        <p className="px-3 pt-1.5 text-[12.5px] text-[#8e8e8e]">댓글 —개 모두 보기</p>
+        <p className="px-3 pt-1.5 text-[12.5px] text-[#8e8e8e]">
+          댓글 —개 모두 보기
+        </p>
         <p className="px-3 pb-3.5 pt-1 text-[11px] uppercase tracking-wide text-[#8e8e8e]">
           게시 전 미리보기
         </p>
       </div>
       <p className="mt-3 text-center text-[12px] leading-[1.5] text-[#8b95a1]">
-        인스타그램 피드에서 보이는 모양을 흉내 낸 미리보기입니다. 카드뉴스 이미지를 누르면
-        그 카드를 바로 편집할 수 있어요. 실제 화면과는 다를 수 있어요.
+        인스타그램 피드에서 보이는 모양을 흉내 낸 미리보기입니다. 카드뉴스
+        이미지를 누르면 그 카드를 바로 편집할 수 있어요. 실제 화면과는 다를 수
+        있어요.
       </p>
     </div>
   );

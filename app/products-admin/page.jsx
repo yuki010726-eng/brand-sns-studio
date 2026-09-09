@@ -305,7 +305,9 @@ export default function ProductsAdminPage() {
 
                 {!savedView && newCount > 0 ? (
                   <div className="mt-6 flex flex-wrap items-center justify-between gap-4 border-t border-[#e5e8eb] pt-6">
-                    <p className="text-[13px] text-[#8b95a1]">체크한 내용만 source_content에 저장됩니다.</p>
+                    <p className="text-[13px] text-[#8b95a1]">
+                      검토 화면에서는 문장으로 보여 드리고, 반영할 때 상품 근거 형식에 맞춰 저장됩니다.
+                    </p>
                     <button type="button" className={PRIMARY_BUTTON} disabled={busy} onClick={handleApply}>
                       {phase === "applying" ? "반영하는 중…" : "선택한 내용 반영"}
                     </button>

@@ -96,7 +96,12 @@ export async function POST(request) {
 
   const changed = succeeded.flatMap((item) => {
     const approved = approvedSources.get(item.url) || [];
-    const newContent = approved.filter((line) => !existing.proofs.some((known) => isDuplicateContent(line, known)));
+    const newContent = approved.filter(
+      (line) =>
+        !existing.proofs.some((known) =>
+          isDuplicateContent(line, proofText(known)),
+        ),
+    );
     const content = [...new Set([...(existing.sources.get(item.url) || []), ...newContent])];
     return newContent.length ? [{ ...item, content, newContent }] : [];
   });
@@ -128,7 +133,9 @@ async function existingProductData(auth, productId) {
 }
 
 async function collectItems(urls, existingProofs) {
-  const known = new Set(existingProofs.map(normalizeLine));
+  // product_proofs.content 는 예전 문자열과 구조화된 객체가 함께 있을 수 있다.
+  // 미리보기에서는 사람이 읽을 문장만 비교한다.
+  const known = new Set(existingProofs.map(proofText).map(normalizeLine));
   const items = [];
   for (const url of urls) {
     try {
@@ -161,13 +168,46 @@ async function saveSource(auth, productId, item) {
 }
 
 async function mergeProofs(auth, productId, existing, imported) {
-  const content = [...new Set([...existing, ...imported])];
+  // 화면에서는 원문 문장만 다루되, 저장할 때만 product_proofs의 구조화된
+  // 형식으로 바꾼다. 기존 데이터는 절대 재작성하지 않아 이전 형식도 보존된다.
+  const additions = [];
+  imported.map(toStructuredProof).forEach((proof) => {
+    const known = [...existing, ...additions];
+    if (!known.some((item) => isDuplicateContent(proofText(proof), proofText(item)))) {
+      additions.push(proof);
+    }
+  });
+  const content = [...existing, ...additions];
   const response = await fetch(`${auth.supabaseUrl}/rest/v1/product_proofs?on_conflict=product_id`, {
     method: "POST",
     headers: { ...auth.headers, "Content-Type": "application/json", Prefer: "resolution=merge-duplicates,return=minimal" },
     body: JSON.stringify({ product_id: productId, content }),
   });
   if (!response.ok) throw new Error("가져온 내용을 상품 근거에 반영하지 못했습니다.");
+}
+
+/**
+ * product_proofs.content 의 표준 항목.
+ *
+ * 관리 화면은 비개발자도 검토할 수 있도록 문장만 보여 주고, 이 변환은 실제
+ * "반영" 시점에만 수행한다. 글 생성기는 category/label/value/type 을 모두
+ * 읽으므로 이전 문자열 데이터와 새 데이터가 함께 있어도 호환된다.
+ */
+function toStructuredProof(line) {
+  return {
+    category: "fact",
+    type: "fact",
+    label: "출처 확인",
+    value: String(line).replace(/\s+/g, " ").trim(),
+  };
+}
+
+function proofText(proof) {
+  if (typeof proof === "string") return proof.replace(/\s+/g, " ").trim();
+  if (!proof || typeof proof !== "object") return "";
+  return String(proof.value ?? proof.content ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 const uniqueLines = (text) => [...new Set(text.slice(0, 18000).split(/\n+/).map((line) => line.trim()).filter(Boolean))];

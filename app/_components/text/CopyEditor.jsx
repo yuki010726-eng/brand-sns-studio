@@ -6,9 +6,56 @@ import { InstagramPostPreview } from "./InstagramPostPreview.jsx";
 import { NaverBlogPreview } from "./NaverBlogPreview.jsx";
 import { CardEditModal } from "./CardEditModal.jsx";
 import { useCardDeck } from "./useCardDeck.js";
+import { InstagramPublishDialog } from "../../template/_components/InstagramPublishDialog.jsx";
+import { fillNaverDraft, getSavedNaverBlogId, saveNaverBlogId } from "../../../lib/naverFillClient.js";
+import { parseBlogDoc } from "../../../lib/blogDoc.js";
+import { publishInstagramCarousel, removeInstagramCards, uploadInstagramCards } from "../../../lib/instagram.js";
+import { getActiveInstagramAccountId, getInstagramAccounts } from "../../../lib/instagram-accounts.js";
+import { toast } from "../../../components/toast.js";
 
 const QUOTE_RE = /^\[[^\]]*인용구\]$/;
 const SLOT_RE = /^📷\s*\[이미지\s*(\d+)\s*·\s*([^\]]+)\]/;
+
+/**
+ * 카드뉴스 미리보기(`NaverBlogPreview.jsx`)의 이미지는 `rounded-md` CSS로 모서리를 둥글게
+ * 잘라 보여주지만, 그건 화면에서만 그런 것이고 실제 PNG 파일 자체는 각진 사각형이다.
+ * 네이버 에디터는 이미지마다 모서리 반경을 설정하는 기능이 없다 — 사진 편집 도구(NPE)를
+ * 열어 봤지만 도형 마스크 없이 명도/채도 마스크·액자·모자이크뿐이라 자동화로 안정적으로
+ * 흉내 내기 어렵다(2026-09-09). 그래서 **업로드하기 전에 이미지 자체의 네 모서리를
+ * 투명하게 잘라서** 보낸다 — 결과가 항상 정확하고, 네이버 쪽 UI가 바뀌어도 안 깨진다.
+ *
+ * 반경은 원본 폭(1080px, `lib/cardrender.js`의 `W`)의 5% — 미리보기 뒤에 어떤 크기(S/M/L)
+ * 로 축소되어 올라가든 실제 화면에 보이는 반경이 늘 비슷한 비율로 보이게 하려는 것이다.
+ */
+async function roundedImageDataUrl(dataUrl) {
+  if (typeof window === "undefined" || !dataUrl) return dataUrl;
+  try {
+    const img = await new Promise((resolve, reject) => {
+      const el = new window.Image();
+      el.onload = () => resolve(el);
+      el.onerror = reject;
+      el.src = dataUrl;
+    });
+    const canvas = document.createElement("canvas");
+    canvas.width = img.width;
+    canvas.height = img.height;
+    const ctx = canvas.getContext("2d");
+    const r = Math.round(img.width * 0.05);
+    ctx.beginPath();
+    ctx.moveTo(r, 0);
+    ctx.arcTo(canvas.width, 0, canvas.width, canvas.height, r);
+    ctx.arcTo(canvas.width, canvas.height, 0, canvas.height, r);
+    ctx.arcTo(0, canvas.height, 0, 0, r);
+    ctx.arcTo(0, 0, canvas.width, 0, r);
+    ctx.closePath();
+    ctx.clip();
+    ctx.drawImage(img, 0, 0);
+    return canvas.toDataURL("image/png");
+  } catch {
+    // 모서리를 못 둥글게 해도 원본 이미지는 그대로 올라가는 게 낫다.
+    return dataUrl;
+  }
+}
 
 const ISSUE_UNDERLINE = {
   warning: "decoration-amber-500",
@@ -179,10 +226,14 @@ export function CopyEditor({
   product,
 }) {
   const [chatOpen, setChatOpen] = useState(false);
+  const [naverBlogId, setNaverBlogId] = useState(() => getSavedNaverBlogId());
+  const [naverFilling, setNaverFilling] = useState(false);
+  const [instagramDialog, setInstagramDialog] = useState(null);
+  const [publishingInstagram, setPublishingInstagram] = useState(false);
   // 블로그·인스타그램 미리보기가 함께 보는 카드뉴스 덱·썸네일 — 어느 채널의 이미지
   // 부분을 눌러도 같은 모달(`CardEditModal`)로 같은 카드를 편집해야 하므로 한 곳에서 만든다.
   const [editIndex, setEditIndex] = useState(null);
-  const { deck, cardThumbs } = useCardDeck(state, product, {
+  const { deck, cardThumbs, previewCard } = useCardDeck(state, product, {
     suspendThumbs: editIndex != null,
   });
   const hasLimit = Number.isFinite(channel.limit) && channel.limit > 0;
@@ -196,6 +247,107 @@ export function CopyEditor({
         !QUOTE_RE.test(line.trim()),
     )
     .join("\n").length;
+
+  // ⚠️ 발행 버튼은 여기서 누르지 않는다 — 제목·본문만 채워 넣고, 뜬 브라우저 창에서
+  //    사람이 직접 확인하고 발행한다(요청자 결정, 2026-09-09). 로그인 세션도 사람이
+  //    `npm run naver:setup` 으로 한 번 직접 로그인해 둔 걸 재사용할 뿐, 이 코드는
+  //    아이디·비밀번호를 다루지 않는다.
+  async function handleNaverFill() {
+    const blogId = naverBlogId.trim();
+    if (!blogId) {
+      toast("네이버 블로그 아이디를 먼저 입력해 주세요.");
+      return;
+    }
+    if (!value.trim()) {
+      toast("채워 넣을 글이 없습니다.");
+      return;
+    }
+    saveNaverBlogId(blogId);
+    setNaverFilling(true);
+    try {
+      // 원고 안 이미지 자리(`📷 [이미지 N …]`)마다 실제 카드뉴스 썸네일을 붙여 보낸다.
+      // `cardThumbs` 는 0-based(`no - 1`)인데 원고의 이미지 번호는 1-based — 다른 곳
+      // (`NaverBlogPreview.jsx`)과 같은 규칙으로 맞춘다. 아직 안 만든 카드는 빠지고,
+      // 서버 쪽(`fillBody`)이 그 자리를 대괄호 텍스트로 대신 채운다.
+      // 크기·정렬도 미리보기(`NaverBlogPreview.jsx`)에서 고른 그대로 넘긴다 — 안 고른
+      // 이미지는 그 컴포넌트와 똑같은 기본값(M · 가운데 정렬)을 쓴다. `state.blogImageLayout`
+      // 를 그대로 보내면 사람이 안 건드린 이미지는 빠져서 네이버 쪽 기본값(왼쪽 정렬)으로
+      // 나가 미리보기와 어긋난다 — 그래서 기본값까지 여기서 채워서 보낸다.
+      const images = {};
+      const imageLayout = {};
+      for (const block of parseBlogDoc(value).blocks) {
+        if (block.type !== "image") continue;
+        const thumb = cardThumbs[block.no - 1];
+        // 미리보기가 모서리를 둥글게 잘라 보여주는 것과 똑같이 보이도록, 업로드하기 전에
+        // 이미지 자체의 모서리를 미리 둥글게 잘라 둔다(`roundedImageDataUrl` 참고) —
+        // 네이버 에디터에는 이미지별 모서리 반경 설정이 없다.
+        if (thumb) images[block.no] = await roundedImageDataUrl(thumb);
+        const layout = state?.blogImageLayout?.[block.no];
+        imageLayout[block.no] = { size: layout?.size || "md", align: layout?.align || "center" };
+      }
+      // 제목은 원고 안 인용구 두 줄이 아니라 "글 구조 요약"에서 고른 제목을 쓴다
+      // (요청자 지시, 2026-09-09) — 그 제목이 카드뉴스 표지 문구 등 나머지 글의
+      // 기준이므로, 네이버에 올라가는 제목도 같은 것이어야 한다.
+      await fillNaverDraft({ rawDraft: value, blogId, images, imageLayout, title: blogTitle });
+      toast("네이버 글쓰기 화면에 채워 넣었습니다. 뜬 브라우저 창에서 내용을 확인하고 직접 발행해 주세요.");
+    } catch (error) {
+      toast(error?.message || "네이버에 채워 넣지 못했습니다.");
+    } finally {
+      setNaverFilling(false);
+    }
+  }
+
+  async function handleOpenInstagram() {
+    if (deck.length > 10) {
+      toast("Instagram 캐러셀은 최대 10장까지 게시할 수 있습니다.");
+      return;
+    }
+    if (!deck.length || Object.keys(cardThumbs).length !== deck.length) {
+      toast("게시 이미지를 준비하는 중입니다. 잠시 후 다시 시도해 주세요.");
+      return;
+    }
+    try {
+      const accounts = await getInstagramAccounts();
+      if (!accounts.length) {
+        toast("연결된 Instagram 계정이 없습니다. 마이페이지에서 계정을 먼저 연결해 주세요.");
+        return;
+      }
+      const blobs = await Promise.all(deck.map(async (_, index) => {
+        const response = await fetch(cardThumbs[index]);
+        if (!response.ok) throw new Error("게시 이미지를 준비하지 못했습니다.");
+        return response.blob();
+      }));
+      const activeAccountId = getActiveInstagramAccountId();
+      setInstagramDialog({
+        blobs,
+        previews: deck.map((_, index) => cardThumbs[index]),
+        caption: value,
+        accounts,
+        accountId: activeAccountId || (accounts.length === 1 ? accounts[0].instagram_user_id : ""),
+        accountLocked: Boolean(activeAccountId),
+      });
+    } catch (error) {
+      toast(error.message || "게시 이미지를 준비하지 못했습니다.");
+    }
+  }
+
+  async function handlePublishInstagram() {
+    if (!instagramDialog || publishingInstagram || !instagramDialog.accountId) return;
+    setPublishingInstagram(true);
+    let uploaded;
+    try {
+      uploaded = await uploadInstagramCards(instagramDialog.blobs, state.postId);
+      const result = await publishInstagramCarousel(uploaded.urls, instagramDialog.caption, instagramDialog.accountId);
+      toast(`Instagram 게시가 완료되었습니다. (${result.id})`);
+      setInstagramDialog(null);
+    } catch (error) {
+      toast(error.message || "Instagram 게시에 실패했습니다.");
+    } finally {
+      if (uploaded?.paths) await removeInstagramCards(uploaded.paths);
+      setPublishingInstagram(false);
+    }
+  }
+
   return (
     <section
       role="tabpanel"
@@ -220,6 +372,46 @@ export function CopyEditor({
               <Icon name={readMode ? "edit" : "eye"} className="size-[18px]" />
               {readMode ? "고치기" : "미리보기"}
             </button>
+          )}
+          {channel.id === "instagram" && (
+            <button
+              type="button"
+              onClick={handleOpenInstagram}
+              disabled={publishingInstagram}
+              className="inline-flex h-[45px] items-center gap-[5px] rounded-full border border-[#e1306c] bg-[#e1306c] px-[19px] text-[15px] font-bold text-white hover:bg-[#c82361] disabled:opacity-40"
+            >
+              <Icon name="instagram" className="size-[18px]" />
+              {publishingInstagram ? "게시 중…" : "Instagram에 게시"}
+            </button>
+          )}
+          {channel.id === "blog" && (
+            <>
+              <label className="sr-only" htmlFor="naver-blog-id">
+                네이버 블로그 아이디
+              </label>
+              <input
+                id="naver-blog-id"
+                type="text"
+                value={naverBlogId}
+                onChange={(e) => setNaverBlogId(e.target.value)}
+                placeholder="네이버 블로그 아이디"
+                autoComplete="off"
+                className="h-[45px] w-[160px] rounded-full border border-[#e5e8eb] bg-white px-[16px] text-[14px] text-[#333]"
+              />
+              <button
+                type="button"
+                onClick={handleNaverFill}
+                disabled={naverFilling}
+                title="제목·본문만 채우고 멈춥니다. 발행은 뜬 브라우저 창에서 직접 눌러야 합니다."
+                className="inline-flex h-[45px] items-center gap-[5px] rounded-full border border-[#03c75a] bg-white px-[19px] text-[15px] font-bold text-[#03c75a] disabled:opacity-50"
+              >
+                <Icon
+                  name={naverFilling ? "refresh" : "external"}
+                  className={`size-[18px] ${naverFilling ? "animate-spin" : ""}`}
+                />
+                {naverFilling ? "채우는 중…" : "네이버에 채우기"}
+              </button>
+            </>
           )}
           <button
             type="button"
@@ -375,9 +567,23 @@ export function CopyEditor({
         </>
       )}
 
+      <InstagramPublishDialog
+        open={Boolean(instagramDialog)}
+        images={instagramDialog?.previews || []}
+        caption={instagramDialog?.caption || ""}
+        accounts={instagramDialog?.accounts || []}
+        accountId={instagramDialog?.accountId || ""}
+        accountLocked={Boolean(instagramDialog?.accountLocked)}
+        busy={publishingInstagram}
+        onAccountChange={(accountId) => setInstagramDialog((current) => current ? { ...current, accountId } : current)}
+        onCaptionChange={(caption) => setInstagramDialog((current) => current ? { ...current, caption } : current)}
+        onClose={() => !publishingInstagram && setInstagramDialog(null)}
+        onPublish={handlePublishInstagram}
+      />
       <CardEditModal
         product={product}
         deck={deck}
+        previewCard={previewCard}
         cardIndex={editIndex}
         onClose={() => setEditIndex(null)}
       />

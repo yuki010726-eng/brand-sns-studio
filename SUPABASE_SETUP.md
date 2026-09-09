@@ -39,6 +39,8 @@ Supabase **SQL Editor**에서 다음 파일을 순서대로 실행합니다.
 -- 계정 하나당 한 줄. 작업 내용은 통째로 jsonb 에 담는다.
 create table if not exists public.studio_state (
   user_id    uuid primary key references auth.users on delete cascade,
+  user_name  text        not null default '',
+  insta_user_name text    not null default '',
   state      jsonb       not null default '{}'::jsonb,
   updated_at timestamptz not null default now()
 );
