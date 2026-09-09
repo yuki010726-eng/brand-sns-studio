@@ -304,7 +304,7 @@ function ImageBlock({
             </span>
           </button>
         ) : isPromptOnly && onEdit ? (
-          <button type="button" onClick={onEdit} className="flex aspect-[4/3] w-full items-center justify-center rounded-md bg-[#f2f4f6] text-[#8b95a1] transition hover:bg-[#e9edf2]">
+          <button type="button" onClick={onEdit} className="flex aspect-square w-full items-center justify-center rounded-md bg-[#f2f4f6] text-[#8b95a1] transition hover:bg-[#e9edf2]">
             <span className="flex items-center gap-2 text-[13px] font-bold"><Icon name="image" className="size-6" />광고 이미지 프롬프트 보기</span>
           </button>
         ) : (

@@ -45,6 +45,18 @@ export async function GET(request) {
   try {
     const intent = new URL(request.url).searchParams.get('intent') === 'signup' ? 'signup' : 'login';
     const config = requireInstagramConfig();
+    const requestUrl = new URL(request.url);
+    const callbackUrl = new URL(config.redirectUri);
+
+    // OAuth state is deliberately stored in a host-only, HttpOnly cookie.  The
+    // browser must therefore begin the flow on the same origin as the callback.
+    // This also makes a local app work when its configured callback is deployed.
+    if (requestUrl.origin !== callbackUrl.origin) {
+      const startUrl = new URL('/api/auth/instagram/start', callbackUrl.origin);
+      startUrl.searchParams.set('intent', intent);
+      return NextResponse.redirect(startUrl);
+    }
+
     const state = crypto.randomBytes(32).toString('base64url');
     const authorize = instagramAuthorizeUrl(config, state);
     const response = NextResponse.redirect(authorize);

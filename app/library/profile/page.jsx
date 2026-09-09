@@ -35,6 +35,7 @@ import { ProfileDraftPanel } from "./_components/ProfileDraftPanel.jsx";
 import { ProfileTypePicker } from "./_components/ProfileTypePicker.jsx";
 import { InstagramAccounts } from "./_components/InstagramAccounts.jsx";
 import { MyPageSidebar } from "../_components/MyPageSidebar.jsx";
+import { getInstagramProfilePreview } from "../../../lib/instagram-accounts.js";
 
 /**
  * 미리보기 아바타에 쓸 이미지.
@@ -71,6 +72,9 @@ export default function ProfilePage() {
   const [state, setViewState] = useState(null);
   const [productsReady, setProductsReady] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState(null);
+  const [selectedInstagramAccount, setSelectedInstagramAccount] = useState(null);
+  const [instagramPreview, setInstagramPreview] = useState(null);
+  const [instagramPreviewError, setInstagramPreviewError] = useState("");
   const avatarLoaded = useRef(false);
 
   useEffect(() => {
@@ -92,6 +96,22 @@ export default function ProfilePage() {
         /* 저장소가 막힌 환경이면 아바타 없이 간다 */
       });
   }, []);
+
+  useEffect(() => {
+    const accountId = selectedInstagramAccount?.instagram_user_id;
+    if (!accountId) {
+      setInstagramPreview(null);
+      setInstagramPreviewError("");
+      return undefined;
+    }
+    let cancelled = false;
+    setInstagramPreview(null);
+    setInstagramPreviewError("");
+    getInstagramProfilePreview(accountId)
+      .then((data) => { if (!cancelled) setInstagramPreview(data); })
+      .catch((error) => { if (!cancelled) setInstagramPreviewError(error.message || "Instagram 프로필을 불러오지 못했습니다."); });
+    return () => { cancelled = true; };
+  }, [selectedInstagramAccount?.instagram_user_id]);
 
   function remake(opts) {
     setState({ profile: buildProfile(opts), profileSeed: opts.seed });
@@ -183,6 +203,20 @@ export default function ProfilePage() {
 
   if (!state || !productsReady) return <LoadingScreen />;
   const profile = state.profile;
+  const connectedProfile = selectedInstagramAccount
+    ? {
+        name: instagramPreview?.profile?.name || `@${instagramPreview?.profile?.username || selectedInstagramAccount.username || 'instagram'}`,
+        slug: instagramPreview?.profile?.username || selectedInstagramAccount.username || 'instagram',
+        bio: instagramPreview?.profile?.biography || '',
+        link: instagramPreview?.profile?.website || '',
+        stats: {
+          media: instagramPreview?.profile?.media_count,
+          followers: instagramPreview?.profile?.followers_count,
+          follows: instagramPreview?.profile?.follows_count,
+        },
+        media: instagramPreview?.media || [],
+      }
+    : null;
 
   return (
     <main className="min-h-dvh bg-[#1a1a1a] pb-[170px] pt-0 text-[#4e5968]">
@@ -198,21 +232,48 @@ export default function ProfilePage() {
           </p>
         </header>
 
-        <InstagramAccounts />
+        <InstagramAccounts
+          selectedAccountId={selectedInstagramAccount?.instagram_user_id}
+          onSelectAccount={setSelectedInstagramAccount}
+        />
 
-        <section className="mb-12">
-          <h2 className="mb-4 text-[20px] font-bold text-white">1. 계정 유형</h2>
-          <ProfileTypePicker
-            profile={profile}
-            onTypeChange={handleTypeChange}
-            onBrandChange={handleBrandChange}
-            onMarketerStyleChange={handleMarketerStyleChange}
-          />
-        </section>
+        {selectedInstagramAccount ? (
+          <section>
+            <h2 className="mb-4 text-[20px] font-bold text-white">선택한 Instagram 프로필</h2>
+            <div className="max-w-[320px]">
+              {!instagramPreview && !instagramPreviewError && (
+                <div className="flex min-h-[280px] items-center justify-center rounded-[15px] border border-white/15 bg-white/5 text-[14px] text-white/55">Instagram 프로필을 불러오는 중…</div>
+              )}
+              {instagramPreviewError && (
+                <div className="rounded-[15px] border border-white/15 bg-white/5 p-5 text-[14px] text-white/65">
+                  <p>{instagramPreviewError}</p>
+                  <p className="mt-2 text-[12px] text-white/45">연결을 다시 시도한 뒤 확인해 주세요.</p>
+                </div>
+              )}
+              {instagramPreview && <InstagramPreview
+                profile={connectedProfile}
+                avatarUrl={instagramPreview.profile?.profile_picture_url || selectedInstagramAccount.profile_picture_url || null}
+              />}
+              {selectedInstagramAccount.account_type && (
+                <p className="mt-3 text-[13px] text-white/50">{selectedInstagramAccount.account_type}</p>
+              )}
+            </div>
+          </section>
+        ) : (
+          <>
+            <section className="mb-12">
+              <h2 className="mb-4 text-[20px] font-bold text-white">1. 계정 유형</h2>
+              <ProfileTypePicker
+                profile={profile}
+                onTypeChange={handleTypeChange}
+                onBrandChange={handleBrandChange}
+                onMarketerStyleChange={handleMarketerStyleChange}
+              />
+            </section>
 
-        <section>
-          <h2 className="mb-4 text-[20px] font-bold text-white">2. 이름 · 소개 · 프로필 이미지</h2>
-          {!profile ? (
+            <section>
+              <h2 className="mb-4 text-[20px] font-bold text-white">2. 이름 · 소개 · 프로필 이미지</h2>
+              {!profile ? (
             <div className="flex items-start gap-3 rounded-[15px] border border-white/15 bg-white/5 p-5 text-[14px] text-white/70">
               <Icon name="sparkles" className="mt-0.5 size-4 shrink-0 text-white/50" />
               <div>
@@ -220,7 +281,7 @@ export default function ProfilePage() {
                 <p className="mt-0.5">고르는 즉시 이름·소개·이미지 프롬프트 초안이 만들어집니다.</p>
               </div>
             </div>
-          ) : (
+              ) : (
             <div className="grid grid-cols-[minmax(260px,320px)_1fr] items-start gap-6 max-[880px]:grid-cols-1">
               <InstagramPreview profile={profile} avatarUrl={avatarUrl} />
               <ProfileDraftPanel
@@ -236,8 +297,10 @@ export default function ProfilePage() {
                 onPhotoClear={handlePhotoClear}
               />
             </div>
-          )}
-        </section>
+              )}
+            </section>
+          </>
+        )}
 
         <div className="mt-10 flex justify-end">
           <button
