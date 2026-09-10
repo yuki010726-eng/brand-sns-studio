@@ -63,8 +63,8 @@ export default function LoginPage() {
       modal("이미 가입된 계정입니다.");
     }
     if (params.get("instagram_signup_required") === "1") {
-      setActiveTab("signup");
-      modal("가입된 계정이 아닙니다. 회원가입을 먼저 진행해 주세요.");
+      setActiveTab("login");
+      modal("관리자에게 계정 추가 요청 후 다시 로그인해주세요.");
     }
   }, []);
 
