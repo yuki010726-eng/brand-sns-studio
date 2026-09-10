@@ -51,11 +51,15 @@ export async function GET(request) {
     return NextResponse.redirect(target(request, { instagram_error: 'Instagram 인증 요청이 만료되었거나 올바르지 않습니다.' }));
   }
 
+  let phase = 'server configuration';
   try {
     const config = requireInstagramConfig();
     const connectingUserId = intent === 'connect' ? verifiedUserId(connectingUserCookie, config.appSecret) : '';
+    phase = 'authorization-code exchange';
     const short = await exchangeInstagramCode(code, config);
+    phase = 'long-lived token exchange';
     const long = await exchangeLongLivedToken(short.access_token, config);
+    phase = 'Instagram profile lookup';
     const profile = await getInstagramProfile(long.access_token);
     const admin = instagramAdmin(config);
 
@@ -140,6 +144,10 @@ export async function GET(request) {
     response.cookies.delete('instagram_oauth_user_id');
     return response;
   } catch (error) {
+    console.error('[instagram-debug] OAuth callback failed', {
+      phase,
+      message: error instanceof Error ? error.message : String(error),
+    });
     const target = intent === 'connect' ? profileUrl : loginUrl;
     const response = NextResponse.redirect(target(request, { instagram_error: error.message || 'Instagram 로그인에 실패했습니다.' }));
     response.cookies.delete('instagram_oauth_state');

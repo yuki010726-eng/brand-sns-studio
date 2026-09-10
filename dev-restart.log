@@ -7438,3 +7438,179 @@ https://react.dev/link/hydration-mismatch
  GET /text 200 in 69ms (next.js: 24ms, application-code: 45ms)
 ✓ Compiled in 216ms
  GET /text 200 in 65ms (next.js: 21ms, application-code: 44ms)
+ GET /text 200 in 42ms (next.js: 9ms, application-code: 33ms)
+ GET /library 200 in 49ms (next.js: 11ms, application-code: 38ms)
+[instagram-debug] redirectUri: "https://brand-sns-studio.vercel.app/api/auth/instagram/callback" length: 63
+ GET /api/instagram/accounts 401 in 596ms (next.js: 6ms, application-code: 590ms)
+ GET /library/profile 200 in 54ms (next.js: 20ms, application-code: 34ms)
+[instagram-debug] redirectUri: "https://brand-sns-studio.vercel.app/api/auth/instagram/callback" length: 63
+ GET /api/instagram/accounts 401 in 155ms (next.js: 7ms, application-code: 148ms)
+[instagram-debug] redirectUri: "https://brand-sns-studio.vercel.app/api/auth/instagram/callback" length: 63
+ GET /api/instagram/accounts 401 in 73ms (next.js: 5ms, application-code: 68ms)
+[instagram-debug] redirectUri: "https://brand-sns-studio.vercel.app/api/auth/instagram/callback" length: 63
+ GET /api/instagram/accounts 401 in 79ms (next.js: 6ms, application-code: 73ms)
+ GET /library/profile 200 in 52ms (next.js: 9ms, application-code: 43ms)
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <HotReload globalError={[...]} webSocket={WebSocket} staticIndicatorState={{pathname:null, ...}}>
+      <AppDevOverlayErrorBoundary globalError={[...]}>
+        <ReplaySsrOnlyErrors>
+        <DevRootHTTPAccessFallbackBoundary>
+          <HTTPAccessFallbackBoundary notFound={<NotAllowedRootHTTPFallbackError>}>
+            <HTTPAccessFallbackErrorBoundary pathname="/library/p..." notFound={<NotAllowedRootHTTPFallbackError>} ...>
+              <RedirectBoundary>
+                <RedirectErrorBoundary router={{...}}>
+                  <Head headCacheNode={{rsc:{...}, ...}}>
+                    <__next_viewport_boundary__>
+                    <MetadataWrapper>
+                      <div
+                        hidden={true}
+-                       style={{user-select:"auto"}}
+                      >
+                  <__next_root_layout_boundary__>
+                    <SegmentViewNode type="layout" pagePath="layout.jsx">
+                      <SegmentTrieNode>
+                      <link>
+                      <script>
+                      <script>
+                      <script>
+                      <RootLayout>
+                        <html lang="ko" suppressHydrationWarning={true}>
+                          <body className="font-sans" suppressHydrationWarning={true}>
+                            <Header>
+                              <header
+                                className="pointer-events-none sticky top-0 z-40 h-[100px]"
+-                               style={{user-select:"auto"}}
+                              >
+                                <div
+                                  className={"pointer-events-auto flex max-w-none items-center gap-6 bg-[#1a1a1a] px-..."}
+-                                 style={{user-select:"auto"}}
+                                >
+                                  <LinkComponent href="/text" onClick={function startNewPost} aria-label="브랜드 SNS 스튜..." ...>
+                                    <a
+                                      aria-label="브랜드 SNS 스튜디오 홈으로 이동"
+                                      className="inline-flex items-center hover:no-underline max-[560px]:hidden"
+                                      ref={function}
+                                      onClick={function onClick}
+                                      onMouseEnter={function onMouseEnter}
+                                      onTouchStart={function onTouchStart}
+                                      href="/text"
+-                                     style={{user-select:"auto"}}
+                                    >
+                                      <img
+                                        src="/_next/static/media/logo.2j11sajiinpvj.svg"
+                                        alt=""
+                                        className="block w-auto transition-[height] duration-200 h-5"
+-                                       style={{user-select:"auto"}}
+                                      >
+                                  <div
+                                    className="ml-auto flex items-center gap-[10px] max-[560px]:min-w-0 max-[560px]:gap-2"
+-                                   style={{user-select:"auto"}}
+                                  >
+                                    <nav
+                                      className="flex items-center gap-2"
+                                      aria-label="주요 메뉴"
+-                                     style={{user-select:"auto"}}
+                                    >
+                                      <LinkComponent href="/text" onClick={function startNewPost} ...>
+                                        <a
+                                          aria-current={undefined}
+                                          className="whitespace-nowrap rounded-full border font-bold leading-[22.4px] ..."
+                                          ref={function}
+                                          onClick={function onClick}
+                                          onMouseEnter={function onMouseEnter}
+                                          onTouchStart={function onTouchStart}
+                                          href="/text"
+-                                         style={{user-select:"auto"}}
+                                        >
++                                         새 게시물
+                                      <LinkComponent href="/library" onClick={undefined} aria-current="page" ...>
+                                        <a
+                                          aria-current="page"
+                                          className="whitespace-nowrap rounded-full border font-bold leading-[22.4px] ..."
+                                          ref={function}
+                                          onClick={function onClick}
+                                          onMouseEnter={function onMouseEnter}
+                                          onTouchStart={function onTouchStart}
+                                          href="/library"
+-                                         style={{user-select:"auto"}}
+                                        >
++                                         마이페이지
+                            <AuthGate>
+                              <main
+                                className="flex min-h-dvh items-center justify-center bg-[#1a1a1a] text-white"
+-                               style={{user-select:"auto"}}
+                              >
++                               계정 상태를 확인하고 있습니다.
+                  ...
+ 
+ GET /login 200 in 72ms (next.js: 15ms, application-code: 57ms)
+[instagram-debug] redirectUri: "https://brand-sns-studio.vercel.app/api/auth/instagram/callback" length: 63
+ GET / 200 in 81ms (next.js: 44ms, application-code: 36ms)
+ GET / 200 in 180ms (next.js: 19ms, application-code: 161ms)
+ GET /api/instagram/accounts 401 in 255ms (next.js: 20ms, application-code: 235ms)
+ GET / 200 in 189ms (next.js: 28ms, application-code: 161ms)
+ GET / 200 in 189ms (next.js: 68ms, application-code: 122ms)
+ GET / 200 in 150ms (next.js: 19ms, application-code: 131ms)
+ GET / 200 in 102ms (next.js: 20ms, application-code: 82ms)
+ GET / 200 in 55ms (next.js: 16ms, application-code: 40ms)
+[instagram-debug] redirectUri: "https://brand-sns-studio.vercel.app/api/auth/instagram/callback" length: 63
+ GET /text 200 in 116ms (next.js: 14ms, application-code: 102ms)
+ GET /api/instagram/accounts 401 in 80ms (next.js: 9ms, application-code: 71ms)
+ GET /text 200 in 59ms (next.js: 13ms, application-code: 47ms)
+[instagram-debug] redirectUri: "https://brand-sns-studio.vercel.app/api/auth/instagram/callback" length: 63
+ GET /api/instagram/accounts 401 in 80ms (next.js: 5ms, application-code: 75ms)
+ GET /library 200 in 35ms (next.js: 8ms, application-code: 26ms)
+[instagram-debug] redirectUri: "https://brand-sns-studio.vercel.app/api/auth/instagram/callback" length: 63
+ GET /api/instagram/accounts 401 in 90ms (next.js: 6ms, application-code: 84ms)
+ GET /library/profile 200 in 33ms (next.js: 10ms, application-code: 24ms)
+[instagram-debug] redirectUri: "https://brand-sns-studio.vercel.app/api/auth/instagram/callback" length: 63
+ GET /api/instagram/accounts 401 in 78ms (next.js: 7ms, application-code: 71ms)
+[instagram-debug] redirectUri: "https://brand-sns-studio.vercel.app/api/auth/instagram/callback" length: 63
+ GET /api/instagram/accounts 401 in 71ms (next.js: 7ms, application-code: 64ms)
+[instagram-debug] redirectUri: "https://brand-sns-studio.vercel.app/api/auth/instagram/callback" length: 63
+ GET /api/instagram/accounts 401 in 70ms (next.js: 5ms, application-code: 65ms)
+ GET /login 200 in 111ms (next.js: 12ms, application-code: 99ms)
+ GET /login 200 in 41ms (next.js: 13ms, application-code: 27ms)
+ GET /login 200 in 77ms (next.js: 8ms, application-code: 68ms)
+[instagram-debug] redirectUri: "https://brand-sns-studio.vercel.app/api/auth/instagram/callback" length: 63
+ GET / 200 in 99ms (next.js: 27ms, application-code: 72ms)
+ GET /login 200 in 90ms (next.js: 8ms, application-code: 82ms)
+ GET /text 200 in 85ms (next.js: 16ms, application-code: 70ms)
+ GET /text 200 in 40ms (next.js: 9ms, application-code: 31ms)
+ GET /api/instagram/accounts 200 in 251ms (next.js: 12ms, application-code: 239ms)
+[instagram-debug] redirectUri: "https://brand-sns-studio.vercel.app/api/auth/instagram/callback" length: 63
+ GET /api/instagram/accounts 200 in 186ms (next.js: 5ms, application-code: 182ms)
+[instagram-debug] redirectUri: "https://brand-sns-studio.vercel.app/api/auth/instagram/callback" length: 63
+ GET /api/instagram/accounts 200 in 142ms (next.js: 5ms, application-code: 137ms)
+ GET /library 200 in 37ms (next.js: 7ms, application-code: 30ms)
+[instagram-debug] redirectUri: "https://brand-sns-studio.vercel.app/api/auth/instagram/callback" length: 63
+ GET /api/instagram/accounts 200 in 146ms (next.js: 6ms, application-code: 141ms)
+ GET /library/profile 200 in 29ms (next.js: 7ms, application-code: 22ms)
+[instagram-debug] redirectUri: "https://brand-sns-studio.vercel.app/api/auth/instagram/callback" length: 63
+ GET /api/instagram/accounts 200 in 135ms (next.js: 6ms, application-code: 130ms)
+[instagram-debug] redirectUri: "https://brand-sns-studio.vercel.app/api/auth/instagram/callback" length: 63
+ GET /api/instagram/accounts 200 in 118ms (next.js: 4ms, application-code: 114ms)
+[instagram-debug] redirectUri: "https://brand-sns-studio.vercel.app/api/auth/instagram/callback" length: 63
+ GET /api/instagram/accounts 200 in 135ms (next.js: 5ms, application-code: 130ms)
+[instagram-debug] redirectUri: "https://brand-sns-studio.vercel.app/api/auth/instagram/callback" length: 63
+ GET /api/instagram/profile?instagram_user_id=17841432401561117 200 in 512ms (next.js: 8ms, application-code: 504ms)
+ GET /library 200 in 52ms (next.js: 12ms, application-code: 40ms)
+[instagram-debug] redirectUri: "https://brand-sns-studio.vercel.app/api/auth/instagram/callback" length: 63
+ GET /api/instagram/accounts 200 in 665ms (next.js: 10ms, application-code: 655ms)
+ GET /text 200 in 36ms (next.js: 9ms, application-code: 28ms)
+[instagram-debug] redirectUri: "https://brand-sns-studio.vercel.app/api/auth/instagram/callback" length: 63
+ GET /api/instagram/accounts 200 in 228ms (next.js: 5ms, application-code: 223ms)
+ POST /api/naver/fill 200 in 24.9s (next.js: 16ms, application-code: 24.9s)
+ POST /api/naver/fill 500 in 7.2s (next.js: 7ms, application-code: 7.2s)
