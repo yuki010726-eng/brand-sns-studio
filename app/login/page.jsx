@@ -66,6 +66,10 @@ export default function LoginPage() {
       setActiveTab("login");
       modal("관리자에게 계정 추가 요청 후 다시 로그인해주세요.");
     }
+    if (params.get("instagram_test_account_required") === "1") {
+      setActiveTab("login");
+      modal("관리자에게 계정 추가 요청 후 다시 로그인해주세요.");
+    }
   }, []);
 
   async function handleLogin(event) {

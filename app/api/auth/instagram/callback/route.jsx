@@ -20,6 +20,11 @@ const profileUrl = (request, params = {}) => {
   return url;
 };
 
+function isUnregisteredTestAccountError(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  return /unsupported request\s*-\s*method type:\s*get/i.test(message);
+}
+
 function verifiedUserId(value, secret) {
   const separator = value.lastIndexOf('.');
   if (separator < 1) return '';
@@ -149,7 +154,10 @@ export async function GET(request) {
       message: error instanceof Error ? error.message : String(error),
     });
     const target = intent === 'connect' ? profileUrl : loginUrl;
-    const response = NextResponse.redirect(target(request, { instagram_error: error.message || 'Instagram 로그인에 실패했습니다.' }));
+    const params = intent === 'login' && isUnregisteredTestAccountError(error)
+      ? { instagram_test_account_required: '1' }
+      : { instagram_error: error.message || 'Instagram 로그인에 실패했습니다.' };
+    const response = NextResponse.redirect(target(request, params));
     response.cookies.delete('instagram_oauth_state');
     response.cookies.delete('instagram_oauth_intent');
     response.cookies.delete('instagram_oauth_user_id');
