@@ -9,14 +9,27 @@ import { CONCEPTS } from "../../../lib/concepts.js";
  * 미리보기 이미지까지 담아 고르게 해 주지만, 글을 보는 동안 조건 패널을 다시 펼치지
  * 않고도 템플릿만 바로 바꿀 수 있게 여기 축약형을 둔다. 두 곳은 같은 상태를 본다.
  */
-export function BlogConceptSelector({ value, onChange, disabled = false }) {
+export function BlogConceptSelector({
+  value,
+  onChange,
+  selectedIds,
+  disabled = false,
+}) {
+  // The condition step is the source of truth for which concepts may produce
+  // copy, cards and image prompts.  Do not expose the whole concept catalogue
+  // again here: doing so lets a user accidentally create a preview for an
+  // unselected template.
+  const visibleConcepts = CONCEPTS.filter((concept) =>
+    selectedIds?.includes(concept.id),
+  );
+
   return (
     <div
       className="flex flex-wrap gap-2"
       role="group"
       aria-label="블로그 카드뉴스 템플릿 선택"
     >
-      {CONCEPTS.map((concept) => (
+      {visibleConcepts.map((concept) => (
         <button
           key={concept.id}
           type="button"

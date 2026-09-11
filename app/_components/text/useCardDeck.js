@@ -13,13 +13,22 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { canGenerateImage } from "../../../lib/imagegen.js";
-import { baseOf, buildPreviewDeck } from "../../template/_lib/deckBuilder.js";
+import {
+  baseOf,
+  buildPreviewDeck,
+  reconcileCard,
+} from "../../template/_lib/deckBuilder.js";
 import { renderCard, loadImage, ensureFonts, W, H } from "../../../lib/cardrender.js";
 import { draftKeyOf } from "../../../store.js";
 import { getImage, imageKey } from "../../../lib/imagestore.js";
 
 export function useCardDeck(state, product, { suspendThumbs = false } = {}) {
-  const [cardThumbs, setCardThumbs] = useState({});
+  // Rendering a thumbnail is asynchronous. Keep the condition signature with
+  // the result so a thumbnail from the previous card state is never exposed
+  // while the next one is being painted. Without this guard, a fast draft or
+  // card-text edit can leave the preview showing old copy just long enough to
+  // open an editor whose canvas already has the new copy.
+  const [thumbResult, setThumbResult] = useState({ signature: "", items: {} });
 
   // 지금 상품·주제·톤·장수·템플릿(`draftKeyOf`)과 담당자가 3단계에서 손으로 고친 문구가
   // 둘 다 맞아떨어질 때만 그 문구를 미리보기에 쓴다 — 하나라도 다르면 다른 게시물/템플릿에서
@@ -64,9 +73,20 @@ export function useCardDeck(state, product, { suspendThumbs = false } = {}) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- deckSignature 가 진짜 의존값이다
   }, [deckSignature]);
 
+  // The thumbnail and CardEditModal must start from exactly the same resolved
+  // card state. In particular, reconcileCard applies the AI cover
+  // recommendations (`cardCopy.coverRecommendations`) for magazine cards;
+  // rendering `baseOf(..., [])` here previously skipped those recommendations
+  // until the modal was opened.
+  const previewCard = useMemo(() => {
+    if (!hasDeck || !deck.length) return null;
+    return reconcileCard(state, deck, product) || savedCard;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- deckSignature is the complete card input fingerprint
+  }, [deckSignature, deck, hasDeck, product, savedCard]);
+
   useEffect(() => {
     if (!deckSignature) {
-      setCardThumbs({});
+      setThumbResult({ signature: "", items: {} });
       return undefined;
     }
     if (suspendThumbs) return undefined;
@@ -84,12 +104,12 @@ export function useCardDeck(state, product, { suspendThumbs = false } = {}) {
             reader.readAsDataURL(blob);
           });
         }
-        if (!cancelled) setCardThumbs(next);
+        if (!cancelled) setThumbResult({ signature: deckSignature, items: next });
         return;
       }
       await ensureFonts();
       const base = baseOf(state.concept, deck, product, []);
-      const savedTexts = savedCard?.texts;
+      const savedTexts = previewCard?.texts;
 
       const next = {};
       for (let i = 0; i < deck.length; i += 1) {
@@ -122,9 +142,9 @@ export function useCardDeck(state, product, { suspendThumbs = false } = {}) {
         });
         next[i] = canvas.toDataURL("image/png");
       }
-      if (!cancelled) setCardThumbs(next);
+      if (!cancelled) setThumbResult({ signature: deckSignature, items: next });
     })().catch(() => {
-      if (!cancelled) setCardThumbs({});
+      if (!cancelled) setThumbResult({ signature: deckSignature, items: {} });
     });
     return () => {
       cancelled = true;
@@ -134,5 +154,11 @@ export function useCardDeck(state, product, { suspendThumbs = false } = {}) {
 
   // `cardThumbs`를 실제로 그릴 때 쓴 상태도 함께 내보낸다. 모달이 전역 상태를
   // 다시 조합하는 사이 문구가 바뀌어, 눌렀던 미리보기와 다른 카드가 열리는 일을 막는다.
-  return { deck, cardThumbs, previewable, previewCard: savedCard };
+  // Do not keep the former card image visible during a repaint. An empty
+  // placeholder is preferable to showing copy that no longer matches what
+  // opens in CardEditModal.
+  const cardThumbs =
+    thumbResult.signature === deckSignature ? thumbResult.items : {};
+
+  return { deck, cardThumbs, previewable, previewCard };
 }

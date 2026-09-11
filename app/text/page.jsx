@@ -40,10 +40,11 @@ import { ProductSection } from "../_components/home/ProductSection.jsx";
 import { PostOutlineSection } from "../_components/home/PostOutlineSection.jsx";
 import {
   hasRequiredConditions,
+  hasTemplateSelectionConditions,
   TONES,
   TopicSection,
 } from "../_components/home/TopicSection.jsx";
-// import { TemplateSection } from "../_components/home/TemplateSection.jsx";
+import { TemplateSection } from "../_components/home/TemplateSection.jsx";
 import { AiRunSelector } from "../_components/text/AiRunSelector.jsx";
 import { BlogConceptSelector } from "../_components/text/BlogConceptSelector.jsx";
 import {
@@ -337,6 +338,8 @@ export default function CopyPage() {
       customStyleGuideUrl: "",
       customStyleSaveRequested: false,
       cardCount: 0,
+      concept: "magazine",
+      concepts: ["magazine"],
       channels: [],
       libraryTitle: "",
       contentOutline: null,
@@ -350,7 +353,6 @@ export default function CopyPage() {
     const channels = state.channels.includes(id)
       ? state.channels.filter((item) => item !== id)
       : [...state.channels, id];
-    if (!channels.length) return toast("채널은 최소 1개를 선택해야 합니다.");
     setState({ channels });
   }
 
@@ -364,6 +366,8 @@ export default function CopyPage() {
       customStyleGuideUrl: "",
       customStyleSaveRequested: false,
       cardCount: 0,
+      concept: "magazine",
+      concepts: ["magazine"],
       channels: [],
       libraryTitle: "",
       contentOutline: null,
@@ -387,10 +391,11 @@ export default function CopyPage() {
       !state.tone ||
       (state.tone === "custom" && !String(state.customStyleUrl || "").trim()) ||
       Number(state.cardCount) <= 0 ||
-      !state.channels.length
+      !state.channels.length ||
+      !hasRequiredConditions(state)
     ) {
       toast(
-        "주제, 글 스타일, 카드뉴스 장수, 내보낼 채널을 모두 선택해 주세요.",
+        "주제, 글 스타일, 카드뉴스 장수, 내보낼 채널과 템플릿을 모두 선택해 주세요.",
       );
       topicRef.current?.focus();
       return;
@@ -769,6 +774,10 @@ export default function CopyPage() {
           focusPoint: current.focusPoint || "",
           tone: current.tone,
           concept: current.concept,
+          // A run owns the template choices that existed when it was made.
+          // Later edits to the condition panel must not change which preview
+          // formats an older run can use.
+          concepts: [...new Set((current.concepts || []).filter(Boolean))],
         },
         ...(instagramDrafts
           ? {
@@ -941,6 +950,17 @@ export default function CopyPage() {
     // 템플릿만 바꿔 다시 생성한 경우), 시안을 고르는 즉시 그 템플릿으로 미리보기를
     // 맞춰 준다 — 그래야 「노트형」 버튼을 눌렀을 때 실제로 노트형 카드가 보인다.
     const runConcept = entry.run.conditions?.concept;
+    // Runs saved before per-run choices were introduced have only `concept`.
+    // Preserve a usable selector for those older drafts without guessing at
+    // templates that were never selected.
+    const runConcepts = Array.isArray(entry.run.conditions?.concepts)
+      ? entry.run.conditions.concepts.filter(Boolean)
+      : runConcept
+        ? [runConcept]
+        : current.concepts || [];
+    const selectedConcept = runConcepts.includes(runConcept)
+      ? runConcept
+      : runConcepts[0] || current.concept;
     setState({
       drafts: { ...current.drafts, [activeId]: selectedDraft },
       generated: {
@@ -952,24 +972,35 @@ export default function CopyPage() {
         ...(typeof current.activeAiRun === "object" ? current.activeAiRun : {}),
         [activeId]: index,
       },
-      ...(runConcept && runConcept !== current.concept
-        ? { concept: runConcept }
-        : {}),
+      concept: selectedConcept,
+      concepts: runConcepts,
       card: null,
     });
   }
 
   function selectConcept(conceptId) {
-    if (conceptId === state.concept) return;
-    setState({ concept: conceptId });
+    // A template can be changed while reviewing a run, but only among the
+    // templates chosen in the condition step.  This keeps generated card copy
+    // and image prompts scoped to that explicit selection.
+    const runChoices = Array.isArray(activeRunEntry?.run?.conditions?.concepts)
+      ? activeRunEntry.run.conditions.concepts
+      : activeRunEntry?.run?.conditions?.concept
+        ? [activeRunEntry.run.conditions.concept]
+        : state.concepts || [];
+    if (
+      conceptId === state.concept ||
+      !runChoices.includes(conceptId)
+    ) {
+      return;
+    }
+    setState({
+      concept: conceptId,
+    });
     toast(`${getConcept(conceptId).name} 템플릿으로 골랐습니다.`);
   }
 
   function selectChannel(channelId) {
     setActiveId(channelId);
-    if (channelId === "blog" && getState().concept !== "magazine") {
-      setState({ concept: "magazine" });
-    }
   }
 
   function selectInstagramFormat(instagramFormat) {
@@ -1013,6 +1044,11 @@ export default function CopyPage() {
   // 지금 선택된 시안이 실제로 어떤 조건으로 만들어졌는지 보여준다 — 없으면(아직 AI로
   // 만든 적 없거나 옛 저장본이라 조건이 안 남은 시안이면) 현재 화면의 조건으로 보여준다.
   const activeConditions = activeRunEntry?.run?.conditions;
+  const activeRunConcepts = Array.isArray(activeConditions?.concepts)
+    ? activeConditions.concepts.filter(Boolean)
+    : activeConditions?.concept
+      ? [activeConditions.concept]
+      : state.concepts || [];
   const summaryTitle = activeConditions
     ? activeConditions.title
     : state.contentOutline?.title;
@@ -1022,10 +1058,10 @@ export default function CopyPage() {
   const summaryTone = activeConditions ? activeConditions.tone : state.tone;
 
   return (
-    <main className="min-h-dvh bg-[#1a1a1a] pb-[140px] text-[#4e5968]">
+    <main className="h-full bg-[#1a1a1a] text-[#4e5968]">
       <div className="w-full px-[clamp(20px,3.85vw,74px)]">
-        <div className="min-h-[1050px] overflow-clip rounded-[15px] bg-white/10">
-          <div className="min-w-0 px-[clamp(24px,4vw,56px)] py-14">
+        <div className="overflow-clip rounded-[15px] bg-white/10">
+          <div className="min-w-0 px-[clamp(24px,4vw,56px)] py-10">
             <header className="flex items-end gap-[14px] mb-8">
               <h1 className="text-[32px] font-bold tracking-[-0.04em] text-white">
                 상품의 글을 생성해보세요.
@@ -1036,16 +1072,17 @@ export default function CopyPage() {
             </header>
             <div className="space-y-5">
               {panelExpanded ? (
-                <div className="flex flex-col gap-12">
-                  <ProductSection
-                    loading={!productsReady}
-                    products={products}
-                    selectedId={state.productId}
-                    onSelect={selectProduct}
-                    onProceed={startGeneration}
-                  />
+                <div className="flex flex-col gap-5">
                   <TopicSection
                     product={product}
+                    productSection={
+                      <ProductSection
+                        loading={!productsReady}
+                        products={products}
+                        selectedId={state.productId}
+                        onSelect={selectProduct}
+                      />
+                    }
                     presets={presets}
                     presetsLoading={presetsLoading}
                     onRefreshPresets={() => refreshPresets()}
@@ -1064,11 +1101,13 @@ export default function CopyPage() {
                       );
                     }}
                   />
-                  {/* <TemplateSection
-                    product={product}
-                    state={state}
-                    onUpdate={(patch) => setState(patch)}
-                  /> */}
+                  {hasTemplateSelectionConditions(state) && (
+                    <TemplateSection
+                      product={product}
+                      state={state}
+                      onUpdate={(patch) => setState(patch)}
+                    />
+                  )}
                   {product && (
                     <div className="flex items-center justify-end gap-4 max-[560px]:flex-col max-[560px]:items-stretch">
                       <button
@@ -1166,6 +1205,7 @@ export default function CopyPage() {
                               <InstagramFormatSelector
                                 value={state.instagramFormat || "simple"}
                                 conceptValue={state.concept}
+                                selectedConceptIds={activeRunConcepts}
                                 disabled={busy}
                                 onChange={selectInstagramFormat}
                                 onConceptChange={selectConcept}
@@ -1174,6 +1214,7 @@ export default function CopyPage() {
                             {activeId === "blog" && (
                               <BlogConceptSelector
                                 value={state.concept}
+                                selectedIds={activeRunConcepts}
                                 disabled={busy}
                                 onChange={selectConcept}
                               />

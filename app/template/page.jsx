@@ -117,8 +117,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  * `adConceptTone` 이 지금 톤과 같을 때만 `adConcept` 를 믿는다. 옛 pages/template.js 의
  * `effectiveAdConcept()`.
  */
-const effectiveAdConcept = (s) =>
-  s.adConceptTone === s.tone ? s.adConcept : adConceptForTone(s.tone);
+const effectiveAdConceptIds = (s) => {
+  const selected = Array.isArray(s.adConcepts) ? s.adConcepts.filter(Boolean) : [];
+  // An empty array is a valid, explicit choice while editing. Fall back only
+  // before the user has selected advertising concepts for this tone.
+  if (s.adConceptTone === s.tone && Array.isArray(s.adConcepts)) return selected;
+  return [s.adConceptTone === s.tone && s.adConcept ? s.adConcept : adConceptForTone(s.tone)];
+};
 
 /**
  * 매거진형 오브젝트(계정 이름·제목+강조문구·계정 아이디·배경 이미지·구분선·추가 텍스트)의
@@ -463,9 +468,14 @@ export default function TemplatePage() {
 
   // 컨셉을 바꾸면 전 장을 다시 만든다 — 한 벌이 통째로 갈리는 값이라 부분 갱신이 없다.
   // 톤과 함께 남긴다 — 톤이 바뀌면 이 선택은 버리고 새 톤의 컨셉으로 돌아간다.
-  function handleAdConceptChange(id) {
-    setState({ adConcept: id, adConceptTone: getState().tone });
-    toast(`${getAdConcept(id).name} 컨셉으로 전 장을 다시 만들었습니다.`);
+  function handleAdConceptChange(ids) {
+    const id = ids[0];
+    setState({ adConcept: ids[0], adConcepts: ids, adConceptTone: getState().tone });
+    toast(
+      id
+        ? `${getAdConcept(id).name} 컨셉으로 전 장을 다시 만들었습니다.`
+        : "광고 컨셉 선택을 해제했습니다.",
+    );
   }
 
   function handleCopyAdPrompt(item) {
@@ -893,14 +903,16 @@ export default function TemplatePage() {
   }
 
   if (concept.promptOnly) {
-    const adConceptId = effectiveAdConcept(state);
-    const adPrompts = buildAdPrompts({
-      product,
-      topic: state.topic.trim(),
-      deck,
-      conceptId: adConceptId,
-      copyOverrides: state.adCopyOverrides,
-    });
+    const adConceptIds = effectiveAdConceptIds(state);
+    const adPrompts = adConceptIds.length
+      ? buildAdPrompts({
+          product,
+          topic: state.topic.trim(),
+          deck,
+          conceptIds: adConceptIds,
+          copyOverrides: state.adCopyOverrides,
+        })
+      : [];
 
     return (
       <main className="min-h-dvh bg-[#1a1a1a] pb-[40px] text-[#4e5968]">
@@ -935,6 +947,8 @@ export default function TemplatePage() {
                 concepts={CONCEPTS}
                 value={state.concept}
                 onChange={handleConceptChange}
+                adSelectedIds={adConceptIds}
+                onAdSelectionChange={handleAdConceptChange}
               />
 
               <div className="grid grid-cols-1 gap-8 rounded-[15px] border border-[#e5e8eb] bg-white p-5 lg:grid-cols-[minmax(0,1fr)_1px_minmax(0,1.15fr)] lg:gap-10 lg:p-6">
@@ -943,7 +957,7 @@ export default function TemplatePage() {
                     광고 컨셉
                   </h2>
                   <AdConceptPicker
-                    value={adConceptId}
+                    selectedIds={adConceptIds}
                     toneLabel={TONE_LABEL[state.tone] || state.tone}
                     isManualPick={state.adConceptTone === state.tone}
                     onChange={handleAdConceptChange}
@@ -956,6 +970,11 @@ export default function TemplatePage() {
                 />
 
                 <div className="space-y-8">
+                  {adPrompts.length === 0 && (
+                    <p className="text-[14px] leading-[1.6] text-[#6b7684]">
+                      광고 컨셉을 한 개 이상 선택하면 이미지 프롬프트가 표시됩니다.
+                    </p>
+                  )}
                   {adPrompts.map((item) => (
                     <div key={item.n}>
                       {adPrompts.length > 1 && (

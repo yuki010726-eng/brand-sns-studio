@@ -60,6 +60,7 @@ const INITIAL = {
    * 장마다 돌리지 않는다 — 카드뉴스는 한 벌로 읽혀야 한다 (`lib/adprompt.js` 머리말 참고).
    */
   adConcept: "woman-yellow",
+  adConcepts: ["woman-yellow"],
   /**
    * `adConcept` 를 **직접 고른 시점의 톤** (2026-08-21). 지금 톤과 같을 때만 그 선택을 쓴다.
    * 비어 있으면 톤이 컨셉을 정한다 (`adConceptForTone`, `lib/adprompt.js`).
@@ -112,6 +113,7 @@ const INITIAL = {
   activeAiRun: null,
   draftKey: "",
   concept: "magazine", // 카드뉴스 템플릿 id (lib/concepts.js)
+  concepts: ["magazine"], // 선택한 카드뉴스 템플릿 id 목록
   magazineTemplate: "t1", // 매거진형 세부 템플릿 1~4 (lib/concepts.js 의 MAGAZINE_TEMPLATES)
   accent: "#B9F73E", // 매거진형 강조 색상 (lib/concepts.js 의 DEFAULT_ACCENT)
   mark: "newspaper", // 카드형 우상단 마크 (lib/concepts.js 의 MARKS)
@@ -198,6 +200,17 @@ function load() {
       s.concept = INITIAL.concept;
       s.card = null;
     }
+    const savedConcepts = Array.isArray(s.concepts)
+      ? s.concepts.filter((id) => CONCEPT_IDS.includes(id))
+      : [];
+    // Keep an explicitly empty selection empty. Older saved states without a
+    // `concepts` array still receive the legacy single-template fallback.
+    s.concepts = Array.isArray(s.concepts)
+      ? [...new Set(savedConcepts)]
+      : [s.concept];
+    if (s.concepts.length && !s.concepts.includes(s.concept)) {
+      s.concepts.unshift(s.concept);
+    }
 
     /**
      * aiKey 가 문자열이던 시절(채널 구분 없이 draftKeyOf 하나)의 값을 채널별로 편다.
@@ -275,6 +288,8 @@ export function resetFlow() {
     customStyleGuideUrl: "",
     channels: [],
     cardCount: 0,
+    concept: INITIAL.concept,
+    concepts: [...INITIAL.concepts],
     drafts: {},
     generated: {},
     variants: {},

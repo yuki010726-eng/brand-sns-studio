@@ -6,11 +6,31 @@ export function AdPromptPanel({ item, tools, onCopy, onUpload, editable = false,
   const c = item.copy;
   const update = (key, value) => onChange?.({ [key]: value });
   const rows = [["말풍선", c.hook], ["보조 문구", c.sub], ["숫자 강조", c.number], ["체크 리스트", (c.bullets || []).join(" · ")], ["하단 CTA", c.cta]].filter(([, value]) => value);
+
   return <div>
-    <div className="flex min-h-[47px] flex-wrap items-start justify-between gap-3 border-b border-[#e5e8eb] lg:-ml-5 lg:pl-5"><h2 className="text-[18px] font-bold text-black">프롬프트</h2><div className="flex flex-wrap items-center gap-2">{tools.map((t) => <a key={t.name} href={t.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[13px] font-bold text-[#333d4b] hover:text-[#287aff]"><Icon name="external" className="size-[15px]" />{t.name}</a>)}<button type="button" onClick={() => onCopy(item)} className="rounded-full border border-[#e5e8eb] px-3 py-1.5 text-[13px] font-bold text-[#5f6b7a]"><Icon name="copy" className="mr-1 inline size-4" />복사</button>{editable && <button type="button" onClick={onRegenerate} className="rounded-full bg-[#287aff] px-3 py-1.5 text-[13px] font-bold text-white hover:bg-[#1b64da]">프롬프트 다시 뽑기</button>}{onUpload && <><input ref={uploadRef} type="file" accept="image/*" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (f) onUpload(f); e.target.value = ""; }} /><button type="button" onClick={() => uploadRef.current?.click()} className="rounded-full border border-[#e5e8eb] px-3 py-1.5 text-[13px] font-bold text-[#5f6b7a]">파일 올리기</button></>}</div></div>
+    <div className="flex min-h-[47px] flex-wrap items-start justify-between gap-3 border-b border-[#e5e8eb] lg:-ml-5 lg:pl-5">
+      <h2 className="text-[18px] font-bold text-black">프롬프트</h2>
+      <div className="flex flex-wrap items-center gap-2">
+        {tools.map((t) => <a key={t.name} href={t.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[13px] font-bold text-[#333d4b] hover:text-[#287aff]"><Icon name="external" className="size-[15px]" />{t.name}</a>)}
+        <button type="button" onClick={() => onCopy(item)} className="rounded-full border border-[#e5e8eb] px-3 py-1.5 text-[13px] font-bold text-[#5f6b7a]"><Icon name="copy" className="mr-1 inline size-4" />복사</button>
+        {editable && <button type="button" onClick={onRegenerate} className="rounded-full bg-[#287aff] px-3 py-1.5 text-[13px] font-bold text-white hover:bg-[#1b64da]">프롬프트 다시 뽑기</button>}
+        {onUpload && <><input ref={uploadRef} type="file" accept="image/*" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (f) onUpload(f); e.target.value = ""; }} /><button type="button" onClick={() => uploadRef.current?.click()} className="rounded-full border border-[#e5e8eb] px-3 py-1.5 text-[13px] font-bold text-[#5f6b7a]">파일 올리기</button></>}
+      </div>
+    </div>
     {editable ? <div className="mt-5 grid gap-2 sm:grid-cols-2"><Field value={c.line1} label="헤드라인 첫 줄" onChange={(v) => update("line1", v)} /><Field value={c.line2} label="헤드라인 둘째 줄" onChange={(v) => update("line2", v)} /></div> : <p className="mt-5 text-[15px] font-bold leading-[1.4] text-black">{[c.line1, c.line2].filter(Boolean).join(" ")}</p>}
-    <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_320px]"><div className="space-y-2.5 text-[13px] leading-[1.5]">{editable ? <><Field label="말풍선" value={c.hook} onChange={(v) => update("hook", v)} /><Field label="보조 문구" value={c.sub} onChange={(v) => update("sub", v)} /><Field label="숫자 강조" value={c.number} onChange={(v) => update("number", v)} /><Field label="체크 리스트 (줄마다 하나)" value={(c.bullets || []).join("\n")} multiline onChange={(v) => update("bullets", v.split("\n").map((x) => x.trim()).filter(Boolean))} /><Field label="하단 CTA" value={c.cta} onChange={(v) => update("cta", v)} /><button type="button" onClick={onReset} className="text-[12px] font-bold text-[#5f6b7a] underline">추천 문구로 되돌리기</button></> : <dl className="space-y-2.5">{rows.map(([label, value]) => <div key={label} className="flex gap-3"><dt className="w-[84px] shrink-0 font-bold text-black">{label}</dt><dd className="min-w-0 text-[#5f6b7a]">{value}</dd></div>)}</dl>}</div><pre className="max-h-[340px] overflow-y-auto whitespace-pre-wrap break-words rounded-[15px] bg-[#f2f4f6] p-3.5 text-[12px] leading-[1.6] text-[#5f6b7a]">{item.prompt}</pre></div>
+    <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="space-y-2.5 text-[13px] leading-[1.5]">
+        {editable ? <><Field label="말풍선" value={c.hook} onChange={(v) => update("hook", v)} /><Field label="보조 문구" value={c.sub} onChange={(v) => update("sub", v)} /><Field label="숫자 강조" value={c.number} onChange={(v) => update("number", v)} /><Field label="체크 리스트 (줄마다 하나)" value={(c.bullets || []).join("\n")} multiline onChange={(v) => update("bullets", v.split("\n").map((x) => x.trim()).filter(Boolean))} /><Field label="하단 CTA" value={c.cta} onChange={(v) => update("cta", v)} /><button type="button" onClick={onReset} className="text-[12px] font-bold text-[#5f6b7a] underline">추천 문구로 되돌리기</button></> : <dl className="space-y-2.5">{rows.map(([label, value]) => <div key={label} className="flex gap-3"><dt className="w-[84px] shrink-0 font-bold text-black">{label}</dt><dd className="min-w-0 text-[#5f6b7a]">{value}</dd></div>)}</dl>}
+      </div>
+      <div>
+        {item.concept.usesEmblem && <p className="mb-2 rounded-lg bg-[#fff7e6] px-3 py-2 text-[12px] font-medium leading-[1.5] text-[#8a5a00]">사용할 이미지를 함께 첨부하여 사용하세요.</p>}
+        <pre className="max-h-[340px] overflow-y-auto whitespace-pre-wrap break-words rounded-[15px] bg-[#f2f4f6] p-3.5 text-[12px] leading-[1.6] text-[#5f6b7a]">{item.prompt}</pre>
+      </div>
+    </div>
   </div>;
 }
 
-function Field({ label, value, multiline = false, onChange }) { const className = "w-full rounded-lg border border-[#dfe3e8] px-3 py-2 text-[13px] leading-[1.5] text-[#333d4b]"; return <label className="grid gap-1"><span className="font-bold text-black">{label}</span>{multiline ? <textarea rows={3} value={value || ""} onChange={(e) => onChange(e.target.value)} className={className} /> : <input value={value || ""} onChange={(e) => onChange(e.target.value)} className={className} />}</label>; }
+function Field({ label, value, multiline = false, onChange }) {
+  const className = "w-full rounded-lg border border-[#dfe3e8] px-3 py-2 text-[13px] leading-[1.5] text-[#333d4b]";
+  return <label className="grid gap-1"><span className="font-bold text-black">{label}</span>{multiline ? <textarea rows={3} value={value || ""} onChange={(e) => onChange(e.target.value)} className={className} /> : <input value={value || ""} onChange={(e) => onChange(e.target.value)} className={className} />}</label>;
+}

@@ -290,13 +290,13 @@ function ImageBlock({
             type="button"
             onClick={onEdit}
             aria-label={`카드뉴스 ${block.no}번 편집하기`}
-            className="group/thumb relative block w-full overflow-hidden rounded-md border border-[#ededed] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#287aff]"
+            className={`group/thumb relative block w-full overflow-hidden rounded-md border border-[#ededed] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#287aff] ${isPromptOnly ? "aspect-square" : "aspect-[4/5]"}`}
           >
             {/* eslint-disable-next-line @next/next/no-img-element -- 캔버스로 그린 data URL */}
             <img
               src={thumb}
               alt={block.caption ? `카드뉴스 ${block.no}번 · ${block.caption}` : `카드뉴스 ${block.no}번 미리보기`}
-              className="block aspect-[4/5] w-full object-cover"
+              className="absolute inset-0 size-full object-cover"
             />
             <span className="pointer-events-none absolute inset-0 flex items-center justify-center gap-1.5 bg-black/0 text-[13px] font-bold text-white opacity-0 transition group-hover/thumb:bg-black/40 group-hover/thumb:opacity-100 group-focus-visible/thumb:bg-black/40 group-focus-visible/thumb:opacity-100">
               <Icon name="edit" className="size-4" />

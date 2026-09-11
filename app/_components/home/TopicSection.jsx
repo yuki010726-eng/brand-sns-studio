@@ -16,14 +16,7 @@ const TONES = [
     desc: "블로그 글의 문체를 참고해 작성",
   },
 ];
-const HINTS = {
-  1: "표지 한 장에 후킹과 마무리를 함께 얹습니다.",
-  2: "표지 · 마무리",
-  3: "표지 · 본문 1 · 마무리",
-  4: "표지 · 본문 2 · 마무리",
-  5: "표지 · 본문 2 · 반론 · 마무리",
-  6: "표지 · 본문 3 · 반론 · 마무리",
-};
+
 const inputClass =
   "w-full rounded-[12px] border border-[#e5e8eb] bg-white px-4 py-[13px] text-[15px] text-[#4e5968] outline-none transition hover:border-[#cdd3d9] focus:border-[#3182f6] focus:shadow-[0_0_0_3px_rgba(49,130,246,0.18)] placeholder:text-[#5f6b7a]";
 
@@ -125,11 +118,38 @@ export function hasRequiredConditions(state) {
     Boolean(state.tone) &&
     hasCustomStyle &&
     Number(state.cardCount) > 0;
-  return hasOptions && state.channels.length > 0;
+  const selectedConcepts = Array.isArray(state.concepts)
+    ? state.concepts
+    : [state.concept];
+  const hasTemplate = selectedConcepts.filter(Boolean).length > 0;
+  const isAdTemplate = selectedConcepts.includes("intuitive");
+  const selectedAdConcepts = Array.isArray(state.adConcepts)
+    ? state.adConcepts
+    : [state.adConcept];
+  const hasAdTemplate = !isAdTemplate || selectedAdConcepts.filter(Boolean).length > 0;
+
+  return hasOptions && state.channels.length > 0 && hasTemplate && hasAdTemplate;
+}
+
+/** 카드뉴스 템플릿을 고를 수 있는 최소 조건이다.
+ * 직접 입력 글 스타일은 참고 URL까지 입력되어야 선택 완료로 본다. */
+export function hasTemplateSelectionConditions(state) {
+  const hasTopic = state.topic.trim().length >= 2;
+  const hasCustomStyle =
+    state.tone !== "custom" ||
+    String(state.customStyleUrl || "").trim().length > 0;
+
+  return (
+    hasTopic &&
+    Boolean(state.tone) &&
+    hasCustomStyle &&
+    state.channels.length > 0
+  );
 }
 
 export function TopicSection({
   product,
+  productSection,
   presets,
   presetsLoading,
   state,
@@ -143,29 +163,26 @@ export function TopicSection({
   const hasCustomStyle =
     state.tone !== "custom" ||
     String(state.customStyleUrl || "").trim().length > 0;
-  const hasOptions =
-    hasTopic &&
-    Boolean(state.tone) &&
-    hasCustomStyle &&
-    Number(state.cardCount) > 0;
   const tone = TONES.find((item) => item.id === state.tone);
   return (
     <section className="flex flex-col gap-7" aria-labelledby="topic-heading">
-      <h2
-        id="topic-heading"
-        className="text-[25px] font-bold leading-[1.35] text-white max-sm:text-[22px]"
-      >
-        2. 게시물의 주제를 선택해주세요.
-      </h2>
-      {product ? (
-        <div className="flex min-h-[504px] flex-col gap-3.5 rounded-[15px] bg-white px-[26px] pb-8 pt-[23px] text-[#4e5968]">
+      <div className="flex min-h-[504px] flex-col gap-3.5 rounded-[15px] bg-white px-[26px] pb-8 pt-[23px] text-[#4e5968]">
           <h3 className="pl-2.5 text-[18px] font-bold text-[#191f28]">
             게시물 주제 설정
           </h3>
           <div className="h-px w-full bg-[#e5e8eb]" />
-          <div className="mx-[27px] mt-[15px] grid grid-cols-[minmax(360px,1.35fr)_28px_minmax(300px,1fr)_28px_minmax(280px,0.95fr)] gap-[22px] max-[1024px]:mx-0 max-[1024px]:grid-cols-1">
+          {productSection && (
+            <div className="mx-[27px] mt-[15px] max-[1024px]:mx-0">
+              {productSection}
+            </div>
+          )}
+          <div className="mx-[27px] mt-[15px] grid grid-cols-[minmax(360px,1.35fr)_28px_minmax(300px,1fr)] gap-[22px] max-[1024px]:mx-0 max-[1024px]:grid-cols-1">
             <div className="flex min-w-0 flex-col gap-6">
-              <div>
+              <fieldset
+                className={`border-0 transition ${product ? "" : "pointer-events-none opacity-[0.38] grayscale-[0.35]"}`}
+                disabled={!product}
+                aria-disabled={!product}
+              >
                 <div className="flex items-center gap-1.5">
                   <p className="text-[15px] font-bold text-[#333d4b]">
                     추천 주제
@@ -215,8 +232,12 @@ export function TopicSection({
                     );
                   })}
                 </div>
-              </div>
-              <label>
+              </fieldset>
+              <fieldset
+                className={`border-0 transition ${product ? "" : "pointer-events-none opacity-[0.38] grayscale-[0.35]"}`}
+                disabled={!product}
+                aria-disabled={!product}
+              >
                 <span className="sr-only">이번 게시물 주제</span>
                 <textarea
                   ref={topicRef}
@@ -239,8 +260,12 @@ export function TopicSection({
                   }
                   placeholder="주제를 입력해주세요. ( 구체적일수록 글귀가 정확해집니다. )"
                 />
-              </label>
-              <label>
+              </fieldset>
+              <fieldset
+                className={`border-0 transition ${product ? "" : "pointer-events-none opacity-[0.38] grayscale-[0.35]"}`}
+                disabled={!product}
+                aria-disabled={!product}
+              >
                 <span className="text-[15px] font-bold text-[#333d4b]">
                   강조하고 싶은 내용
                 </span>
@@ -256,7 +281,7 @@ export function TopicSection({
                   }
                   placeholder="게시물에서 꼭 강조할 내용을 입력해주세요. (선택)"
                 />
-              </label>
+              </fieldset>
             </div>
             <FlowArrow />
             <fieldset
@@ -318,7 +343,7 @@ export function TopicSection({
                   </span>
                 )}
               </div>
-              <div>
+              {/* <div>
                 <p className="text-[15px] font-bold text-[#333d4b]">
                   이미지 · 카드뉴스 장수
                 </p>
@@ -339,56 +364,56 @@ export function TopicSection({
                     </label>
                   ))}
                 </div>
-              </div>
+              </div> */}
+              <fieldset
+                className={`min-w-0 border-0 transition ${hasTopic ? "" : "pointer-events-none opacity-[0.38] grayscale-[0.35]"}`}
+                disabled={!hasTopic}
+                aria-disabled={!hasTopic}
+              >
+                <legend className="text-[15px] font-bold text-[#333d4b]">
+                  내보낼 채널
+                </legend>
+                <ul className="mt-2 flex flex-col gap-2">
+                  {CHANNELS.map((channel) => {
+                    const checked = state.channels.includes(channel.id);
+                    return (
+                      <li key={channel.id}>
+                        <label
+                          className={`flex cursor-pointer items-start gap-2.5 rounded-[12px] border px-4 py-[13px] transition hover:border-[#d5dae0] ${checked ? "border-[#1b64da] bg-[#e8f2fe]" : "border-[#e5e8eb]"}`}
+                        >
+                          <input
+                            className="sr-only"
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => onToggleChannel(channel.id)}
+                          />
+                          <Icon
+                            name={channel.icon}
+                            className={`mt-0.5 size-[18px] stroke-[1.75] ${checked ? "text-[#1b64da]" : "text-[#5f6b7a]"}`}
+                          />
+                          <span>
+                            <strong className="block text-[14px] text-[#333d4b]">
+                              {channel.name}
+                            </strong>
+                            <em className="block text-[12px] not-italic text-[#5f6b7a]">
+                              {channel.hint}
+                            </em>
+                          </span>
+                        </label>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </fieldset>
             </fieldset>
-            <FlowArrow />
-            <fieldset
-              className={`min-w-0 border-0 transition ${hasOptions ? "" : "pointer-events-none opacity-[0.38] grayscale-[0.35]"}`}
-              disabled={!hasOptions}
-              aria-disabled={!hasOptions}
-            >
-              <legend className="text-[15px] font-bold text-[#333d4b]">
-                내보낼 채널
-              </legend>
-              <ul className="mt-2 flex flex-col gap-2">
-                {CHANNELS.map((channel) => {
-                  const checked = state.channels.includes(channel.id);
-                  return (
-                    <li key={channel.id}>
-                      <label
-                        className={`flex cursor-pointer items-start gap-2.5 rounded-[12px] border px-4 py-[13px] transition hover:border-[#d5dae0] ${checked ? "border-[#1b64da] bg-[#e8f2fe]" : "border-[#e5e8eb]"}`}
-                      >
-                        <input
-                          className="sr-only"
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => onToggleChannel(channel.id)}
-                        />
-                        <Icon
-                          name={channel.icon}
-                          className={`mt-0.5 size-[18px] stroke-[1.75] ${checked ? "text-[#1b64da]" : "text-[#5f6b7a]"}`}
-                        />
-                        <span>
-                          <strong className="block text-[14px] text-[#333d4b]">
-                            {channel.name}
-                          </strong>
-                          <em className="block text-[12px] not-italic text-[#5f6b7a]">
-                            {channel.hint}
-                          </em>
-                        </span>
-                      </label>
-                    </li>
-                  );
-                })}
-              </ul>
-            </fieldset>
+            {/* <FlowArrow /> */}
           </div>
         </div>
-      ) : (
+      {/*
         <div className="grid min-h-[180px] place-items-center rounded-[15px] bg-white/10 px-5 text-center text-[14px] text-white/60">
           상품을 선택하면 주제 설정이 열립니다.
         </div>
-      )}
+      */}
     </section>
   );
 }

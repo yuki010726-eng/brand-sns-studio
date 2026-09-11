@@ -11,8 +11,13 @@ export function InstagramFormatSelector({
   onChange,
   conceptValue,
   onConceptChange,
+  selectedConceptIds,
   disabled = false,
 }) {
+  const visibleConcepts = CONCEPTS.filter((concept) =>
+    selectedConceptIds?.includes(concept.id),
+  );
+
   return (
     <div
       className="flex flex-wrap items-center justify-end gap-2"
@@ -39,7 +44,7 @@ export function InstagramFormatSelector({
       {onConceptChange && (
         <span aria-hidden="true" className="mx-1 hidden h-5 w-px bg-white/35 sm:block" />
       )}
-      {onConceptChange && CONCEPTS.map((concept) => (
+      {onConceptChange && visibleConcepts.map((concept) => (
         <button
           key={concept.id}
           type="button"

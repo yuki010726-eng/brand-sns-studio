@@ -15,7 +15,13 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getConcept, getCardTheme, getNoteInk } from "../../../lib/concepts.js";
+import {
+  getConcept,
+  getCardTheme,
+  getNoteInk,
+  DEFAULT_MAGAZINE_TEMPLATE,
+  MAGAZINE_TEMPLATES,
+} from "../../../lib/concepts.js";
 import { objectsFor, roleOf, slotIdForObject } from "../../../lib/templates.js";
 import { buildPrompt } from "../../../lib/imageprompt.js";
 import { buildAdPrompts } from "../../../lib/adprompt.js";
@@ -59,7 +65,11 @@ export function CardEditModal({
   const [bitmap, setBitmap] = useState(null);
   const [selectedObj, setSelectedObj] = useState(null);
   const [textSelection, setTextSelection] = useState(null);
+  const [historyRevision, setHistoryRevision] = useState(0);
   const dialogRef = useRef(null);
+  const onCloseRef = useRef(onClose);
+  const historyRef = useRef({ undo: [], redo: [] });
+  onCloseRef.current = onClose;
 
   const open =
     cardIndex != null && Boolean(deck?.[cardIndex]) && Boolean(product);
@@ -123,7 +133,8 @@ export function CardEditModal({
     const previousBodyTop = document.body.style.top;
     const previousBodyWidth = document.body.style.width;
     const frame = requestAnimationFrame(() => dialogRef.current?.focus());
-    const onKeyDown = (event) => event.key === "Escape" && onClose();
+    const onKeyDown = (event) =>
+      event.key === "Escape" && onCloseRef.current();
     document.addEventListener("keydown", onKeyDown);
     document.documentElement.style.overflow = "hidden";
     document.body.style.overflow = "hidden";
@@ -141,12 +152,40 @@ export function CardEditModal({
       window.scrollTo(0, scrollY);
       previous?.focus?.();
     };
-  }, [open, onClose]);
+  // onClose is often recreated by the preview parent on each store update.
+  // Keeping it out of this lifecycle prevents an input edit from restoring
+  // focus to the opener and then focusing the dialog again.
+  }, [open]);
 
   useEffect(() => {
     setSelectedObj(null);
     setTextSelection(null);
   }, [cardIndex]);
+
+  useEffect(() => {
+    if (!open) return;
+    historyRef.current = { undo: [], redo: [] };
+    setHistoryRevision((revision) => revision + 1);
+  }, [open, cardIndex]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKeyDown = (event) => {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "z")
+        return;
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.matches("input, textarea") || target.isContentEditable)
+      )
+        return;
+      event.preventDefault();
+      if (event.shiftKey) redo();
+      else undo();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [open, cardIndex]);
 
   if (!open) return null;
 
@@ -156,7 +195,7 @@ export function CardEditModal({
       product,
       topic: state.topic,
       deck,
-      conceptId: state.adConcept,
+      conceptIds: state.adConcepts || [state.adConcept],
       copyOverrides: state.adCopyOverrides,
     })[cardIndex];
     if (!item) return null;
@@ -285,6 +324,63 @@ export function CardEditModal({
   const card = deck[cardIndex];
   const texts = state.card.texts[cardIndex] || {};
   const extraTexts = state.card.extraTexts?.[cardIndex] || [];
+  const magazineTemplate = state.magazineTemplate || DEFAULT_MAGAZINE_TEMPLATE;
+  const layoutKey = (objId, source = state) =>
+    source.concept === "magazine"
+      ? `${objId}:${source.magazineTemplate || DEFAULT_MAGAZINE_TEMPLATE}`
+      : objId;
+  const rawLayout = state.card.layout?.[cardIndex] || {};
+  // The renderer consumes plain object ids. Only expose overrides belonging to
+  // the selected magazine style, keeping each style's positioning independent.
+  const activeLayout =
+    state.concept === "magazine"
+      ? Object.fromEntries(
+          Object.keys(rawLayout)
+            .filter((key) => key.endsWith(`:${magazineTemplate}`))
+            .map((key) => [key.slice(0, -(magazineTemplate.length + 1)), rawLayout[key]]),
+        )
+      : rawLayout;
+
+  function snapshot(source = getState()) {
+    return structuredClone({
+      card: source.card,
+      accent: source.accent,
+      mark: source.mark,
+      cardTheme: source.cardTheme,
+      noteSymbol: source.noteSymbol,
+      notePaper: source.notePaper,
+      noteInk: source.noteInk,
+      noteGrain: source.noteGrain,
+      magazineTemplate: source.magazineTemplate,
+    });
+  }
+
+  function commit(patch) {
+    historyRef.current.undo.push(snapshot());
+    historyRef.current.redo = [];
+    setHistoryRevision((revision) => revision + 1);
+    setState(patch);
+  }
+
+  function undo() {
+    const entry = historyRef.current.undo.pop();
+    if (!entry) return;
+    historyRef.current.redo.push(snapshot());
+    setState(entry);
+    setSelectedObj(null);
+    setTextSelection(null);
+    setHistoryRevision((revision) => revision + 1);
+  }
+
+  function redo() {
+    const entry = historyRef.current.redo.pop();
+    if (!entry) return;
+    historyRef.current.undo.push(snapshot());
+    setState(entry);
+    setSelectedObj(null);
+    setTextSelection(null);
+    setHistoryRevision((revision) => revision + 1);
+  }
   const objects = [
     ...objectsFor(state.concept, card.kind, state.magazineTemplate),
     ...extraTexts.map((item, n) => ({
@@ -300,7 +396,7 @@ export function CardEditModal({
     const s = getState();
     const nextTexts = cloneTexts(s.card.texts);
     nextTexts[cardIndex] = { ...nextTexts[cardIndex], [slotId]: value };
-    setState({ card: { ...s.card, texts: nextTexts } });
+    commit({ card: { ...s.card, texts: nextTexts } });
   }
 
   function handleEditText(objId, value) {
@@ -312,7 +408,7 @@ export function CardEditModal({
       : current.card.texts[cardIndex]?.[
           slotIdForObject(state.concept, card.kind, objId)
         ] || "";
-    const saved = current.card.layout?.[cardIndex]?.[objId];
+    const saved = current.card.layout?.[cardIndex]?.[layoutKey(objId, current)];
     if (oldText !== value && saved?.colorRanges?.length) {
       let start = 0;
       while (
@@ -356,7 +452,7 @@ export function CardEditModal({
       nextExtraTexts[cardIndex] = (nextExtraTexts[cardIndex] || []).map(
         (item) => (item.id === id ? { ...item, text: value } : item),
       );
-      setState({ card: { ...s.card, extraTexts: nextExtraTexts } });
+      commit({ card: { ...s.card, extraTexts: nextExtraTexts } });
       return;
     }
     handleFieldChange(slotIdForObject(state.concept, card.kind, objId), value);
@@ -366,7 +462,8 @@ export function CardEditModal({
     const s = getState();
     const layout = deck.map((_, i) => ({ ...(s.card.layout?.[i] || {}) }));
     const obj = objects.find((o) => o.id === objId);
-    const previous = layout[cardIndex][objId] || {};
+    const key = layoutKey(objId, s);
+    const previous = layout[cardIndex][key] || {};
     const drawn = lastBoxes()[objId];
     const nextBox = {
       ...(drawn
@@ -382,12 +479,12 @@ export function CardEditModal({
       nextBox.fontWeight =
         Number(nextBox.fontWeight) || measured?.weight || 400;
     }
-    layout[cardIndex] = { ...layout[cardIndex], [objId]: nextBox };
-    setState({ card: { ...s.card, layout } });
+    layout[cardIndex] = { ...layout[cardIndex], [key]: nextBox };
+    commit({ card: { ...s.card, layout } });
   }
 
   function handleStyleChange(patch) {
-    setState(patch);
+    commit(patch);
   }
 
   function handleAddTextBox() {
@@ -406,7 +503,7 @@ export function CardEditModal({
       textAlign: "left",
       color: state.concept === "note" ? "#191F28" : "#FFFFFF",
     });
-    setState({ card: { ...s.card, extraTexts } });
+    commit({ card: { ...s.card, extraTexts } });
     setSelectedObj(`extra-${id}`);
     setTextSelection(null);
   }
@@ -435,8 +532,8 @@ export function CardEditModal({
     const layout = deck.map((_, index) => ({
       ...(s.card.layout?.[index] || {}),
     }));
-    delete layout[cardIndex][selectedObj];
-    setState({ card: { ...s.card, extraTexts, layout } });
+    delete layout[cardIndex][layoutKey(selectedObj, s)];
+    commit({ card: { ...s.card, extraTexts, layout } });
     setSelectedObj(null);
     setTextSelection(null);
     toast("텍스트 상자를 삭제했습니다.");
@@ -451,7 +548,8 @@ export function CardEditModal({
       return;
     document.activeElement?.blur();
     handleEditText(selectedObj, textSelection.text);
-    const saved = getState().card.layout?.[cardIndex]?.[selectedObj] || {};
+    const saved =
+      getState().card.layout?.[cardIndex]?.[layoutKey(selectedObj)] || {};
     const color =
       state.concept === "card"
         ? getCardTheme(state.cardTheme).hex
@@ -539,11 +637,18 @@ export function CardEditModal({
     noteInk: state.noteInk,
     noteGrain: state.noteGrain,
     magazineTemplate: state.magazineTemplate,
-    layout: state.card.layout?.[cardIndex] || {},
+    layout: activeLayout,
     extraTexts,
   };
   const imageStatus = state.images?.[cardIndex];
   const hasCurrentConceptImage = imageStatus?.concept === state.concept;
+  const isMagazineCover = state.concept === "magazine" && cardIndex === 0;
+
+  function handleMagazineTemplateChange(id) {
+    setState({ magazineTemplate: id });
+    setSelectedObj(null);
+    setTextSelection(null);
+  }
 
   return (
     <div
@@ -592,6 +697,39 @@ export function CardEditModal({
           </div>
 
           <div className="space-y-6">
+            {isMagazineCover && (
+              <section aria-labelledby="magazine-style-heading">
+                <h3
+                  id="magazine-style-heading"
+                  className="mb-3 text-[15px] font-bold text-[#333d4b]"
+                >
+                  표지 스타일
+                </h3>
+                <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="매거진형 표지 스타일 선택">
+                  {MAGAZINE_TEMPLATES.map((template, index) => {
+                    const selected =
+                      template.id ===
+                      (state.magazineTemplate || DEFAULT_MAGAZINE_TEMPLATE);
+                    return (
+                      <button
+                        key={template.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        onClick={() => handleMagazineTemplateChange(template.id)}
+                        className={`rounded-lg border px-3 py-2 text-sm font-bold transition ${
+                          selected
+                            ? "border-[#287aff] bg-[#287aff] text-white"
+                            : "border-[#e5e8eb] bg-white text-[#5f6b7a] hover:bg-[#f7f8fa]"
+                        }`}
+                      >
+                        스타일 {index + 1}
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
             <StylePanel
               concept={concept}
               values={{
@@ -637,7 +775,10 @@ export function CardEditModal({
                       ]
                     }
                     label={objects.find((o) => o.id === selectedObj)?.label}
-                    saved={state.card.layout?.[cardIndex]?.[selectedObj] || {}}
+                    saved={
+                      state.card.layout?.[cardIndex]?.[layoutKey(selectedObj)] ||
+                      {}
+                    }
                     onChange={(patch) => handleCommitLayout(selectedObj, patch)}
                   />
                   <button
@@ -691,6 +832,26 @@ export function CardEditModal({
           >
             카드뉴스 제작 단계에서 전체 편집하기
           </button> */}
+          <div className="mr-auto flex items-center gap-2" aria-label="편집 실행 취소 및 다시 실행">
+            <button
+              type="button"
+              onClick={undo}
+              disabled={!historyRef.current.undo.length}
+              title="실행 취소 (Ctrl+Z)"
+              className="rounded-lg border border-[#dfe3e8] px-3 py-2 text-[13px] font-bold text-[#5f6b7a] transition hover:bg-[#f7f8fa] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              ↶ 실행 취소
+            </button>
+            <button
+              type="button"
+              onClick={redo}
+              disabled={!historyRef.current.redo.length}
+              title="다시 실행 (Ctrl+Shift+Z)"
+              className="rounded-lg border border-[#dfe3e8] px-3 py-2 text-[13px] font-bold text-[#5f6b7a] transition hover:bg-[#f7f8fa] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              ↷ 다시 실행
+            </button>
+          </div>
           <button
             type="button"
             onClick={onClose}

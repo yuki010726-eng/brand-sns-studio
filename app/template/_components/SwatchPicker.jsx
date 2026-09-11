@@ -21,6 +21,13 @@ export function SwatchPicker({
   custom,
   onCustomChange,
 }) {
+  const isCustomSelected =
+    Boolean(custom) &&
+    !options.some(
+      (option) =>
+        String(option.id).toLowerCase() === String(custom.value).toLowerCase(),
+    );
+
   return (
     <div>
       <SectionDivider title={legend} description={hintPlacement === "inline" ? hint : null} />
@@ -57,7 +64,7 @@ export function SwatchPicker({
         })}
         {custom && (
           <label
-            className="inline-flex cursor-pointer items-center gap-[7px] rounded-full border border-[#e5e8eb] bg-white px-[14px] py-[10px] text-[13px] font-normal text-[#5f6b7a]"
+            className={`inline-flex cursor-pointer items-center gap-[7px] rounded-full border px-[14px] py-[10px] text-[13px] transition ${isCustomSelected ? "border-[#287aff] bg-white font-bold text-[#191f28] shadow-[0_0_0_1px_#1b64da]" : "border-[#e5e8eb] bg-white font-normal text-[#5f6b7a] hover:bg-[#f7f8fa]"}`}
             title="원하는 색상 직접 선택"
           >
             <span
