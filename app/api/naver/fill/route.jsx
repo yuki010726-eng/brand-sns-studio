@@ -12,7 +12,14 @@
  * ⚠️ **성공해도 브라우저 창을 닫지 않는다.** 사람이 결과를 보고 직접 발행할 때까지
  *    열려 있어야 하므로, 다른 라우트와 달리 여기서 `context.close()` 를 안 부르는 게
  *    실수가 아니라 의도다.
+ *
+ * ⚠️ **`accountId` 를 주면 그 계정(`naver_accounts` 행) 기준으로 blogId·프로필을 정한다**
+ *    (2026-09-15). 화면(드롭다운)에서 계정을 고르면 이 값이 온다 — 소유자가 맞는지
+ *    (`user_id` 일치) 확인한 뒤에만 그 계정의 blogId·프로필 폴더(`naver_accounts.id`)를
+ *    쓴다. `accountId` 없이 `blogId` 만 오면 예전처럼 공용 프로필로 처리한다(레거시 경로,
+ *    아직 계정을 따로 등록하지 않은 경우를 위해 남겨 둔다).
  */
+import { createClient } from "@supabase/supabase-js";
 import { SUPABASE } from "../../../../lib/supabase.js";
 import {
   openBrowser,
@@ -63,10 +70,31 @@ async function requireApprovedUser(request) {
     if (profile?.status !== "approved") {
       return { ok: false, status: 403, message: "관리자 승인이 완료된 계정만 사용할 수 있습니다." };
     }
-    return { ok: true };
+    return { ok: true, userId: user.id };
   } catch {
     return { ok: false, status: 503, message: "로그인 확인 서버에 연결하지 못했습니다." };
   }
+}
+
+/**
+ * `accountId` 로 넘어온 `naver_accounts` 행을 찾아 blogId·프로필 id를 돌려준다.
+ * 요청자 본인이 등록한 계정이 아니면(`user_id` 불일치·존재하지 않음) 실패로 취급한다 —
+ * 다른 사용자의 accountId를 넣어서 그 사람의 블로그에 쓰는 걸 막는다.
+ */
+async function resolveAccount(accountId, userId) {
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+  if (!serviceRoleKey) throw new Error("SUPABASE_SERVICE_ROLE_KEY가 설정되지 않았습니다.");
+  const admin = createClient(process.env.SUPABASE_URL || SUPABASE.url, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  });
+  const { data, error } = await admin
+    .from("naver_accounts")
+    .select("id,blog_id")
+    .eq("id", accountId)
+    .eq("user_id", userId)
+    .single();
+  if (error || !data) return null;
+  return { blogId: data.blog_id, profileId: data.id };
 }
 
 export async function POST(request) {
@@ -88,7 +116,21 @@ export async function POST(request) {
   }
 
   const rawDraft = typeof body?.rawDraft === "string" ? body.rawDraft : "";
-  const blogId = typeof body?.blogId === "string" ? body.blogId.trim() : "";
+  const accountId = typeof body?.accountId === "string" ? body.accountId.trim() : "";
+  let blogId = typeof body?.blogId === "string" ? body.blogId.trim() : "";
+  let profileId; // undefined면 lib/naverPublish.js가 레거시 공용 프로필을 쓴다
+
+  if (accountId) {
+    let account;
+    try {
+      account = await resolveAccount(accountId, auth.userId);
+    } catch (error) {
+      return fail(500, error?.message || "네이버 계정 정보를 확인하지 못했습니다.");
+    }
+    if (!account) return fail(403, "연결되지 않은 네이버 계정입니다.");
+    blogId = account.blogId;
+    profileId = account.profileId;
+  }
   // { [카드 번호]: "data:image/png;base64,..." } — 값이 data URL 문자열인 항목만 받는다.
   // 형식이 이상한 항목은 조용히 버린다(그 자리는 fillBody 가 텍스트 자리표시자로 대신한다).
   const images = {};
@@ -127,7 +169,7 @@ export async function POST(request) {
   //    (`scripts/naver-fill-test.mjs`의 finally 와 같은 이유로 겪은 실제 버그, 2026-09-09).
   let context;
   try {
-    const opened = await openBrowser();
+    const opened = await openBrowser(profileId);
     context = opened.context;
     const { page } = opened;
     const frame = await openWritePage(page, blogId);

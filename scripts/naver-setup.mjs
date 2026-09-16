@@ -8,7 +8,12 @@
  * `.naver-profile/editor-snapshot/summary.json` 에 뽑아 저장한다. 그 파일을 읽고
  * 다음 단계(제목·본문·이미지 자동 채우기)의 진짜 선택자를 만든다.
  *
- * 실행: node scripts/naver-setup.mjs
+ * 실행: node scripts/naver-setup.mjs [계정 id]
+ *   계정 id(= 마이페이지에서 네이버 계정을 등록할 때 발급되는 naver_accounts.id)를 주면
+ *   그 계정 전용 폴더(`.naver-profile/{id}/`)에 로그인한다 — 블로그마다 완전히 다른
+ *   네이버 계정이라면 계정 수만큼 이 명령을 반복해야 한다(각각 다른 id로).
+ *   id 를 안 주면 예전처럼 공용 폴더(`.naver-profile/`)를 쓴다(레거시 단일 계정).
+ *   `npm run naver:setup -- {id}` 처럼 `--` 뒤에 붙여 넘긴다.
  *
  * ⚠️ 로그인 정보(아이디·비밀번호)는 이 스크립트가 절대 다루지 않는다. 브라우저 창이
  *    뜨면 **직접** 로그인한다 — 그 세션(쿠키)만 `.naver-profile/` 에 저장되고,
@@ -19,7 +24,10 @@ import path from "node:path";
 import fs from "node:fs";
 import readline from "node:readline";
 
-const PROFILE_DIR = path.resolve(process.cwd(), ".naver-profile");
+const profileId = (process.argv[2] || "").trim();
+const PROFILE_DIR = profileId
+  ? path.resolve(process.cwd(), ".naver-profile", profileId)
+  : path.resolve(process.cwd(), ".naver-profile");
 const SNAPSHOT_DIR = path.resolve(PROFILE_DIR, "editor-snapshot");
 
 function waitForEnter(prompt) {
@@ -57,6 +65,7 @@ function summarizeInBrowser() {
 async function main() {
   fs.mkdirSync(SNAPSHOT_DIR, { recursive: true });
 
+  console.log(`프로필 폴더: ${PROFILE_DIR}${profileId ? "" : " (id를 안 줘서 공용 폴더를 씁니다)"}`);
   console.log("브라우저를 엽니다. 이미 로그인돼 있으면 그대로 쓰고, 아니면 직접 로그인해 주세요.");
   const context = await chromium.launchPersistentContext(PROFILE_DIR, {
     headless: false,

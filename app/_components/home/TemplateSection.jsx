@@ -13,7 +13,7 @@
  * 이미지·설명을 이미 갖고 있어서 여기서 새로 만들 이유가 없다.
  */
 import { CONCEPTS, getConcept } from "../../../lib/concepts.js";
-import { AD_CONCEPTS, adConceptForTone } from "../../../lib/adprompt.js";
+import { AD_CONCEPTS } from "../../../lib/adprompt.js";
 import { toast } from "../../../components/toast.js";
 import { ConceptPicker } from "../../template/_components/ConceptPicker.jsx";
 
@@ -25,21 +25,17 @@ export function TemplateSection({ product, state, onUpdate }) {
     ? state.concepts
     : [state.concept]
   ).filter((id) => CONCEPTS.some((concept) => concept.id === id));
-  const adSelectedIds = (Array.isArray(state.adConcepts)
-    ? state.adConcepts
-    : [state.adConcept || adConceptForTone(state.tone)]
-  ).filter((id) => AD_CONCEPTS.some((concept) => concept.id === id));
+  const savedAdConcept = Array.isArray(state.adConcepts)
+    ? state.adConcepts.find((id) => AD_CONCEPTS.some((concept) => concept.id === id))
+    : state.adConcept;
+  const adSelectedIds = [savedAdConcept || AD_CONCEPTS[0]?.id].filter(Boolean);
 
   function handleChange(id) {
     const alreadySelected = selectedIds.includes(id);
     const concepts = alreadySelected
       ? selectedIds.filter((conceptId) => conceptId !== id)
       : [...selectedIds, id];
-    const concept =
-      alreadySelected && state.concept === id
-        ? concepts[concepts.length - 1]
-        : id;
-    onUpdate({ concept, concepts });
+    onUpdate({ concepts });
     toast(
       alreadySelected
         ? `${getConcept(id).name} 템플릿 선택을 해제했습니다.`
@@ -47,10 +43,15 @@ export function TemplateSection({ product, state, onUpdate }) {
     );
   }
 
+  function handlePreviewChange(id) {
+    onUpdate({ concept: id });
+  }
+
   function handleAdSelectionChange(ids) {
+    const id = ids[0] || AD_CONCEPTS[0]?.id;
     onUpdate({
-      adConcept: ids[0] || "",
-      adConcepts: ids,
+      adConcept: id,
+      adConcepts: id ? [id] : [],
       adConceptTone: state.tone,
     });
   }
@@ -107,6 +108,7 @@ export function TemplateSection({ product, state, onUpdate }) {
             value={state.concept}
             selectedIds={selectedIds}
             onChange={handleChange}
+            onPreviewChange={handlePreviewChange}
             adSelectedIds={adSelectedIds}
             onAdSelectionChange={handleAdSelectionChange}
           />

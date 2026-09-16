@@ -26,10 +26,11 @@ import { objectsFor, roleOf, slotIdForObject } from "../../../lib/templates.js";
 import { buildPrompt } from "../../../lib/imageprompt.js";
 import { buildAdPrompts } from "../../../lib/adprompt.js";
 import {
-  getImage,
+  getImageForState,
+  imageScopeForState,
   putImage,
   deleteImage,
-  imageKey,
+  imageKeyForState,
 } from "../../../lib/imagestore.js";
 import {
   loadImage,
@@ -104,9 +105,7 @@ export function CardEditModal({
     let cancelled = false;
     (async () => {
       await ensureFonts();
-      const blob = await getImage(
-        imageKey(state.productId, state.concept, cardIndex, state.postId),
-      );
+      const blob = await getImageForState(state, cardIndex);
       const img = blob ? await loadImage(blob).catch(() => null) : null;
       if (!cancelled) setBitmap(img);
     })();
@@ -119,6 +118,7 @@ export function CardEditModal({
     state.productId,
     state.concept,
     state.postId,
+    imageScopeForState(state),
     cardIndex,
     state.images?.[cardIndex],
   ]);
@@ -231,7 +231,7 @@ export function CardEditModal({
         return toast("이미지 파일만 올릴 수 있습니다.");
       const current = getState();
       await putImage(
-        imageKey(current.productId, current.concept, cardIndex, current.postId),
+        imageKeyForState(current, cardIndex),
         file,
       );
       setState({
@@ -324,6 +324,69 @@ export function CardEditModal({
   const card = deck[cardIndex];
   const texts = state.card.texts[cardIndex] || {};
   const extraTexts = state.card.extraTexts?.[cardIndex] || [];
+
+  // A blog banner is intentionally generated as one complete image: its
+  // Korean copy belongs inside the output, like the supplied PR references.
+  // Do not expose the card canvas/editor here, which would overlay that copy
+  // again and make the generated layout impossible to preserve.
+  if (state.concept === "blog") {
+    const prompt = buildPrompt(card, state.concept, {
+      index: cardIndex,
+      eyebrow: texts.eyebrow,
+      title: texts.title || card.title,
+      body: texts.body || card.body,
+      footer: texts.footer,
+      subject: imageCaptionFor(state, cardIndex),
+    });
+    const uploadBlogImage = async (file) => {
+      if (!file.type.startsWith("image/")) {
+        toast("이미지 파일만 올릴 수 있습니다.");
+        return;
+      }
+      const current = getState();
+      await putImage(
+        imageKeyForState(current, cardIndex),
+        file,
+      );
+      setState({
+        images: {
+          ...current.images,
+          [cardIndex]: { concept: current.concept, source: "upload", at: Date.now() },
+        },
+      });
+      toast("생성한 블로그 이미지를 반영했습니다.");
+      onClose();
+    };
+    const copyBlogPrompt = async () => {
+      try {
+        await navigator.clipboard.writeText(prompt);
+        toast(`${cardIndex + 1}번 블로그 이미지 프롬프트를 복사했습니다.`);
+      } catch {
+        toast("프롬프트를 복사하지 못했습니다.");
+      }
+    };
+    return (
+      <div className="fixed inset-0 z-50 grid place-items-center overflow-hidden bg-black/60 p-4" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+        <section ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="card-edit-title" className="flex max-h-[calc(100dvh-32px)] w-full max-w-[760px] flex-col overflow-hidden rounded-[15px] border border-[#e5e8eb] bg-white shadow-[0_24px_70px_rgba(0,0,0,0.25)] outline-none">
+          <header className="flex items-center justify-between border-b border-[#e5e8eb] px-6 py-4">
+            <h2 id="card-edit-title" className="text-[17px] font-bold text-black">{cardIndex + 1}번 블로그 이미지 프롬프트</h2>
+            <button type="button" onClick={onClose} aria-label="닫기" className="grid size-9 place-items-center rounded-full text-[#8b95a1] transition hover:bg-[#f2f4f6] hover:text-[#333d4b]"><Icon name="close" className="size-5" /></button>
+          </header>
+          <div className="min-h-0 flex-1 overflow-y-auto p-6">
+            <p className="mb-4 text-[14px] leading-6 text-[#5f6b7a]">카드 편집 없이, 레퍼런스처럼 한글 문구까지 포함된 완성 이미지로 생성합니다.</p>
+            <div className="rounded-xl bg-[#f2f4f6] p-4 text-[13px] leading-6 text-[#333d4b] whitespace-pre-wrap">{prompt}</div>
+            <div className="mt-5 flex flex-wrap gap-2">
+              <button type="button" onClick={copyBlogPrompt} className="inline-flex items-center gap-2 rounded-full border border-[#e5e8eb] px-4 py-2.5 text-[14px] font-bold text-[#4e5968]"><Icon name="copy" className="size-4" />프롬프트 복사</button>
+              <a href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-full border border-[#e5e8eb] px-4 py-2.5 text-[14px] font-bold text-[#4e5968]"><Icon name="external" className="size-4" />ChatGPT</a>
+              <a href="https://gemini.google.com/app" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-full border border-[#e5e8eb] px-4 py-2.5 text-[14px] font-bold text-[#4e5968]"><Icon name="external" className="size-4" />Gemini</a>
+              <label className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-[#287aff] px-4 py-2.5 text-[14px] font-bold text-white"><Icon name="image" className="size-4" />생성 이미지 올리기<input type="file" accept="image/*" className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) uploadBlogImage(file); }} /></label>
+            </div>
+          </div>
+          <footer className="flex justify-end border-t border-[#e5e8eb] px-6 py-4"><button type="button" onClick={onClose} className="rounded-full bg-[#287aff] px-6 py-2.5 text-[14px] font-bold text-white">닫기</button></footer>
+        </section>
+      </div>
+    );
+  }
   const magazineTemplate = state.magazineTemplate || DEFAULT_MAGAZINE_TEMPLATE;
   const layoutKey = (objId, source = state) =>
     source.concept === "magazine"
@@ -572,7 +635,7 @@ export function CardEditModal({
     const s = getState();
     if (blob) {
       await putImage(
-        imageKey(s.productId, s.concept, cardIndex, s.postId),
+        imageKeyForState(s, cardIndex),
         blob,
       );
       const previous = getState().images[cardIndex] || {};
@@ -589,7 +652,7 @@ export function CardEditModal({
       });
       setBitmap(await loadImage(blob).catch(() => null));
     } else {
-      await deleteImage(imageKey(s.productId, s.concept, cardIndex, s.postId));
+      await deleteImage(imageKeyForState(s, cardIndex));
       const images = { ...s.images };
       delete images[cardIndex];
       setState({ images });

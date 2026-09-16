@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Icon } from "../Icon.jsx";
 import { CopyChatPanel } from "./CopyChatPanel.jsx";
 import { CompliancePanel } from "./CompliancePanel.jsx";
@@ -7,7 +7,14 @@ import { NaverBlogPreview } from "./NaverBlogPreview.jsx";
 import { CardEditModal } from "./CardEditModal.jsx";
 import { useCardDeck } from "./useCardDeck.js";
 import { InstagramPublishDialog } from "../../template/_components/InstagramPublishDialog.jsx";
-import { fillNaverDraft, getSavedNaverBlogId, saveNaverBlogId } from "../../../lib/naverFillClient.js";
+import {
+  fillNaverDraft,
+  getSavedNaverAccountId,
+  saveNaverAccountId,
+  getSavedNaverBlogId,
+  saveNaverBlogId,
+} from "../../../lib/naverFillClient.js";
+import { addNaverAccount, getNaverAccounts } from "../../../lib/naverAccounts.js";
 import { parseBlogDoc } from "../../../lib/blogDoc.js";
 import { publishInstagramCarousel, removeInstagramCards, uploadInstagramCards } from "../../../lib/instagram.js";
 import { getActiveInstagramAccountId, getInstagramAccounts } from "../../../lib/instagram-accounts.js";
@@ -226,8 +233,40 @@ export function CopyEditor({
   product,
 }) {
   const [chatOpen, setChatOpen] = useState(false);
+  // 등록된 네이버 계정 목록(마이페이지에서 여러 계정을 저장해 두면 여기서 골라 쓴다).
+  // 계정을 하나도 등록하지 않았거나 목록을 못 불러왔을 때는 예전처럼 자유입력으로 폴백한다.
+  const [naverAccounts, setNaverAccounts] = useState([]);
+  const [naverAccountsError, setNaverAccountsError] = useState(false);
+  const [naverAccountId, setNaverAccountId] = useState(() => getSavedNaverAccountId());
+  const [naverAddOpen, setNaverAddOpen] = useState(false);
+  const [naverNewBlogId, setNaverNewBlogId] = useState("");
+  const [naverNewLabel, setNaverNewLabel] = useState("");
+  const [naverAdding, setNaverAdding] = useState(false);
   const [naverBlogId, setNaverBlogId] = useState(() => getSavedNaverBlogId());
   const [naverFilling, setNaverFilling] = useState(false);
+
+  useEffect(() => {
+    if (channel.id !== "blog") return;
+    let cancelled = false;
+    getNaverAccounts()
+      .then((accounts) => {
+        if (cancelled) return;
+        setNaverAccounts(accounts);
+        setNaverAccountsError(false);
+        // 저장해 둔 선택값이 더 이상 목록에 없으면(삭제됐거나 처음 방문) 첫 계정으로 맞춘다.
+        setNaverAccountId((current) => {
+          if (accounts.some((a) => a.id === current)) return current;
+          return accounts[0]?.id || "";
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setNaverAccountsError(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [channel.id]);
+
   const [instagramDialog, setInstagramDialog] = useState(null);
   const [publishingInstagram, setPublishingInstagram] = useState(false);
   // 블로그·인스타그램 미리보기가 함께 보는 카드뉴스 덱·썸네일 — 어느 채널의 이미지
@@ -248,13 +287,49 @@ export function CopyEditor({
     )
     .join("\n").length;
 
+  async function handleAddNaverAccount() {
+    const blogId = naverNewBlogId.trim();
+    if (!blogId) {
+      toast("네이버 블로그 아이디를 입력해 주세요.");
+      return;
+    }
+    setNaverAdding(true);
+    try {
+      const account = await addNaverAccount(blogId, naverNewLabel.trim());
+      setNaverAccounts((list) => [...list, account]);
+      setNaverAccountId(account.id);
+      saveNaverAccountId(account.id);
+      setNaverAddOpen(false);
+      setNaverNewBlogId("");
+      setNaverNewLabel("");
+      toast(`${account.label || account.blog_id} 계정을 등록했습니다. 이 컴퓨터에서 로그인 세션을 아직 안 만들었다면 npm run naver:setup -- ${account.id} 로 한 번 로그인해 주세요.`);
+    } catch (error) {
+      toast(error?.message || "네이버 계정을 등록하지 못했습니다.");
+    } finally {
+      setNaverAdding(false);
+    }
+  }
+
   // ⚠️ 발행 버튼은 여기서 누르지 않는다 — 제목·본문만 채워 넣고, 뜬 브라우저 창에서
   //    사람이 직접 확인하고 발행한다(요청자 결정, 2026-09-09). 로그인 세션도 사람이
   //    `npm run naver:setup` 으로 한 번 직접 로그인해 둔 걸 재사용할 뿐, 이 코드는
   //    아이디·비밀번호를 다루지 않는다.
   async function handleNaverFill() {
+    // 계정 목록을 정상적으로 불러왔으면(naverAccountsError가 false면) 화면에는 드롭다운이
+    // 떠 있다 — 계정이 하나도 없어도 자유입력 칸은 안 보인다. 그래서 "계정 기반"인지는
+    // 목록이 비었는지가 아니라 목록을 불러오는 데 성공했는지로 가른다. 목록을 아예 못
+    // 불러왔을 때만(네트워크 오류 등) 화면에 보이는 자유입력 blogId로 공용 세션을 쓴다.
+    const usingAccount = !naverAccountsError;
     const blogId = naverBlogId.trim();
-    if (!blogId) {
+    if (usingAccount && !naverAccountId) {
+      toast(
+        naverAccounts.length
+          ? "네이버 블로그 계정을 먼저 선택해 주세요."
+          : "등록된 네이버 블로그 계정이 없습니다. 드롭다운에서 「+ 새 블로그 계정 추가」로 먼저 등록해 주세요.",
+      );
+      return;
+    }
+    if (!usingAccount && !blogId) {
       toast("네이버 블로그 아이디를 먼저 입력해 주세요.");
       return;
     }
@@ -262,7 +337,8 @@ export function CopyEditor({
       toast("채워 넣을 글이 없습니다.");
       return;
     }
-    saveNaverBlogId(blogId);
+    if (usingAccount) saveNaverAccountId(naverAccountId);
+    else saveNaverBlogId(blogId);
     setNaverFilling(true);
     try {
       // 원고 안 이미지 자리(`📷 [이미지 N …]`)마다 실제 카드뉴스 썸네일을 붙여 보낸다.
@@ -288,7 +364,14 @@ export function CopyEditor({
       // 제목은 원고 안 인용구 두 줄이 아니라 "글 구조 요약"에서 고른 제목을 쓴다
       // (요청자 지시, 2026-09-09) — 그 제목이 카드뉴스 표지 문구 등 나머지 글의
       // 기준이므로, 네이버에 올라가는 제목도 같은 것이어야 한다.
-      await fillNaverDraft({ rawDraft: value, blogId, images, imageLayout, title: blogTitle });
+      await fillNaverDraft({
+        rawDraft: value,
+        accountId: usingAccount ? naverAccountId : undefined,
+        blogId: usingAccount ? undefined : blogId,
+        images,
+        imageLayout,
+        title: blogTitle,
+      });
       toast("네이버 글쓰기 화면에 채워 넣었습니다. 뜬 브라우저 창에서 내용을 확인하고 직접 발행해 주세요.");
     } catch (error) {
       toast(error?.message || "네이버에 채워 넣지 못했습니다.");
@@ -384,20 +467,86 @@ export function CopyEditor({
               {publishingInstagram ? "게시 중…" : "Instagram에 게시"}
             </button>
           )}
-          {channel.id === "blog" && (
+          {channel.id === "blog" && naverAddOpen && (
             <>
-              <label className="sr-only" htmlFor="naver-blog-id">
-                네이버 블로그 아이디
-              </label>
               <input
-                id="naver-blog-id"
                 type="text"
-                value={naverBlogId}
-                onChange={(e) => setNaverBlogId(e.target.value)}
+                value={naverNewBlogId}
+                onChange={(e) => setNaverNewBlogId(e.target.value)}
                 placeholder="네이버 블로그 아이디"
                 autoComplete="off"
-                className="h-[45px] w-[160px] rounded-full border border-[#e5e8eb] bg-white px-[16px] text-[14px] text-[#333]"
+                className="h-[45px] w-[140px] rounded-full border border-[#e5e8eb] bg-white px-[16px] text-[14px] text-[#333]"
               />
+              <input
+                type="text"
+                value={naverNewLabel}
+                onChange={(e) => setNaverNewLabel(e.target.value)}
+                placeholder="별명(선택)"
+                autoComplete="off"
+                className="h-[45px] w-[110px] rounded-full border border-[#e5e8eb] bg-white px-[16px] text-[14px] text-[#333]"
+              />
+              <button
+                type="button"
+                onClick={handleAddNaverAccount}
+                disabled={naverAdding}
+                className="inline-flex h-[45px] items-center rounded-full border border-[#03c75a] bg-[#03c75a] px-[16px] text-[14px] font-bold text-white disabled:opacity-50"
+              >
+                {naverAdding ? "추가 중…" : "추가"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setNaverAddOpen(false)}
+                disabled={naverAdding}
+                className="inline-flex h-[45px] items-center rounded-full border border-[#e5e8eb] bg-white px-[16px] text-[14px] text-[#4e5968]"
+              >
+                취소
+              </button>
+            </>
+          )}
+          {channel.id === "blog" && !naverAddOpen && (
+            <>
+              {naverAccountsError ? (
+                <>
+                  <label className="sr-only" htmlFor="naver-blog-id">
+                    네이버 블로그 아이디
+                  </label>
+                  <input
+                    id="naver-blog-id"
+                    type="text"
+                    value={naverBlogId}
+                    onChange={(e) => setNaverBlogId(e.target.value)}
+                    placeholder="네이버 블로그 아이디"
+                    autoComplete="off"
+                    className="h-[45px] w-[160px] rounded-full border border-[#e5e8eb] bg-white px-[16px] text-[14px] text-[#333]"
+                  />
+                </>
+              ) : (
+                <>
+                  <label className="sr-only" htmlFor="naver-account">
+                    네이버 블로그 계정
+                  </label>
+                  <select
+                    id="naver-account"
+                    value={naverAccountId}
+                    onChange={(e) => {
+                      if (e.target.value === "__add__") {
+                        setNaverAddOpen(true);
+                        return;
+                      }
+                      setNaverAccountId(e.target.value);
+                    }}
+                    className="h-[45px] w-[180px] rounded-full border border-[#e5e8eb] bg-white px-[16px] text-[14px] text-[#333]"
+                  >
+                    {!naverAccounts.length && <option value="">등록된 블로그 없음</option>}
+                    {naverAccounts.map((account) => (
+                      <option key={account.id} value={account.id}>
+                        {account.label || account.blog_id} ({account.blog_id})
+                      </option>
+                    ))}
+                    <option value="__add__">+ 새 블로그 계정 추가</option>
+                  </select>
+                </>
+              )}
               <button
                 type="button"
                 onClick={handleNaverFill}

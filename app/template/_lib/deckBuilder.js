@@ -202,7 +202,7 @@ export function blogCardSource(state) {
  * 2026-08-31 노트형까지 확장).
  */
 export function withFollowCard(cards, conceptId, product) {
-  if ((conceptId !== 'card' && conceptId !== 'note') || !cards.length) return cards;
+  if ((conceptId !== 'card' && conceptId !== 'blog' && conceptId !== 'note') || !cards.length) return cards;
   const total = cards.length + 1;
   const pad = (n) => String(n).padStart(2, '0');
   const numbered = cards.map((card, i) => (card.eyebrow && card.eyebrow.includes('/')

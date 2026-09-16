@@ -27,10 +27,11 @@ import { slotsFor, roleOf, objectsFor, slotIdForObject } from "../../lib/templat
 import { buildDeck, TONE_LABEL } from "../../lib/copywriter.js";
 import { outlineKeyOf } from "../../lib/outline.js";
 import {
-  getImage,
   putImage,
   deleteImage,
-  imageKey,
+  getImageForState,
+  imageScopeForState,
+  imageKeyForState,
 } from "../../lib/imagestore.js";
 import {
   renderCard,
@@ -46,7 +47,6 @@ import { buildPrompt } from "../../lib/imageprompt.js";
 import {
   buildAdPrompts,
   getAdConcept,
-  adConceptForTone,
 } from "../../lib/adprompt.js";
 import { saveToLibrary, hasLibraryChanges } from "../../lib/librarystore.js";
 import { draftKeyOf, getState, setState, subscribe, STEPS } from "../../store.js";
@@ -118,11 +118,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  * `effectiveAdConcept()`.
  */
 const effectiveAdConceptIds = (s) => {
-  const selected = Array.isArray(s.adConcepts) ? s.adConcepts.filter(Boolean) : [];
-  // An empty array is a valid, explicit choice while editing. Fall back only
-  // before the user has selected advertising concepts for this tone.
-  if (s.adConceptTone === s.tone && Array.isArray(s.adConcepts)) return selected;
-  return [s.adConceptTone === s.tone && s.adConcept ? s.adConcept : adConceptForTone(s.tone)];
+  const selected = Array.isArray(s.adConcepts) ? s.adConcepts.find(Boolean) : null;
+  // Advertising uses one sub-template. Default to the first option until the
+  // user explicitly chooses another one.
+  return [selected || s.adConcept || AD_CONCEPTS[0]?.id].filter(Boolean);
 };
 
 /**
@@ -305,9 +304,7 @@ export default function TemplatePage() {
       if (!state || !product || !deck.length) return;
       const next = new Array(deck.length).fill(null);
       for (let i = 0; i < deck.length; i++) {
-        const blob = await getImage(
-          imageKey(state.productId, state.concept, i, state.postId),
-        );
+        const blob = await getImageForState(state, i);
         if (blob) next[i] = await loadImage(blob).catch(() => null);
       }
       if (!cancelled) setBitmaps(next);
@@ -315,7 +312,7 @@ export default function TemplatePage() {
     return () => {
       cancelled = true;
     };
-  }, [state?.productId, state?.concept, state?.postId, deck.length, product]);
+  }, [state?.productId, state?.concept, state?.postId, imageScopeForState(state), deck.length, product]);
 
   useEffect(() => {
     setCanSaveLibrary(hasLibraryChanges());
@@ -469,8 +466,8 @@ export default function TemplatePage() {
   // 컨셉을 바꾸면 전 장을 다시 만든다 — 한 벌이 통째로 갈리는 값이라 부분 갱신이 없다.
   // 톤과 함께 남긴다 — 톤이 바뀌면 이 선택은 버리고 새 톤의 컨셉으로 돌아간다.
   function handleAdConceptChange(ids) {
-    const id = ids[0];
-    setState({ adConcept: ids[0], adConcepts: ids, adConceptTone: getState().tone });
+    const id = ids[0] || AD_CONCEPTS[0]?.id;
+    setState({ adConcept: id, adConcepts: id ? [id] : [], adConceptTone: getState().tone });
     toast(
       id
         ? `${getAdConcept(id).name} 컨셉으로 전 장을 다시 만들었습니다.`
@@ -684,7 +681,7 @@ export default function TemplatePage() {
   async function applyImage(index, blob, source) {
     const s = getState();
     if (blob) {
-      await putImage(imageKey(s.productId, s.concept, index, s.postId), blob);
+      await putImage(imageKeyForState(s, index), blob);
       const previous = getState().images[index] || {};
       setState({
         images: {
@@ -699,7 +696,7 @@ export default function TemplatePage() {
         return next;
       });
     } else {
-      await deleteImage(imageKey(s.productId, s.concept, index, s.postId));
+      await deleteImage(imageKeyForState(s, index));
       const images = { ...s.images };
       delete images[index];
       setState({ images });

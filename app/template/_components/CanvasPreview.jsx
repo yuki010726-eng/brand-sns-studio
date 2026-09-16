@@ -44,6 +44,9 @@ export function CanvasPreview({
   onEditText,
   onTextSelection,
 }) {
+  const isBlog = opts.conceptId === "blog";
+  const canvasW = isBlog ? 1200 : W;
+  const canvasH = isBlog ? 800 : H;
   const canvasRef = useRef(null);
   const wrapRef = useRef(null);
   const timerRef = useRef(null);
@@ -74,7 +77,7 @@ export function CanvasPreview({
   useEffect(() => {
     const wrap = wrapRef.current;
     if (!wrap) return undefined;
-    const updateScale = () => setPreviewScale((wrap.clientWidth || W) / W);
+    const updateScale = () => setPreviewScale((wrap.clientWidth || canvasW) / canvasW);
     updateScale();
     const observer = new ResizeObserver(updateScale);
     observer.observe(wrap);
@@ -246,10 +249,10 @@ export function CanvasPreview({
       if (!cur) return;
       const startLine = {
         ...(opts.layout?.[objId] || {}),
-        x1: cur.x1 / W,
-        y1: cur.y1 / H,
-        x2: cur.x2 / W,
-        y2: cur.y2 / H,
+        x1: cur.x1 / canvasW,
+        y1: cur.y1 / canvasH,
+        x2: cur.x2 / canvasW,
+        y2: cur.y2 / canvasH,
         hidden: false,
       };
       dragRef.current = {
@@ -277,10 +280,10 @@ export function CanvasPreview({
     const startBox = {
       ...(obj?.type === "text" ? { fontSize: measured.size, fontWeight: measured.weight } : {}),
       ...(opts.layout?.[objId] || {}),
-      x: cur.x / W,
-      y: cur.y / H,
-      w: cur.w / W,
-      h: cur.h / H,
+      x: cur.x / canvasW,
+      y: cur.y / canvasH,
+      w: cur.w / canvasW,
+      h: cur.h / canvasH,
     };
     dragRef.current = {
       objId,
@@ -317,14 +320,14 @@ export function CanvasPreview({
         // 로만 움직인다. 캔버스가 정사각형이 아니라(1080×1350) 정규화 좌표 그대로 각도를
         // 재면 시각적으로 기울어져 보이므로, 반드시 캔버스 픽셀 공간(W·H 를 곱한 값)에서 잰다.
         if (e.ctrlKey || e.metaKey) {
-          const vx = (px - anchor.x) * W;
-          const vy = (py - anchor.y) * H;
+          const vx = (px - anchor.x) * canvasW;
+          const vy = (py - anchor.y) * canvasH;
           const dist = Math.hypot(vx, vy);
           if (dist > 0) {
             const angle = Math.atan2(vy, vx);
             const snapped = Math.round(angle / (Math.PI / 2)) * (Math.PI / 2);
-            px = anchor.x + (Math.cos(snapped) * dist) / W;
-            py = anchor.y + (Math.sin(snapped) * dist) / H;
+            px = anchor.x + (Math.cos(snapped) * dist) / canvasW;
+            py = anchor.y + (Math.sin(snapped) * dist) / canvasH;
           }
         }
         if (isStart) {
@@ -411,10 +414,10 @@ export function CanvasPreview({
       const cur = lines[objId];
       if (!cur) return;
       const norm = opts.layout?.[objId] || {
-        x1: cur.x1 / W,
-        y1: cur.y1 / H,
-        x2: cur.x2 / W,
-        y2: cur.y2 / H,
+        x1: cur.x1 / canvasW,
+        y1: cur.y1 / canvasH,
+        x2: cur.x2 / canvasW,
+        y2: cur.y2 / canvasH,
       };
       onCommitLayout?.(objId, {
         ...norm,
@@ -430,10 +433,10 @@ export function CanvasPreview({
     const cur = boxes[objId];
     if (!cur) return;
     const norm = opts.layout?.[objId] || {
-      x: cur.x / W,
-      y: cur.y / H,
-      w: cur.w / W,
-      h: cur.h / H,
+      x: cur.x / canvasW,
+      y: cur.y / canvasH,
+      w: cur.w / canvasW,
+      h: cur.h / canvasH,
     };
     onCommitLayout?.(objId, { ...norm, x: norm.x + dx, y: norm.y + dy });
   }
@@ -445,11 +448,11 @@ export function CanvasPreview({
     <div ref={wrapRef} data-canvas-wrap className="relative">
       <canvas
         ref={canvasRef}
-        width={W}
-        height={H}
+        width={canvasW}
+        height={canvasH}
         role="img"
         aria-label={cardAlt(texts, cardIndex)}
-        className="aspect-[4/5] w-full rounded-[15px] border border-[#e5e8eb] bg-[#f2f4f6]"
+        className={`${isBlog ? "aspect-[3/2]" : "aspect-[4/5]"} w-full rounded-[15px] border border-[#e5e8eb] bg-[#f2f4f6]`}
       />
       {visibleObjects.length > 0 && (
         <div className="pointer-events-none absolute inset-0 touch-none">
@@ -457,10 +460,10 @@ export function CanvasPreview({
             const box = boxes[o.id];
             const on = o.id === selectedObj;
             const style = {
-              left: `${(box.x / W) * 100}%`,
-              top: `${(box.y / H) * 100}%`,
-              width: `${(box.w / W) * 100}%`,
-              height: `${(box.h / H) * 100}%`,
+              left: `${(box.x / canvasW) * 100}%`,
+              top: `${(box.y / canvasH) * 100}%`,
+              width: `${(box.w / canvasW) * 100}%`,
+              height: `${(box.h / canvasH) * 100}%`,
             };
             const borderClass = on
               ? "border-solid border-[#287aff] bg-[#287aff]/10"
@@ -567,7 +570,7 @@ export function CanvasPreview({
       )}
       {visibleLines.length > 0 && (
         <svg
-          viewBox={`0 0 ${W} ${H}`}
+          viewBox={`0 0 ${canvasW} ${canvasH}`}
           className="pointer-events-none absolute inset-0 touch-none"
           aria-hidden="true"
         >

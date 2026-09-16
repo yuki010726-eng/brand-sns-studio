@@ -338,8 +338,8 @@ export default function CopyPage() {
       customStyleGuideUrl: "",
       customStyleSaveRequested: false,
       cardCount: 0,
-      concept: "magazine",
-      concepts: ["magazine"],
+      concept: "",
+      concepts: [],
       channels: [],
       libraryTitle: "",
       contentOutline: null,
@@ -353,7 +353,18 @@ export default function CopyPage() {
     const channels = state.channels.includes(id)
       ? state.channels.filter((item) => item !== id)
       : [...state.channels, id];
-    setState({ channels });
+    // 채널에 맞는 템플릿은 조건을 처음 채울 때의 기본값이다. 블로그와
+    // 인스타그램을 함께 고르면 두 템플릿도 함께 선택한다.
+    const concepts = [
+      ...(channels.includes("blog") ? ["blog"] : []),
+      ...(channels.includes("instagram") ? ["card"] : []),
+    ];
+    setState({
+      channels,
+      ...(concepts.length
+        ? { concept: concepts[0], concepts }
+        : {}),
+    });
   }
 
   function clearTopic() {
@@ -366,8 +377,8 @@ export default function CopyPage() {
       customStyleGuideUrl: "",
       customStyleSaveRequested: false,
       cardCount: 0,
-      concept: "magazine",
-      concepts: ["magazine"],
+      concept: "",
+      concepts: [],
       channels: [],
       libraryTitle: "",
       contentOutline: null,

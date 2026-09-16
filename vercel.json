@@ -1,5 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    { "path": "/api/admin/ads-collect", "schedule": "0 0 * * *" }
+  ],
   "headers": [
     {
       "source": "/api/(.*)",

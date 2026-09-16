@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { getCachedUser, getUser, initAuth, onAuth } from '../../lib/auth.js';
+import { pullLibraryFromCloud } from '../../lib/librarystore.js';
 
 export function AuthGate({ children }) {
   const pathname = usePathname();
@@ -26,6 +27,12 @@ export function AuthGate({ children }) {
     initAuth().finally(() => setReady(true));
     return unsubscribe;
   }, [isPublicRoute]);
+
+  useEffect(() => {
+    if (user?.status === 'approved') {
+      pullLibraryFromCloud();
+    }
+  }, [user?.id, user?.status]);
 
   useEffect(() => {
     if (!isPublicRoute && ready && user?.status !== 'approved') router.replace('/login');

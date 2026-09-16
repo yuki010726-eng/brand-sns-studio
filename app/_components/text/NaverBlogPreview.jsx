@@ -259,6 +259,7 @@ function ImageBlock({
   onLayoutChange,
   onDelete,
   onEdit,
+  concept,
   isPromptOnly = false,
   dragging,
   onPointerDown,
@@ -290,7 +291,7 @@ function ImageBlock({
             type="button"
             onClick={onEdit}
             aria-label={`카드뉴스 ${block.no}번 편집하기`}
-            className={`group/thumb relative block w-full overflow-hidden rounded-md border border-[#ededed] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#287aff] ${isPromptOnly ? "aspect-square" : "aspect-[4/5]"}`}
+            className={`group/thumb relative block w-full overflow-hidden rounded-md border border-[#ededed] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#287aff] ${isPromptOnly ? "aspect-square" : concept === "blog" ? "aspect-[3/2]" : "aspect-[4/5]"}`}
           >
             {/* eslint-disable-next-line @next/next/no-img-element -- 캔버스로 그린 data URL */}
             <img
@@ -303,9 +304,9 @@ function ImageBlock({
               카드 편집
             </span>
           </button>
-        ) : isPromptOnly && onEdit ? (
-          <button type="button" onClick={onEdit} className="flex aspect-square w-full items-center justify-center rounded-md bg-[#f2f4f6] text-[#8b95a1] transition hover:bg-[#e9edf2]">
-            <span className="flex items-center gap-2 text-[13px] font-bold"><Icon name="image" className="size-6" />광고 이미지 프롬프트 보기</span>
+        ) : (isPromptOnly || concept === "blog") && onEdit ? (
+          <button type="button" onClick={onEdit} className={`flex w-full items-center justify-center rounded-md bg-[#f2f4f6] text-[#8b95a1] transition hover:bg-[#e9edf2] ${isPromptOnly ? "aspect-square" : "aspect-[3/2]"}`}>
+            <span className="flex items-center gap-2 text-[13px] font-bold"><Icon name="image" className="size-6" />{isPromptOnly ? "광고 이미지 프롬프트 보기" : "블로그 이미지 프롬프트 보기"}</span>
           </button>
         ) : (
           <div className="flex aspect-[4/3] w-full items-center justify-center rounded-md bg-[#f2f4f6] text-[#b0b8c1]">
@@ -765,6 +766,7 @@ export function NaverBlogPreview({
                   onLayoutChange={(patch) => updateImageLayout(block.no, patch)}
                   onDelete={() => deleteBlock(block.id)}
                   onEdit={() => onEditCard?.(block.no - 1)}
+                  concept={state?.concept}
                   isPromptOnly={state?.concept === "intuitive"}
                   dragging={draggingImageId === block.id}
                   onPointerDown={startImageDrag}

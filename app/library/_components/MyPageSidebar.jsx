@@ -7,6 +7,7 @@ import { Icon } from "../../_components/Icon.jsx";
 const ITEMS = [
   { path: "/library/profile", label: "프로필", icon: "user" },
   { path: "/research", label: "글 스타일", icon: "edit" },
+  { path: "/library/ads", label: "광고 라이브러리", icon: "megaphone" },
   { path: "/library", label: "저장한 게시물", icon: "archive" },
 ];
 

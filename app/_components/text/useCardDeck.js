@@ -20,7 +20,7 @@ import {
 } from "../../template/_lib/deckBuilder.js";
 import { renderCard, loadImage, ensureFonts, W, H } from "../../../lib/cardrender.js";
 import { draftKeyOf } from "../../../store.js";
-import { getImage, imageKey } from "../../../lib/imagestore.js";
+import { getImageForState, imageScopeForState } from "../../../lib/imagestore.js";
 
 export function useCardDeck(state, product, { suspendThumbs = false } = {}) {
   // Rendering a thumbnail is asynchronous. Keep the condition signature with
@@ -52,6 +52,7 @@ export function useCardDeck(state, product, { suspendThumbs = false } = {}) {
       variant: state.image?.variant ?? 0,
       outlineKey: state.outline?.key,
       postId: state.postId,
+      imageScope: imageScopeForState(state),
       cardTheme: state.cardTheme,
       noteSymbol: state.noteSymbol,
       notePaper: state.notePaper,
@@ -92,10 +93,13 @@ export function useCardDeck(state, product, { suspendThumbs = false } = {}) {
     if (suspendThumbs) return undefined;
     let cancelled = false;
     (async () => {
-      if (!previewable) {
+      // Blog banners are generated as finished images with their Korean copy
+      // already embedded. Rendering them through the canvas would add the
+      // editable overlay a second time, so preview the saved source directly.
+      if (!previewable || state.concept === "blog") {
         const next = {};
         for (let i = 0; i < deck.length; i += 1) {
-          const blob = await getImage(imageKey(state.productId, state.concept, i, state.postId)).catch(() => null);
+          const blob = await getImageForState(state, i).catch(() => null);
           if (cancelled) return;
           if (blob) next[i] = await new Promise((resolve) => {
             const reader = new FileReader();
@@ -115,9 +119,7 @@ export function useCardDeck(state, product, { suspendThumbs = false } = {}) {
       for (let i = 0; i < deck.length; i += 1) {
         if (cancelled) return;
         const texts = savedTexts?.[i] || base[i];
-        const blob = await getImage(
-          imageKey(state.productId, state.concept, i, state.postId),
-        ).catch(() => null);
+        const blob = await getImageForState(state, i).catch(() => null);
         const bitmap = blob ? await loadImage(blob).catch(() => null) : null;
         if (cancelled) return;
         const canvas = document.createElement("canvas");
