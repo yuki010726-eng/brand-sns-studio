@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { CHANNELS } from "../../data/channels.js";
-import { derivePosts, generateWithAI } from "../../lib/copyai.js";
+import { derivePosts, extractProposalContext, generateWithAI } from "../../lib/copyai.js";
 import { reviewCompliance } from "../../lib/compliance.js";
 import { copyChatContextKey, getMemorySummary } from "../../lib/copymemory.js";
 import { getConcept } from "../../lib/concepts.js";
@@ -48,6 +49,7 @@ import {
   TopicSection,
 } from "../_components/home/TopicSection.jsx";
 import { TemplateSection } from "../_components/home/TemplateSection.jsx";
+import { ImagePostSetup } from "../template/_components/ImagePostSetup.jsx";
 import { AiRunSelector } from "../_components/text/AiRunSelector.jsx";
 import { BlogConceptSelector } from "../_components/text/BlogConceptSelector.jsx";
 import {
@@ -70,6 +72,7 @@ import {
 } from "./_lib/draftState.js";
 
 export default function CopyPage() {
+  const router = useRouter();
   const topicRef = useRef(null);
   const [state, setViewState] = useState(null);
   const [activeId, setActiveId] = useState("");
@@ -323,6 +326,7 @@ export default function CopyPage() {
       });
       setExpanded(false);
       toast("같은 상품·주제의 저장된 제안서 분석 결과를 불러왔습니다.");
+      router.push("/template?preview=1");
       return;
     }
     const existing = getLibrary().find(
@@ -338,6 +342,7 @@ export default function CopyPage() {
       const result = await loadFromLibrary(existing.id);
       if (!result.ok) return toast(result.error);
       setExpanded(false);
+      router.push("/template?preview=1");
       return;
     }
     if (!isEditingExisting) clearLibraryEdit();
@@ -348,6 +353,7 @@ export default function CopyPage() {
     // generated, card 등을 초기화하지 않는다. 선택했던 시안도 유지된다.
     if (conditionsUnchanged && (latest.aiRuns?.list || []).length > 0) {
       setExpanded(false);
+      router.push("/template?preview=1");
       return;
     }
 
@@ -357,6 +363,7 @@ export default function CopyPage() {
       ...nextDraftState(latest),
     });
     setExpanded(false);
+    router.push("/template?preview=1");
   }
 
   function waitIfPaused() {
@@ -459,7 +466,7 @@ export default function CopyPage() {
     const controller = new AbortController();
     generationController.current = controller;
     pausedRef.current = false;
-    const totalJobs = channelIds.reduce(
+    const totalJobs = 1 + channelIds.reduce(
       (total, id) =>
         total + (id === "instagram" ? INSTAGRAM_FORMATS.length : 1),
       0,
@@ -500,9 +507,14 @@ export default function CopyPage() {
       // 챗봇에서 정리된 이 사용자의 스타일 메모 — 있으면 채널 프롬프트에 참고로 들어간다.
       const memory = await getMemorySummary().catch(() => null);
 
+      setGeneration((progress) => ({ ...progress, current: 1, channelName: "제안서 사실 정리" }));
+      const proposalContext = await extractProposalContext({ product }, {
+        signal: controller.signal,
+      });
+
       const drafts = {};
       let instagramDrafts = null;
-      let completedJobs = 0;
+      let completedJobs = 1;
       for (let index = 0; index < channelIds.length; index++) {
         await waitIfPaused();
         if (controller.signal.aborted) {
@@ -538,6 +550,7 @@ export default function CopyPage() {
               researchStyle,
               userMemory: memory?.summary || "",
               extraNote,
+              proposalContext,
               instagramFormat: format.id || current.instagramFormat || "simple",
             },
             {
@@ -891,6 +904,56 @@ export default function CopyPage() {
   }
 
   if (!state || !productsReady) return <LoadingScreen />;
+
+  const isImageTopicSetup =
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("edit") === "2";
+
+  if (isImageTopicSetup) {
+    const selectedConceptIds = (Array.isArray(state.concepts)
+      ? state.concepts
+      : [state.concept]
+    ).filter(Boolean);
+
+    return (
+      <main className="min-h-dvh bg-[#1a1a1a] pb-10 text-[#4e5968]">
+        <div className="w-full px-[clamp(20px,3.85vw,74px)] py-6">
+          <div className="mb-6"><ContentsTab /></div>
+          <TextPageHeader>콘텐츠 이미지를 생성해보세요.</TextPageHeader>
+          <ImagePostSetup
+            loading={!productsReady}
+            products={products}
+            productId={state.productId}
+            topic={state.topic || ""}
+            presets={presets}
+            presetsLoading={presetsLoading}
+            concept={state.concept}
+            selectedConceptIds={selectedConceptIds}
+            onProductChange={(productId) =>
+              setState({ productId, topic: "", card: null, images: {} })
+            }
+            onTopicChange={(topic) => setState({ topic, card: null })}
+            onRefreshPresets={() => refreshPresets(undefined, { force: true })}
+            onConceptSelectionChange={(conceptId) => {
+              const concepts = selectedConceptIds.includes(conceptId)
+                ? selectedConceptIds.filter((id) => id !== conceptId)
+                : [...selectedConceptIds, conceptId];
+              setState({
+                concept: concepts.includes(state.concept) ? state.concept : concepts[0] || null,
+                concepts,
+                card: null,
+              });
+            }}
+            onConceptPreviewChange={(concept) => setState({ concept })}
+            generating={false}
+            onStart={() => router.push("/template?preview=2")}
+            expanded
+            onToggle={() => {}}
+          />
+        </div>
+      </main>
+    );
+  }
 
   const value = activeChannel ? state.drafts?.[activeId] || "" : "";
   const compliance = activeChannel

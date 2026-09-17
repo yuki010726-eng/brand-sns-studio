@@ -133,7 +133,9 @@ export default function LibraryPage() {
       return;
     }
     toast(`「${target.title}」을(를) 불러왔습니다.`);
-    router.push("/text");
+    router.push(
+      target.type === "image" ? "/template?preview=2" : "/template?preview=1",
+    );
   }
 
   async function handleRemove(id) {

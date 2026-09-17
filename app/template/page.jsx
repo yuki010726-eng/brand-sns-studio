@@ -223,6 +223,7 @@ export default function TemplatePage() {
   const [setupOpen, setSetupOpen] = useState(true);
   const [preparingImage, setPreparingImage] = useState(false);
   const setupInitialized = useRef(false);
+  const previewInitialized = useRef(false);
   const [active, setActive] = useState(0);
   const [bitmaps, setBitmaps] = useState([]);
   const [clippedSlots, setClippedSlots] = useState([]);
@@ -279,24 +280,35 @@ export default function TemplatePage() {
       if (cached?.outline?.core) {
         setState({
           outline: cached.outline,
+          // Image-only generation derives its editable card copy from this
+          // proposal outline.  A cardCopy left by the text workflow would
+          // otherwise override that newly prepared content in deckFromBlog.
+          cardCopy: null,
           card: null,
         });
-        toast("저장된 제안서 분석 결과로 카드 문구와 이미지 프롬프트를 준비했습니다.");
+        toast(
+          "저장된 제안서 분석 결과로 카드 문구와 이미지 프롬프트를 준비했습니다.",
+        );
       } else {
         const tone = current.tone || "trust";
         const cardCount = Number(current.cardCount) || 4;
         const base = { ...current, tone, cardCount };
         const { core, outline } = await coreWithOutline({
-          product: currentProduct, topic, tone, cardCount,
+          product: currentProduct,
+          topic,
+          tone,
+          cardCount,
           focusPoint: String(current.focusPoint || "").trim(),
           contentOutline: current.contentOutline || null,
         });
         const patch = {
-          tone, cardCount,
+          tone,
+          cardCount,
           outline: { key: outlineKeyOf(base), core, outline },
           // Do not retain card copy derived from an old blog: the image-only
           // deck is intentionally built directly from the proposal outline.
-          cardCopy: null, card: null,
+          cardCopy: null,
+          card: null,
         };
         setState(patch);
         writeContentCache(current.productId, topic, {
@@ -307,6 +319,38 @@ export default function TemplatePage() {
         });
         toast("제안서를 바탕으로 이미지 프롬프트와 카드 문구를 만들었습니다.");
       }
+      // Do not leave the user on an intermediate loading screen after the
+      // prompt/copy preparation finishes.  Build the editable card state
+      // before closing the setup view, so the very next screen is the card
+      // editor (with its copy and image prompts ready to edit).
+      const prepared = getState();
+      const preparedCore =
+        prepared.outline?.key === outlineKeyOf(prepared)
+          ? prepared.outline.core
+          : null;
+      let preparedDeck = buildDeck({
+        product: currentProduct,
+        topic: String(prepared.topic || "").trim(),
+        tone: prepared.tone,
+        variant: prepared.image?.variant ?? 0,
+        cardCount: prepared.cardCount,
+        core: preparedCore,
+        allowRuleFallback: !preparedCore,
+      });
+      preparedDeck = withFollowCard(
+        deckFromBlog(preparedDeck, prepared),
+        prepared.concept,
+        currentProduct,
+      );
+      if (prepared.concept === "magazine")
+        preparedDeck = preparedDeck.slice(0, 1);
+
+      const editableCard = reconcileCard(
+        prepared,
+        preparedDeck,
+        currentProduct,
+      );
+      if (editableCard) setState({ card: editableCard });
       setSetupOpen(false);
     } catch (error) {
       console.error("[image-content] preparation failed", error);
@@ -320,6 +364,18 @@ export default function TemplatePage() {
   useEffect(() => {
     if (!state || !productsReady || setupInitialized.current) return;
     setupInitialized.current = true;
+    const preview =
+      typeof window === "undefined"
+        ? ""
+        : new URLSearchParams(window.location.search).get("preview");
+
+    // A saved 글+이미지 post has already passed its topic/template setup.
+    // `preview=1` must therefore open the card preview, not the image-only
+    // topic setup panel.
+    if (preview === "1" || (preview === "2" && state.card)) {
+      setSetupOpen(false);
+      return;
+    }
     if (!getProduct(state.productId) || !state.topic?.trim()) {
       setSetupOpen(true);
       return;
@@ -329,23 +385,49 @@ export default function TemplatePage() {
     }
   }, [state, productsReady, hasDraft, router]);
 
-  const refreshTopicPresets = useCallback(async (productId = state?.productId, options) => {
-    if (!productId) {
-      setTopicPresets([]);
+  // The image-topic setup lives at `/text?edit=2`; arriving here with
+  // `preview=2` is its explicit hand-off into the image preview workflow.
+  useEffect(() => {
+    if (
+      !state ||
+      !productsReady ||
+      previewInitialized.current ||
+      typeof window === "undefined"
+    )
+      return;
+    if (new URLSearchParams(window.location.search).get("preview") !== "2") {
       return;
     }
-    setTopicPresetsLoading(true);
-    try {
-      setTopicPresets(await loadRandomTopicPresets(productId, options));
-    } catch (error) {
-      console.error("[topics] 추천 주제 조회에 실패했습니다.", error);
-      const fallback =
-        products.find((item) => item.id === productId)?.topicPresets || [];
-      setTopicPresets(fallback.slice(0, 4));
-    } finally {
-      setTopicPresetsLoading(false);
+    previewInitialized.current = true;
+    // A library image post already has an editable card.  Re-preparing it
+    // would reopen the image-topic setup instead of its saved card editor.
+    if (state.card) {
+      setSetupOpen(false);
+      return;
     }
-  }, [products, state?.productId]);
+    prepareImageContent();
+  }, [state, productsReady, prepareImageContent]);
+
+  const refreshTopicPresets = useCallback(
+    async (productId = state?.productId, options) => {
+      if (!productId) {
+        setTopicPresets([]);
+        return;
+      }
+      setTopicPresetsLoading(true);
+      try {
+        setTopicPresets(await loadRandomTopicPresets(productId, options));
+      } catch (error) {
+        console.error("[topics] 추천 주제 조회에 실패했습니다.", error);
+        const fallback =
+          products.find((item) => item.id === productId)?.topicPresets || [];
+        setTopicPresets(fallback.slice(0, 4));
+      } finally {
+        setTopicPresetsLoading(false);
+      }
+    },
+    [products, state?.productId],
+  );
 
   useEffect(() => {
     refreshTopicPresets();
@@ -1045,7 +1127,9 @@ export default function TemplatePage() {
               setState({ productId, topic: "", card: null, images: {} })
             }
             onTopicChange={(topic) => setState({ topic, card: null })}
-            onRefreshPresets={() => refreshTopicPresets(undefined, { force: true })}
+            onRefreshPresets={() =>
+              refreshTopicPresets(undefined, { force: true })
+            }
             onConceptSelectionChange={(conceptId) => {
               const concepts = selectedConceptIds.includes(conceptId)
                 ? selectedConceptIds.filter((id) => id !== conceptId)
@@ -1088,33 +1172,35 @@ export default function TemplatePage() {
   // They intentionally bypass the card canvas and text editor.
   if (concept.promptOnly || concept.id === "blog") {
     const adConceptIds = effectiveAdConceptIds(state);
-    const adPrompts = concept.promptOnly && adConceptIds.length
-      ? buildAdPrompts({
-          product,
-          topic: state.topic.trim(),
-          deck,
-          conceptIds: adConceptIds,
-          copyOverrides: state.adCopyOverrides,
-        })
-      : [];
-    const blogPrompts = concept.id === "blog"
-      ? deck.map((card, index) => ({
-          n: index + 1,
-          prompt: buildPrompt(card, "blog", {
-            index,
-            eyebrow: product.short || product.name,
-            title: card.title,
-            body: card.body,
-            subject: card.shot || card.title,
-          }),
-        }))
-      : [];
+    const adPrompts =
+      concept.promptOnly && adConceptIds.length
+        ? buildAdPrompts({
+            product,
+            topic: state.topic.trim(),
+            deck,
+            conceptIds: adConceptIds,
+            copyOverrides: state.adCopyOverrides,
+          })
+        : [];
+    const blogPrompts =
+      concept.id === "blog"
+        ? deck.map((card, index) => ({
+            n: index + 1,
+            prompt: buildPrompt(card, "blog", {
+              index,
+              eyebrow: product.short || product.name,
+              title: card.title,
+              body: card.body,
+              subject: card.shot || card.title,
+            }),
+          }))
+        : [];
 
     return (
       <main className="min-h-dvh bg-[#1a1a1a] pb-[40px] text-[#4e5968]">
         <div className="w-full px-[clamp(20px,3.85vw,74px)]">
           <div className="flex min-h-[1050px] items-stretch rounded-[15px] bg-white/10 max-[860px]:min-h-0 max-[860px]:flex-col max-[860px]:overflow-clip">
-            <TextStepper steps={STEPS} activeIndex={1} />
+            {/* <TextStepper steps={STEPS} activeIndex={1} /> */}
             <div className="min-w-0 flex-1 px-[clamp(24px,calc((39/1920)*100vw),39px)] py-14">
               <div className="mb-6">
                 <ContentsTab />
@@ -1141,14 +1227,24 @@ export default function TemplatePage() {
                   presetsLoading={topicPresetsLoading}
                   concept={state.concept}
                   selectedConceptIds={selectedConceptIds}
-                  onProductChange={(productId) => setState({ productId, topic: "", card: null, images: {} })}
+                  onProductChange={(productId) =>
+                    setState({ productId, topic: "", card: null, images: {} })
+                  }
                   onTopicChange={(topic) => setState({ topic, card: null })}
-                  onRefreshPresets={() => refreshTopicPresets(undefined, { force: true })}
+                  onRefreshPresets={() =>
+                    refreshTopicPresets(undefined, { force: true })
+                  }
                   onConceptSelectionChange={(conceptId) => {
                     const concepts = selectedConceptIds.includes(conceptId)
                       ? selectedConceptIds.filter((id) => id !== conceptId)
                       : [...selectedConceptIds, conceptId];
-                    setState({ concept: concepts.includes(state.concept) ? state.concept : concepts[0] || null, concepts, card: null });
+                    setState({
+                      concept: concepts.includes(state.concept)
+                        ? state.concept
+                        : concepts[0] || null,
+                      concepts,
+                      card: null,
+                    });
                   }}
                   onConceptPreviewChange={(concept) => setState({ concept })}
                   generating={preparingImage}
@@ -1168,12 +1264,14 @@ export default function TemplatePage() {
 
               <div className="grid grid-cols-1 gap-8 rounded-[15px] border border-[#e5e8eb] bg-white p-5 lg:grid-cols-[minmax(0,1fr)_1px_minmax(0,1.15fr)] lg:gap-10 lg:p-6">
                 <div>
-                  {concept.promptOnly && <AdConceptPicker
-                    selectedIds={adConceptIds}
-                    toneLabel={TONE_LABEL[state.tone] || state.tone}
-                    isManualPick={state.adConceptTone === state.tone}
-                    onChange={handleAdConceptChange}
-                  />}
+                  {concept.promptOnly && (
+                    <AdConceptPicker
+                      selectedIds={adConceptIds}
+                      toneLabel={TONE_LABEL[state.tone] || state.tone}
+                      isManualPick={state.adConceptTone === state.tone}
+                      onChange={handleAdConceptChange}
+                    />
+                  )}
                 </div>
 
                 <div
@@ -1188,43 +1286,52 @@ export default function TemplatePage() {
                       표시됩니다.
                     </p>
                   )}
-                  {concept.promptOnly && adPrompts.map((item) => (
-                    <div key={item.n}>
-                      {adPrompts.length > 1 && (
-                        <p className="mb-3 text-[13px] font-bold text-[#5f6b7a]">
-                          이미지 {item.n} · {item.concept.name}
-                        </p>
-                      )}
-                      <AdPromptPanel
-                        item={item}
-                        tools={AD_TOOLS}
-                        onCopy={handleCopyAdPrompt}
-                        editable={false}
-                      />
-                    </div>
-                  ))}
-                  {concept.id === "blog" && blogPrompts.map((item) => (
-                    <div key={item.n}>
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="text-[13px] font-bold text-[#5f6b7a]">이미지 {item.n}</p>
-                        <button
-                          type="button"
-                          onClick={() => copyText(item.prompt, "프롬프트를 복사했습니다.")}
-                          className="rounded-full border border-[#e5e8eb] px-3 py-1.5 text-[13px] font-bold text-[#5f6b7a]"
-                        >
-                          <Icon name="copy" className="mr-1 inline size-4" />프롬프트 복사
-                        </button>
+                  {concept.promptOnly &&
+                    adPrompts.map((item) => (
+                      <div key={item.n}>
+                        {adPrompts.length > 1 && (
+                          <p className="mb-3 text-[13px] font-bold text-[#5f6b7a]">
+                            이미지 {item.n} · {item.concept.name}
+                          </p>
+                        )}
+                        <AdPromptPanel
+                          item={item}
+                          tools={AD_TOOLS}
+                          onCopy={handleCopyAdPrompt}
+                          editable={false}
+                        />
                       </div>
-                      <pre className="mt-3 max-h-[340px] overflow-y-auto whitespace-pre-wrap break-words rounded-[15px] bg-[#f2f4f6] p-3.5 text-[12px] leading-[1.6] text-[#5f6b7a]">{item.prompt}</pre>
-                    </div>
-                  ))}
+                    ))}
+                  {concept.id === "blog" &&
+                    blogPrompts.map((item) => (
+                      <div key={item.n}>
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-[13px] font-bold text-[#5f6b7a]">
+                            이미지 {item.n}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              copyText(item.prompt, "프롬프트를 복사했습니다.")
+                            }
+                            className="rounded-full border border-[#e5e8eb] px-3 py-1.5 text-[13px] font-bold text-[#5f6b7a]"
+                          >
+                            <Icon name="copy" className="mr-1 inline size-4" />
+                            프롬프트 복사
+                          </button>
+                        </div>
+                        <pre className="mt-3 max-h-[340px] overflow-y-auto whitespace-pre-wrap break-words rounded-[15px] bg-[#f2f4f6] p-3.5 text-[12px] leading-[1.6] text-[#5f6b7a]">
+                          {item.prompt}
+                        </pre>
+                      </div>
+                    ))}
                 </div>
               </div>
 
               <div className="mt-8 flex flex-wrap justify-between gap-3">
                 <button
                   type="button"
-                  onClick={() => router.push("/text")}
+                  onClick={() => router.push("/text?edit=1")}
                   aria-label="글귀 단계로 돌아가기"
                   className="inline-flex items-center gap-1.5 rounded-full border border-white/20 px-5 py-2.5 text-[15px] font-bold text-white transition hover:bg-white/10"
                 >
@@ -1293,7 +1400,7 @@ export default function TemplatePage() {
     <main className="min-h-dvh bg-[#1a1a1a] pb-[40px] text-[#4e5968]">
       <div className="w-full px-[clamp(20px,3.85vw,74px)]">
         <div className="flex min-h-[1050px] items-stretch rounded-[15px] bg-white/10 max-[860px]:min-h-0 max-[860px]:flex-col max-[860px]:overflow-clip">
-          <TextStepper steps={STEPS} activeIndex={1} />
+          {/* <TextStepper steps={STEPS} activeIndex={1} /> */}
           <div className="min-w-0 flex-1 px-[clamp(24px,calc((39/1920)*100vw),39px)] py-14">
             <div className="mb-6">
               <ContentsTab />
@@ -1318,7 +1425,9 @@ export default function TemplatePage() {
                   setState({ productId, topic: "", card: null, images: {} })
                 }
                 onTopicChange={(topic) => setState({ topic, card: null })}
-                onRefreshPresets={() => refreshTopicPresets(undefined, { force: true })}
+                onRefreshPresets={() =>
+                  refreshTopicPresets(undefined, { force: true })
+                }
                 onConceptSelectionChange={(conceptId) => {
                   const concepts = selectedConceptIds.includes(conceptId)
                     ? selectedConceptIds.filter((id) => id !== conceptId)
@@ -1663,7 +1772,10 @@ export default function TemplatePage() {
 
 function TemplateSubTabs({ templates, value, onChange }) {
   return (
-    <nav className="mb-6 flex flex-wrap gap-2" aria-label="선택한 이미지 템플릿">
+    <nav
+      className="mb-6 flex flex-wrap gap-2"
+      aria-label="선택한 이미지 템플릿"
+    >
       {templates.map((template) => {
         const active = template.id === value;
         return (

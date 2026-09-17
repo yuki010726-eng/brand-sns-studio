@@ -1,16 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 
 const TABS = [
-  { path: "/text", label: "글 + 이미지" },
-  { path: "/template", label: "이미지" },
+  { path: "/text?edit=1", label: "글 + 이미지" },
+  { path: "/text?edit=2", label: "이미지" },
 ];
 
 /** 새 게시물 작성 방식 전환 탭. 탭을 바꿔도 현재 작업 상태는 유지한다. */
 export function ContentsTab() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   return (
     <nav
@@ -18,13 +19,13 @@ export function ContentsTab() {
       aria-label="게시물 만들기 방식"
     >
       {TABS.map((tab) => {
-        const active = pathname === tab.path;
-        // 이미지 작업 화면에서 글+이미지로 돌아올 때는 기존 조건을 바로
-        // 수정할 수 있도록 주제 설정 패널을 연다.
-        const href =
-          pathname === "/template" && tab.path === "/text"
-            ? "/text?edit=1"
-            : tab.path;
+        // 미리보기 화면도 어느 작성 흐름에서 왔는지 그대로 표시한다.
+        const mode =
+          pathname === "/template"
+            ? searchParams.get("preview") || "1"
+            : searchParams.get("edit") || "1";
+        const active = tab.path === `/text?edit=${mode}`;
+        const href = tab.path;
         return (
           <Link
             key={tab.path}
