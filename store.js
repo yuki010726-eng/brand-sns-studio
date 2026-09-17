@@ -112,8 +112,8 @@ const INITIAL = {
   /** 지금 화면에 보이는 게 aiRuns.list 의 몇 번째인지 (0-based) — 규칙 기반을 보고 있으면 null */
   activeAiRun: null,
   draftKey: "",
-  concept: "magazine", // 카드뉴스 템플릿 id (lib/concepts.js)
-  concepts: ["magazine"], // 선택한 카드뉴스 템플릿 id 목록
+  concept: "blog", // 카드뉴스 템플릿 id (lib/concepts.js)
+  concepts: ["blog"], // 선택한 카드뉴스 템플릿 id 목록
   magazineTemplate: "t1", // 매거진형 세부 템플릿 1~4 (lib/concepts.js 의 MAGAZINE_TEMPLATES)
   accent: "#B9F73E", // 매거진형 강조 색상 (lib/concepts.js 의 DEFAULT_ACCENT)
   mark: "newspaper", // 카드형 우상단 마크 (lib/concepts.js 의 MARKS)

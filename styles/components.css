@@ -521,6 +521,46 @@
   box-shadow: var(--shadow-lg);
   animation: toast-in 0.2s var(--ease);
 }
+
+/* New deployments are actionable, unlike the short-lived informational toast. */
+.deployment-update-toast {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 210;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  max-width: min(460px, calc(100vw - 32px));
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 14px;
+  background: #191f28;
+  color: #fff;
+  box-shadow: var(--shadow-lg);
+  animation: toast-in 0.2s var(--ease);
+}
+.deployment-update-toast p {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+}
+.deployment-update-toast button {
+  flex: none;
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 11px;
+  background: #fff;
+  color: #191f28;
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+.deployment-update-toast button:hover { background: #e8eef7; }
+@media (max-width: 520px) {
+  .deployment-update-toast { right: 16px; bottom: 16px; gap: 12px; }
+}
 @keyframes toast-in {
   from {
     opacity: 0;

@@ -10,11 +10,6 @@ const TONES = [
   { id: "hook", label: "후킹·공감형", desc: "첫 줄에서 시선을 잡고" },
   { id: "plain", label: "담백·실무형", desc: "군더더기 없이 핵심만" },
   { id: "celebrate", label: "축하·발표형", desc: "수상·소식 알림 톤" },
-  {
-    id: "custom",
-    label: "글 스타일 직접 추가",
-    desc: "블로그 글의 문체를 참고해 작성",
-  },
 ];
 
 const inputClass =
@@ -110,13 +105,10 @@ function ToneSelect({ value, onChange }) {
  *  (`TemplateSection`)은 기본값(매거진형)이 항상 있어 여기에 포함하지 않는다. */
 export function hasRequiredConditions(state) {
   const hasTopic = state.topic.trim().length >= 2;
-  const hasCustomStyle =
-    state.tone !== "custom" ||
-    String(state.customStyleUrl || "").trim().length > 0;
+  const hasValidTone = TONES.some((tone) => tone.id === state.tone);
   const hasOptions =
     hasTopic &&
-    Boolean(state.tone) &&
-    hasCustomStyle &&
+    hasValidTone &&
     Number(state.cardCount) > 0;
   const selectedConcepts = Array.isArray(state.concepts)
     ? state.concepts
@@ -135,14 +127,10 @@ export function hasRequiredConditions(state) {
  * 직접 입력 글 스타일은 참고 URL까지 입력되어야 선택 완료로 본다. */
 export function hasTemplateSelectionConditions(state) {
   const hasTopic = state.topic.trim().length >= 2;
-  const hasCustomStyle =
-    state.tone !== "custom" ||
-    String(state.customStyleUrl || "").trim().length > 0;
-
+  const hasValidTone = TONES.some((tone) => tone.id === state.tone);
   return (
     hasTopic &&
-    Boolean(state.tone) &&
-    hasCustomStyle &&
+    hasValidTone &&
     state.channels.length > 0
   );
 }
@@ -156,13 +144,9 @@ export function TopicSection({
   topicRef,
   onUpdate,
   onToggleChannel,
-  onSaveCustomStyle,
   onRefreshPresets,
 }) {
   const hasTopic = state.topic.trim().length >= 2;
-  const hasCustomStyle =
-    state.tone !== "custom" ||
-    String(state.customStyleUrl || "").trim().length > 0;
   const tone = TONES.find((item) => item.id === state.tone);
   return (
     <section className="flex flex-col gap-7" aria-labelledby="topic-heading">
@@ -306,46 +290,13 @@ export function TopicSection({
                   onChange={(tone) =>
                     onUpdate({
                       tone,
-                      ...(tone === "custom"
-                        ? {}
-                        : {
-                            customStyleUrl: "",
-                            customStyleGuide: "",
-                            customStyleGuideUrl: "",
-                            customStyleSaveRequested: false,
-                          }),
+                      customStyleUrl: "",
+                      customStyleGuide: "",
+                      customStyleGuideUrl: "",
+                      customStyleSaveRequested: false,
                     })
                   }
                 />
-                {state.tone === "custom" && (
-                  <span className="mt-3 block">
-                    <input
-                      type="url"
-                      inputMode="url"
-                      className={inputClass}
-                      value={state.customStyleUrl || ""}
-                      onChange={(event) =>
-                        onUpdate({
-                          customStyleUrl: event.target.value,
-                          customStyleGuide: "",
-                          customStyleGuideUrl: "",
-                          customStyleSaveRequested: false,
-                        })
-                      }
-                      placeholder="참고할 네이버 블로그 글 링크를 입력하세요."
-                      aria-label="참고할 블로그 링크"
-                    />
-                    <button
-                      type="button"
-                      className="ml-auto mt-2 block rounded-md px-1 py-1 text-[13px] font-semibold text-[#4e5968] underline decoration-[#b0b8c1] underline-offset-4 transition hover:text-[#1b64da] hover:decoration-[#1b64da]"
-                      onClick={onSaveCustomStyle}
-                    >
-                      {state.customStyleSaveRequested
-                        ? "스타일 저장 예약됨"
-                        : "스타일 저장하기"}
-                    </button>
-                  </span>
-                )}
               </div>
               {/* <div>
                 <p className="text-[15px] font-bold text-[#333d4b]">

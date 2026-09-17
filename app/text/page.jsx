@@ -4,12 +4,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { CHANNELS } from "../../data/channels.js";
 import { derivePosts, generateWithAI } from "../../lib/copyai.js";
 import { reviewCompliance } from "../../lib/compliance.js";
-import { analyzeCustomBlogStyle } from "./_lib/customBlogStyle.js";
 import { copyChatContextKey, getMemorySummary } from "../../lib/copymemory.js";
 import { getConcept } from "../../lib/concepts.js";
-import { coreWithOutline, outlineKeyOf } from "../../lib/outline.js";
 import { reportMissingData } from "../../lib/missingdata.js";
 import { TONE_LABEL } from "../../lib/copywriter.js";
+import { readContentCache, writeContentCache } from "../../lib/contentCache.js";
+import {
+  getTitleSuggestions,
+  titleSuggestionKey,
+} from "../../lib/titleSuggestions.js";
 import {
   clearLibraryEdit,
   getLibrary,
@@ -36,12 +39,12 @@ import {
 import { toast } from "../../components/toast.js";
 import { LoadingScreen } from "../_components/LoadingScreen.jsx";
 import { Icon } from "../_components/Icon.jsx";
+import { ContentsTab } from "../_components/ContentsTab.jsx";
 import { ProductSection } from "../_components/home/ProductSection.jsx";
-import { PostOutlineSection } from "../_components/home/PostOutlineSection.jsx";
+import { TitleSuggestionSection } from "../_components/home/TitleSuggestionSection.jsx";
 import {
   hasRequiredConditions,
   hasTemplateSelectionConditions,
-  TONES,
   TopicSection,
 } from "../_components/home/TopicSection.jsx";
 import { TemplateSection } from "../_components/home/TemplateSection.jsx";
@@ -56,175 +59,15 @@ import { MissingDataModal } from "../_components/text/MissingDataModal.jsx";
 // import { CopyActions } from "../_components/text/CopyActions.jsx";
 import { CopyEditor } from "../_components/text/CopyEditor.jsx";
 import { GenerationSummary } from "./_components/GenerationSummary.jsx";
-
-const EMPTY_OUTPUT = {
-  drafts: {},
-  generated: {},
-  variants: {},
-  sources: {},
-  draftKey: "",
-  aiKey: {},
-  outline: null,
-  researchStyle: null,
-  activeAiRun: null,
-  image: null,
-  images: {},
-  card: null,
-};
-
-/**
- * 조건 편집(펼친 조건 요약 바)에서 「게시물 생성하기」를 눌렀을 때 시안 목록을
- * 어떻게 이어받을지 정한다. 옛 `app/page.jsx` 의 `nextDraftState()` 그대로다 —
- * 조건 편집이 별도 페이지에서 같은 페이지의 펼침 영역으로 옮겨졌을 뿐 로직은 그대로다.
- */
-function nextDraftState(latest) {
-  const runsKey = `${latest.productId}|${String(latest.topic || "").trim()}`;
-  const currentRunsKey = aiRunsKeyOf(latest);
-
-  // 조건 수정 화면에 갔다가 아무것도 바꾸지 않고 돌아온 경우에는 기존
-  // 시안과 선택 상태를 그대로 둔다. 이전에는 이 경로에서도 빈 pending
-  // run을 하나 추가해서 내용 없는 시안 버튼이 계속 늘어났다.
-  if (latest.aiRuns?.key === currentRunsKey) {
-    return {
-      aiRuns: latest.aiRuns,
-      activeAiRun: latest.activeAiRun,
-    };
-  }
-
-  const sameTopicRuns =
-    latest.aiRuns?.key === currentRunsKey ||
-    latest.aiRuns?.key === runsKey ||
-    String(latest.aiRuns?.key || "").startsWith(`${runsKey}|`) ||
-    TONES.some(({ id }) => latest.aiRuns?.key === `${runsKey}|${id}`);
-
-  if (!sameTopicRuns) {
-    return { aiRuns: { key: "", list: [] }, activeAiRun: null };
-  }
-
-  return {
-    // 시안 버튼은 AI 결과가 실제로 생성된 뒤에만 추가한다. 조건만 바꾼
-    // 단계에서 빈 run을 선등록하면 생성하지 않았는데도 시안이 생겨 보인다.
-    aiRuns: {
-      ...latest.aiRuns,
-      key: currentRunsKey,
-      list: latest.aiRuns?.list || [],
-    },
-    activeAiRun: null,
-  };
-}
-
-/** 이 채널의 글을 담고 있는 AI 생성 벌들을, 원래 `aiRuns.list` 안 위치를 지킨 채로 골라낸다. */
-function aiRunsForChannel(state, channelId) {
-  if (!state || state.aiRuns?.key !== aiRunsKeyOf(state)) return [];
-  return (state.aiRuns?.list || [])
-    .map((run, index) => ({ run, index }))
-    .filter(({ run }) => Object.hasOwn(run.drafts || {}, channelId));
-}
-
-const instagramDraftOf = (run, format, field = "drafts") =>
-  (field === "generated"
-    ? run?.instagramGenerated?.[format]
-    : run?.instagramDrafts?.[format]) ??
-  run?.[field]?.instagram ??
-  "";
-
-const contentOutlineKeyOf = (contentOutline) =>
-  contentOutline ? JSON.stringify(contentOutline) : "";
-
-const outlineJobs = new Map();
-
-/** 저장된 블로그 시안에서 실제로 노출된 소제목을 모은다. */
-function blogHeadingsFromRuns(state) {
-  if (!state || state.aiRuns?.key !== aiRunsKeyOf(state)) return [];
-  return [
-    ...new Set(
-      (state.aiRuns?.list || [])
-        .flatMap((run) => String(run?.drafts?.blog || "").split(/\r?\n/))
-        .map((line) => line.trim())
-        .filter((line) => line.startsWith("## "))
-        .map((line) => line.slice(3).trim())
-        .filter(Boolean),
-    ),
-  ];
-}
-
-/**
- * 채널 글을 쓰기 전에 주제 뼈대(core)를 먼저 만든다.
- *
- * 세 채널이 각자 알아서 주제를 쪼개면 서로 다른 이야기를 하게 되므로, 뼈대를 한 번만
- * AI로 만들어(`coreWithOutline`) 모든 채널이 같은 것을 보게 한다 (CLAUDE.md 8-8 참고).
- * 조건(상품·주제·톤·라운드·뼈대잡기 초안)이 그대로면 다시 만들지 않는다 — 있는 뼈대를
- * 또 사면 돈만 쓴다.
- *
- * ⚠️ `state.contentOutline`(펼친 조건 요약 바의 뼈대잡기 모달에서 담당자가 다듬은
- *    서론/본론/결론 초안)은 여기서 `coreWithOutline`에 **참고 자료**로 함께 넘어간다 —
- *    강제 지시가 아니라 각도·항목을 짤 때 반영하는 재료다. 초안이 바뀌면
- *    (`contentOutlineKey`) 캐시된 뼈대를 다시 만든다.
- */
-async function ensureOutline(
-  state,
-  { round = 0, researchStyle = "", extraNote = "", signal, waitIfPaused } = {},
-) {
-  const key = outlineKeyOf(state);
-  const contentOutlineKey = contentOutlineKeyOf(state.contentOutline);
-  // extraNote(모달에서 방금 보완한 데이터)가 있으면 캐시를 쓰지 않고 반드시 다시 짠다 —
-  // 그래야 방금 입력한 내용이 이번 뼈대에 반영된다.
-  if (
-    !extraNote &&
-    state.outline?.key === key &&
-    (state.outline.round || 0) === round &&
-    (state.outline.contentOutlineKey || "") === contentOutlineKey
-  ) {
-    return { core: state.outline.core, error: null };
-  }
-
-  const jobKey = `${key}|r${round}|c${contentOutlineKey}${extraNote ? "|note" : ""}`;
-  if (outlineJobs.has(jobKey)) return outlineJobs.get(jobKey);
-
-  // 직전 라운드의 소제목을 넘겨 AI 2 이후가 같은 구성을 다시 짜지 못하게 한다.
-  const pastHeads =
-    state.outline?.key === key ? state.outline.pastHeads || [] : [];
-  const avoid = [
-    ...new Set([
-      ...pastHeads,
-      ...blogHeadingsFromRuns(state),
-      ...(state.outline?.key === key
-        ? (state.outline.core?.points || []).map((x) => x.q)
-        : []),
-    ]),
-  ].filter(Boolean);
-
-  const job = coreWithOutline(
-    {
-      product: getProduct(state.productId),
-      topic: state.topic.trim(),
-      focusPoint: String(state.focusPoint || "").trim(),
-      tone: state.tone,
-      cardCount: state.cardCount,
-      round,
-      avoid,
-      researchStyle,
-      contentOutline: state.contentOutline || null,
-      extraNote,
-    },
-    { signal, waitIfPaused },
-  )
-    .then(({ core, error }) => {
-      const latest = getState();
-      if (
-        !error &&
-        (latest.outline?.key !== key || (latest.outline.round || 0) <= round)
-      ) {
-        setState({
-          outline: { key, round, core, pastHeads: avoid, contentOutlineKey },
-        });
-      }
-      return { core: error ? null : core, error };
-    })
-    .finally(() => outlineJobs.delete(jobKey));
-  outlineJobs.set(jobKey, job);
-  return job;
-}
+import { TextPageHeader } from "./_components/TextPageHeader.jsx";
+import {
+  EMPTY_OUTPUT,
+  aiRunsForChannel,
+  blogHeadingsFromRuns,
+  ensureOutline,
+  instagramDraftOf,
+  nextDraftState,
+} from "./_lib/draftState.js";
 
 export default function CopyPage() {
   const topicRef = useRef(null);
@@ -248,7 +91,7 @@ export default function CopyPage() {
   // 「글 구조 요약」 패널의 펼침 상태 — 「게시물 생성하기」를 누르면 펼친 채로
   // 넘어온다. 옛 뼈대잡기 모달을 대체한 패널(PostOutlineSection.jsx)이 접힘/펼침을
   // 직접 그린다. 여기서는 언제 펼쳐 보여줄지만 정한다.
-  const [outlineExpanded, setOutlineExpanded] = useState(true);
+  const [titlesLoading, setTitlesLoading] = useState(false);
   // 조건이 아직 안 갖춰졌으면(막 새 게시물을 시작했으면) 강제로 펼쳐서 보여준다 —
   // 그래서 `panelExpanded` 는 이 값과 `hasConditions` 를 함께 본다(아래).
   const [expanded, setExpanded] = useState(false);
@@ -303,14 +146,14 @@ export default function CopyPage() {
     wasExpandedRef.current = expanded;
   }, [expanded]);
 
-  async function refreshPresets(productId = state?.productId) {
+  async function refreshPresets(productId = state?.productId, options) {
     if (!productId) {
       setPresets([]);
       return;
     }
     setPresetsLoading(true);
     try {
-      setPresets(await loadRandomTopicPresets(productId));
+      setPresets(await loadRandomTopicPresets(productId, options));
     } catch (error) {
       console.error("[topics] 추천 주제 조회에 실패했습니다.", error);
       const fallback =
@@ -361,9 +204,7 @@ export default function CopyPage() {
     ];
     setState({
       channels,
-      ...(concepts.length
-        ? { concept: concepts[0], concepts }
-        : {}),
+      ...(concepts.length ? { concept: concepts[0], concepts } : {}),
     });
   }
 
@@ -400,7 +241,6 @@ export default function CopyPage() {
       !state.productId ||
       state.topic.trim().length < 2 ||
       !state.tone ||
-      (state.tone === "custom" && !String(state.customStyleUrl || "").trim()) ||
       Number(state.cardCount) <= 0 ||
       !state.channels.length ||
       !hasRequiredConditions(state)
@@ -411,7 +251,46 @@ export default function CopyPage() {
       topicRef.current?.focus();
       return;
     }
-    const current = getState();
+    const initial = getState();
+    if (!String(initial.contentOutline?.title || "").trim()) {
+      const titleKey = titleSuggestionKey(
+        getProduct(initial.productId),
+        initial,
+      );
+      const cachedTitles =
+        Array.isArray(initial.contentOutline?.titleOptions) &&
+        initial.contentOutline.titleOptionsKey === titleKey
+          ? initial.contentOutline.titleOptions
+          : null;
+      // 제목 추천 응답을 기다리지 않고 먼저 결과 화면으로 전환한다.
+      // 추천 중인 동안에는 아래의 titlesLoading UI가 즉시 표시된다.
+      setExpanded(false);
+      if (!cachedTitles?.length) {
+        setTitlesLoading(true);
+        try {
+          const titles = await getTitleSuggestions(
+            getProduct(initial.productId),
+            initial,
+          );
+          const latest = getState();
+          setState({
+            contentOutline: {
+              ...(latest.contentOutline || {}),
+              title: "",
+              titleOptions: titles,
+              titleOptionsKey: titleKey,
+            },
+          });
+        } catch (error) {
+          console.error("[titles] title recommendation failed", error);
+          toast("제목을 추천하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+        } finally {
+          setTitlesLoading(false);
+        }
+      }
+      return;
+    }
+    const current = initial;
     const editingId = getLibraryEditId();
     const editingItem = editingId
       ? getLibrary().find((item) => item.id === editingId)
@@ -431,6 +310,21 @@ export default function CopyPage() {
       });
     }
     const nextState = getState();
+    // A proposal-derived result can be reused from the image editor even when
+    // the user did not save this work to the library.
+    const cachedContent = readContentCache(nextState.productId, nextState.topic);
+    if (cachedContent?.drafts?.blog && cachedContent?.cardCopy?.cards?.length) {
+      setState({
+        drafts: { ...nextState.drafts, ...cachedContent.drafts },
+        generated: { ...nextState.generated, ...(cachedContent.generated || cachedContent.drafts) },
+        outline: cachedContent.outline || nextState.outline,
+        cardCopy: cachedContent.cardCopy,
+        card: null,
+      });
+      setExpanded(false);
+      toast("같은 상품·주제의 저장된 제안서 분석 결과를 불러왔습니다.");
+      return;
+    }
     const existing = getLibrary().find(
       (item) => item.postKey === postKeyOf(nextState),
     );
@@ -444,7 +338,6 @@ export default function CopyPage() {
       const result = await loadFromLibrary(existing.id);
       if (!result.ok) return toast(result.error);
       setExpanded(false);
-      setOutlineExpanded(true);
       return;
     }
     if (!isEditingExisting) clearLibraryEdit();
@@ -455,7 +348,6 @@ export default function CopyPage() {
     // generated, card 등을 초기화하지 않는다. 선택했던 시안도 유지된다.
     if (conditionsUnchanged && (latest.aiRuns?.list || []).length > 0) {
       setExpanded(false);
-      setOutlineExpanded(true);
       return;
     }
 
@@ -465,7 +357,6 @@ export default function CopyPage() {
       ...nextDraftState(latest),
     });
     setExpanded(false);
-    setOutlineExpanded(true);
   }
 
   function waitIfPaused() {
@@ -575,71 +466,15 @@ export default function CopyPage() {
     );
     setGeneration({ current: 0, total: totalJobs, paused: false });
     setBusy(true);
+    window.dispatchEvent(
+      new CustomEvent("app:ai-generation", { detail: { active: true } }),
+    );
     try {
       const current = getState();
       const style = (current.styles || []).find(
         (item) => item.id === current.styleId,
       );
       let researchStyle = style?.guide || "";
-      if (current.tone === "custom") {
-        const customUrl = String(current.customStyleUrl || "").trim();
-        if (!customUrl)
-          throw new Error("참고할 블로그 글 링크를 입력해 주세요.");
-        if (
-          current.customStyleGuideUrl === customUrl &&
-          current.customStyleGuide
-        ) {
-          researchStyle = current.customStyleGuide;
-        } else {
-          toast("블로그 글 스타일을 확인하고 있습니다.");
-          researchStyle = await analyzeCustomBlogStyle(customUrl);
-          setState({
-            customStyleGuide: researchStyle,
-            customStyleGuideUrl: customUrl,
-          });
-        }
-        if (current.customStyleSaveRequested) {
-          const latest = getState();
-          const existing = (latest.styles || []).find((item) =>
-            (item.sources || []).includes(customUrl),
-          );
-          if (existing) {
-            setState({
-              styles: (latest.styles || []).map((item) =>
-                item.id === existing.id
-                  ? { ...item, guide: researchStyle, at: Date.now() }
-                  : item,
-              ),
-              styleId: existing.id,
-              customStyleSaveRequested: false,
-            });
-            toast("이미 저장된 글 스타일을 최신 분석으로 업데이트했습니다.");
-          } else {
-            const used = new Set(
-              (latest.styles || []).map((item) => {
-                const match = String(item.name || "").match(/^\((\d+)\)$/);
-                return match ? Number(match[1]) : 0;
-              }),
-            );
-            let number = 1;
-            while (used.has(number)) number += 1;
-            const entry = {
-              id: `st_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-              name: `(${number})`,
-              guide: researchStyle,
-              at: Date.now(),
-              sources: [customUrl],
-            };
-            setState({
-              styles: [entry, ...(latest.styles || [])].slice(0, 12),
-              styleId: entry.id,
-              customStyleSaveRequested: false,
-            });
-            toast(`글 스타일 ${entry.name}을 마이페이지에 저장했습니다.`);
-          }
-        }
-      }
-
       // 채널 글을 쓰기 전에 주제 뼈대(core)를 먼저 만든다 — 세 채널이 같은 뼈대를 봐야
       // 내용이 통일된다. AI 1/2/3... 몇 번째 벌인지(round)에 따라 뼈대도 새로 짠다.
       const round = Math.max(
@@ -861,6 +696,15 @@ export default function CopyPage() {
           : null,
         card: null,
       });
+      const savedState = getState();
+      if (derivedCardCopy?.cards?.length) {
+        writeContentCache(savedState.productId, savedState.topic, {
+          drafts: savedState.drafts,
+          generated: savedState.generated,
+          outline: savedState.outline,
+          cardCopy: savedState.cardCopy,
+        });
+      }
       const saved = await saveToLibrary(getState());
       if (!saved.ok) toast(`자동 저장 실패 · ${saved.error}`, 6000);
       toast(`${channelIds.length}개 채널 글을 만들었습니다.`);
@@ -897,6 +741,9 @@ export default function CopyPage() {
       pauseWaiters.current.splice(0).forEach((resolve) => resolve());
       setGeneration(null);
       setBusy(false);
+      window.dispatchEvent(
+        new CustomEvent("app:ai-generation", { detail: { active: false } }),
+      );
     }
   }
 
@@ -998,10 +845,7 @@ export default function CopyPage() {
       : activeRunEntry?.run?.conditions?.concept
         ? [activeRunEntry.run.conditions.concept]
         : state.concepts || [];
-    if (
-      conceptId === state.concept ||
-      !runChoices.includes(conceptId)
-    ) {
+    if (conceptId === state.concept || !runChoices.includes(conceptId)) {
       return;
     }
     setState({
@@ -1071,16 +915,12 @@ export default function CopyPage() {
   return (
     <main className="h-full bg-[#1a1a1a] text-[#4e5968]">
       <div className="w-full px-[clamp(20px,3.85vw,74px)]">
-        <div className="overflow-clip rounded-[15px] bg-white/10">
-          <div className="min-w-0 px-[clamp(24px,4vw,56px)] py-10">
-            <header className="flex items-end gap-[14px] mb-8">
-              <h1 className="text-[32px] font-bold tracking-[-0.04em] text-white">
-                상품의 글을 생성해보세요.
-              </h1>
-              <p className="mb-2 text-white/55">
-                AI 생성 결과는 주제와 채널별로 계속 쌓입니다.
-              </p>
-            </header>
+        <div className="my-6">
+          <ContentsTab />
+        </div>
+        <div className="overflow-clip rounded-[15px]">
+          <div className="min-w-0 pb-10">
+            <TextPageHeader>상품의 글을 생성해보세요.</TextPageHeader>
             <div className="space-y-5">
               {panelExpanded ? (
                 <div className="flex flex-col gap-5">
@@ -1096,21 +936,11 @@ export default function CopyPage() {
                     }
                     presets={presets}
                     presetsLoading={presetsLoading}
-                    onRefreshPresets={() => refreshPresets()}
+                    onRefreshPresets={() => refreshPresets(undefined, { force: true })}
                     state={state}
                     topicRef={topicRef}
                     onUpdate={(patch) => setState(patch)}
                     onToggleChannel={toggleChannel}
-                    onSaveCustomStyle={() => {
-                      if (!String(state.customStyleUrl || "").trim()) {
-                        toast("먼저 참고할 블로그 글 링크를 입력해 주세요.");
-                        return;
-                      }
-                      setState({ customStyleSaveRequested: true });
-                      toast(
-                        "AI 글을 생성할 때 이 스타일을 마이페이지에 함께 저장합니다.",
-                      );
-                    }}
                   />
                   {hasTemplateSelectionConditions(state) && (
                     <TemplateSection
@@ -1154,12 +984,20 @@ export default function CopyPage() {
                       onEditConditions={() => setExpanded(true)}
                     />
                   </div>
-                  <PostOutlineSection
-                    product={product}
-                    state={state}
-                    expanded={outlineExpanded}
-                    onToggle={() => setOutlineExpanded((current) => !current)}
-                  />
+                  {titlesLoading ? (
+                    <section
+                      className="flex items-center gap-3 rounded-[15px] border border-[#e5e8eb] bg-white px-8 py-7 text-[14px] font-medium text-[#6b7684] max-sm:px-5"
+                      role="status"
+                    >
+                      <span
+                        className="size-5 animate-spin rounded-full border-2 border-[#d9e7ff] border-t-[#287aff]"
+                        aria-hidden="true"
+                      />
+                      제목을 추천하고 있어요.
+                    </section>
+                  ) : (
+                    <TitleSuggestionSection state={state} busy={busy} />
+                  )}
                   {activeChannel && (
                     <div className="overflow-clip rounded-[15px] bg-[#595959]">
                       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-[21px] py-[33px]">

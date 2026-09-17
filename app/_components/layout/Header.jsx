@@ -256,8 +256,7 @@ export function Header() {
                     isScrolled ? "text-[11px]" : "text-[16px]"
                   }`}
                 >
-                  {displayName}{" "}
-                  <Icon name="chevronDown" />
+                  {displayName} <Icon name="chevronDown" />
                 </button>
                 <button
                   type="button"

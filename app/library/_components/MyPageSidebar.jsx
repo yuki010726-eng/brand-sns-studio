@@ -2,23 +2,34 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { Icon } from "../../_components/Icon.jsx";
+import { getUser, onAuth } from "../../../lib/auth.js";
 
 const ITEMS = [
   { path: "/library/profile", label: "프로필", icon: "user" },
-  { path: "/research", label: "글 스타일", icon: "edit" },
-  { path: "/library/ads", label: "광고 라이브러리", icon: "megaphone" },
   { path: "/library", label: "저장한 게시물", icon: "archive" },
 ];
 
 export function MyPageSidebar() {
   const pathname = usePathname();
+  const [user, setUser] = useState(() => getUser());
+  const items = user?.role === "admin"
+    ? [
+        ...ITEMS.slice(0, 1),
+        { path: "/research", label: "글 스타일", icon: "edit" },
+        { path: "/library/ads", label: "광고 라이브러리", icon: "megaphone" },
+        ...ITEMS.slice(1),
+      ]
+    : ITEMS;
+
+  useEffect(() => onAuth(setUser), []);
 
   return (
     <aside className="min-w-[174px] rounded-[15px] bg-white/10 px-[9px] py-2 max-[860px]:w-full">
       <p className="px-5 pb-5 pt-2 text-center text-[18px] font-bold leading-[22.4px] text-white">마이페이지</p>
       <nav className="flex flex-col gap-1 max-[860px]:flex-row max-[860px]:overflow-x-auto" aria-label="마이페이지 메뉴">
-        {ITEMS.map((item) => {
+        {items.map((item) => {
           const active = item.path === "/library"
             ? pathname === "/library"
             : pathname === item.path || pathname.startsWith(`${item.path}/`);

@@ -54,5 +54,5 @@ create policy "본인 또는 관리자 OpenAI 사용량 조회" on public.openai
   );
 
 comment on table public.openai_usage_logs is 'OpenAI 호출별 사용자 및 기능 단위 토큰 사용량';
-comment on column public.openai_usage_logs.type is 'topic_recommendation, blog_generation 등 호출 기능 구분';
+comment on column public.openai_usage_logs.type is 'topic_recommendation, title_recommendation, blog_generation 등 호출 기능 구분';
 comment on column public.openai_usage_logs.user_name is '트리거가 삽입 시점에 public.users.name 에서 채운다 — 앱이 값을 보내지 않는다 (이후 이름이 바뀌어도 소급 반영되지 않는다)';

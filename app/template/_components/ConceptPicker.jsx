@@ -3,7 +3,7 @@ import { Icon } from "../../_components/Icon.jsx";
 import { AD_CONCEPTS } from "../../../lib/adprompt.js";
 
 /**
- * 템플릿 선택 — 왼쪽 목록 + 오른쪽 미리보기·설명 패널.
+ * 템플릿 선택 — 왼쪽 목록 + 오른쪽 미리보기 패널.
  * 피그마: https://www.figma.com/design/jRjBo4LUHkohSoPRqSaEAv/sns?node-id=92-89
  *
  * 오른쪽 미리보기 카드는 `concept.previewImages`(`lib/concepts.js`)에서 온다.
@@ -30,13 +30,18 @@ export function ConceptPicker({
   onPreviewChange,
   adSelectedIds = [],
   onAdSelectionChange,
+  emptyPreview = false,
+  variant = "image",
 }) {
+  const showDetails = variant === "legacy";
   // Keep the display order independent from the source array: the latter is
   // also used as a data registry by the editor and saved posts.
   const visible = [...concepts].sort(
     (a, b) => templateOrder(a) - templateOrder(b),
   );
-  const selected = visible.find((c) => c.id === value) || visible[0];
+  const selected = emptyPreview
+    ? visible.find((c) => c.id === value)
+    : visible.find((c) => c.id === value) || visible[0];
   const isBlogPreview = selected?.id === "blog";
   const previewSlots =
     selected?.previewImages?.length > 0
@@ -45,13 +50,21 @@ export function ConceptPicker({
 
   return (
     <div
-      className={`relative flex w-full mb-[95px] [container-type:inline-size] max-[860px]:h-auto max-[860px]:flex-col ${
-        selected?.promptOnly || isBlogPreview ? "h-[414px]" : "h-[330px]"
+      className={`relative flex w-full ${showDetails ? "mb-[95px]" : "mb-[20px]"} [container-type:inline-size] max-[860px]:h-auto max-[860px]:flex-col ${
+        selected?.promptOnly || (showDetails && isBlogPreview)
+          ? "h-[414px]"
+          : showDetails
+            ? "h-[330px]"
+            : "h-[500px]"
       }`}
     >
       <fieldset
         className={`relative z-10 m-0 flex w-[clamp(300px,27.85cqw,350px)] shrink-0 flex-col rounded-[15px] border border-[#e5e8eb] bg-white px-[19px] pb-[17px] pt-[18px] max-[860px]:h-auto max-[860px]:w-full ${
-          selected?.promptOnly || isBlogPreview ? "h-[414px]" : "h-[330px]"
+          selected?.promptOnly || (showDetails && isBlogPreview)
+            ? "h-[414px]"
+            : showDetails
+              ? "h-[330px]"
+              : "h-[500px]"
         }`}
         aria-label="카드뉴스 템플릿을 선택하세요"
       >
@@ -111,7 +124,7 @@ export function ConceptPicker({
 
       {selected && (
         <div
-          className={`relative z-20 ml-[clamp(-40px,-2.64cqw,-20px)] flex min-w-0 flex-1 items-center rounded-r-[15px] bg-white/20 py-[18px] pl-[clamp(38px,4.36cqw,66px)] pr-[clamp(24px,4.03cqw,61px)] max-[860px]:ml-0 max-[860px]:min-h-[317px] max-[860px]:rounded-[15px] max-[860px]:px-6 max-[860px]:py-5 max-[620px]:flex-col max-[620px]:items-stretch max-[620px]:gap-5 ${
+          className={`relative z-20 ml-[clamp(-40px,-2.64cqw,-20px)] flex min-w-0 flex-1 items-center rounded-r-[15px] bg-white/20 ${showDetails ? "py-[18px]" : ""} pl-[clamp(38px,4.36cqw,66px)] pr-[clamp(24px,4.03cqw,61px)] max-[860px]:ml-0 max-[860px]:min-h-[317px] max-[860px]:rounded-[15px] max-[860px]:px-6 max-[860px]:py-5 max-[620px]:flex-col max-[620px]:items-stretch max-[620px]:gap-5 ${
             selected.promptOnly || isBlogPreview
               ? "overflow-visible"
               : "overflow-hidden"
@@ -120,10 +133,12 @@ export function ConceptPicker({
           <div
             className={`relative min-w-0 shrink-0 gap-[10px] overflow-hidden py-0 ${
               selected.promptOnly
-                ? "grid max-h-[378px] grid-cols-4 overflow-x-hidden overflow-y-auto"
+                ? `grid max-h-[378px] ${showDetails ? "grid-cols-4" : "w-full grid-cols-3"} overflow-x-hidden overflow-y-auto`
                 : isBlogPreview
-                  ? "grid w-[min(100%,562px)] grid-cols-2 gap-[10px]"
-                  : "flex max-[620px]:overflow-x-auto"
+                  ? `grid ${showDetails ? "w-[min(100%,562px)] gap-[10px]" : "w-[min(100%,378px)]"} grid-cols-2`
+                  : showDetails
+                    ? "flex max-[620px]:overflow-x-auto"
+                    : "grid h-full w-[min(100%,378px)] grid-cols-2 grid-rows-2"
             }`}
           >
             {previewSlots.map((src, i) => (
@@ -137,33 +152,19 @@ export function ConceptPicker({
                 adConcept={selected.promptOnly ? AD_CONCEPTS[i] : null}
                 adSelectedIds={adSelectedIds}
                 onAdSelectionChange={onAdSelectionChange}
+                variant={variant}
               />
             ))}
           </div>
 
-          <div className="ml-[clamp(18px,2.7cqw,41px)] flex min-w-0 flex-1 flex-col text-white max-[620px]:ml-0">
-            <p className="text-[18px] font-bold leading-[24px]">
-              {selected.name}
-            </p>
-            <div className="mt-[17px] flex min-h-[67px] items-stretch gap-[13px]">
-              <span
-                className="w-[3px] shrink-0 rounded-full bg-white"
-                aria-hidden="true"
-              />
-              <p className="w-full text-[15px] break-keep font-normal leading-[1.54] text-white">
-                {selected.desc}
-              </p>
+          {showDetails && (
+            <div className="ml-[clamp(18px,2.7cqw,41px)] flex min-w-0 flex-1 flex-col text-white max-[620px]:ml-0">
+              <p className="text-[18px] font-bold leading-[24px]">{selected.name}</p>
+              <div className="mt-[17px] flex min-h-[67px] items-stretch gap-[13px]"><span className="w-[3px] shrink-0 rounded-full bg-white" aria-hidden="true" /><p className="w-full text-[15px] break-keep font-normal leading-[1.54] text-white">{selected.desc}</p></div>
+              <div className="mt-[36px] flex min-h-[47px] items-stretch gap-[13px]"><span className="w-[3px] shrink-0 rounded-full bg-white" aria-hidden="true" /><p className="w-full text-[15px] break-keep font-normal leading-[1.54] text-white">{selected.mood}</p></div>
             </div>
-            <div className="mt-[36px] flex min-h-[47px] items-stretch gap-[13px]">
-              <span
-                className="w-[3px] shrink-0 rounded-full bg-white"
-                aria-hidden="true"
-              />
-              <p className="w-full text-[15px] break-keep font-normal leading-[1.54] text-white">
-                {selected.mood}
-              </p>
-            </div>
-          </div>
+          )}
+
         </div>
       )}
     </div>
@@ -179,15 +180,20 @@ function PreviewCard({
   adConcept,
   adSelectedIds,
   onAdSelectionChange,
+  variant,
 }) {
   const selectable = Boolean(adConcept && onAdSelectionChange);
   const selected = selectable && adSelectedIds[0] === adConcept.id;
   const className = `${
     promptOnly
-      ? "size-[184px]"
+      ? variant === "legacy"
+        ? "size-[184px]"
+        : "aspect-square w-full"
       : blogPreview
         ? "aspect-[3/2] w-full"
-        : "w-[clamp(140px,14.85cqw,184px)] h-[clamp(187px,14.85cqw,231px)]"
+        : variant === "legacy"
+          ? "w-[clamp(140px,14.85cqw,184px)] h-[clamp(187px,14.85cqw,231px)]"
+          : "h-full w-full"
   } shrink-0 overflow-hidden rounded-[15px] bg-[#d9d9d9] shadow-[5px_5px_15px_0px_rgba(0,30,78,0.15)] ${
     selectable
       ? "relative cursor-pointer border-2 p-0 text-left transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#287aff]"

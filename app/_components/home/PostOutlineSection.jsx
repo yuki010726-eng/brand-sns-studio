@@ -23,6 +23,7 @@ import {
   cachedTitleSuggestions,
   fallbackTitles,
   getTitleSuggestions,
+  titleSuggestionKey,
 } from "../../../lib/titleSuggestions.js";
 import { getState, setState } from "../../../store.js";
 import { Icon } from "../Icon.jsx";
@@ -45,6 +46,7 @@ export function makeOutline(state, product) {
         : [],
       conclusion: state.contentOutline.conclusion || "",
       titleOptions: state.contentOutline.titleOptions || [],
+      titleOptionsKey: state.contentOutline.titleOptionsKey || "",
     };
   }
 
@@ -78,6 +80,7 @@ export function makeOutline(state, product) {
 
 export function PostOutlineSection({ product, state, expanded, onToggle }) {
   const outline = state.contentOutline;
+  const currentTitleOptionsKey = titleSuggestionKey(product, state);
   const [suggestedTitles, setSuggestedTitles] = useState([]);
   const [titlesLoading, setTitlesLoading] = useState(false);
   const [dragIndex, setDragIndex] = useState(null);
@@ -103,7 +106,7 @@ export function PostOutlineSection({ product, state, expanded, onToggle }) {
           .map((title) => String(title || "").trim())
           .filter(Boolean)
       : [];
-    const generatedTitles = savedTitles.length
+    const generatedTitles = savedTitles.length && outline.titleOptionsKey === currentTitleOptionsKey
       ? savedTitles
       : cachedTitleSuggestions(product, state);
     if (generatedTitles?.length) {
@@ -124,6 +127,7 @@ export function PostOutlineSection({ product, state, expanded, onToggle }) {
             ...latest,
             title: latest.title || "",
             titleOptions: titles,
+            titleOptionsKey: currentTitleOptionsKey,
           },
         });
       })
@@ -142,6 +146,7 @@ export function PostOutlineSection({ product, state, expanded, onToggle }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- outline 안의 다른 필드는 이 효과와 무관하다
   }, [
     product?.id,
+    currentTitleOptionsKey,
     state.topic,
     state.focusPoint,
     outline?.title,

@@ -15,7 +15,11 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getProduct, loadProducts } from "../../lib/products.js";
+import {
+  getProduct,
+  loadProducts,
+  loadRandomTopicPresets,
+} from "../../lib/products.js";
 import {
   getConcept,
   CONCEPTS,
@@ -23,7 +27,12 @@ import {
   DEFAULT_MAGAZINE_TEMPLATE,
   getMagazineTemplate,
 } from "../../lib/concepts.js";
-import { slotsFor, roleOf, objectsFor, slotIdForObject } from "../../lib/templates.js";
+import {
+  slotsFor,
+  roleOf,
+  objectsFor,
+  slotIdForObject,
+} from "../../lib/templates.js";
 import { buildDeck, TONE_LABEL } from "../../lib/copywriter.js";
 import { outlineKeyOf } from "../../lib/outline.js";
 import {
@@ -44,15 +53,21 @@ import {
   H,
 } from "../../lib/cardrender.js";
 import { buildPrompt } from "../../lib/imageprompt.js";
-import {
-  buildAdPrompts,
-  getAdConcept,
-} from "../../lib/adprompt.js";
+import { coreWithOutline } from "../../lib/outline.js";
+import { readContentCache, writeContentCache } from "../../lib/contentCache.js";
+import { buildAdPrompts, getAdConcept } from "../../lib/adprompt.js";
 import { saveToLibrary, hasLibraryChanges } from "../../lib/librarystore.js";
-import { draftKeyOf, getState, setState, subscribe, STEPS } from "../../store.js";
+import {
+  draftKeyOf,
+  getState,
+  setState,
+  subscribe,
+  STEPS,
+} from "../../store.js";
 import { toast } from "../../components/toast.js";
 import { LoadingScreen } from "../_components/LoadingScreen.jsx";
 import { Icon } from "../_components/Icon.jsx";
+import { ContentsTab } from "../_components/ContentsTab.jsx";
 import { TextStepper } from "../_components/text/TextStepper.jsx";
 import {
   reconcileCard,
@@ -61,7 +76,6 @@ import {
   deckFromBlog,
   withFollowCard,
 } from "./_lib/deckBuilder.js";
-import { ConceptPicker } from "./_components/ConceptPicker.jsx";
 import { CardTabs } from "./_components/CardTabs.jsx";
 import { MagazineTemplatePicker } from "./_components/MagazineTemplatePicker.jsx";
 import { CanvasPreview } from "./_components/CanvasPreview.jsx";
@@ -72,9 +86,9 @@ import { StylePanel } from "./_components/StylePanel.jsx";
 import { ImagePanel } from "./_components/ImagePanel.jsx";
 import { SaveActions } from "./_components/SaveActions.jsx";
 import { InstagramPublishDialog } from "./_components/InstagramPublishDialog.jsx";
-import { ContextBar } from "./_components/ContextBar.jsx";
 import { AdConceptPicker } from "./_components/AdConceptPicker.jsx";
 import { AdPromptPanel } from "./_components/AdPromptPanel.jsx";
+import { ImagePostSetup } from "./_components/ImagePostSetup.jsx";
 import {
   publishInstagramCarousel,
   removeInstagramCards,
@@ -84,6 +98,7 @@ import {
   getActiveInstagramAccountId,
   getInstagramAccounts,
 } from "../../lib/instagram-accounts.js";
+import { TextPageHeader } from "../text/_components/TextPageHeader.jsx";
 
 const IMAGE_ROLE = {
   note: "카드 이미지",
@@ -118,7 +133,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  * `effectiveAdConcept()`.
  */
 const effectiveAdConceptIds = (s) => {
-  const selected = Array.isArray(s.adConcepts) ? s.adConcepts.find(Boolean) : null;
+  const selected = Array.isArray(s.adConcepts)
+    ? s.adConcepts.find(Boolean)
+    : null;
   // Advertising uses one sub-template. Default to the first option until the
   // user explicitly chooses another one.
   return [selected || s.adConcept || AD_CONCEPTS[0]?.id].filter(Boolean);
@@ -187,7 +204,11 @@ const contentSnapshot = (s) =>
   structuredClone({
     style: Object.fromEntries(CONTENT_STYLE_KEYS.map((key) => [key, s[key]])),
     card: s.card
-      ? { texts: s.card.texts, layout: s.card.layout, extraTexts: s.card.extraTexts }
+      ? {
+          texts: s.card.texts,
+          layout: s.card.layout,
+          extraTexts: s.card.extraTexts,
+        }
       : null,
   });
 
@@ -195,6 +216,13 @@ export default function TemplatePage() {
   const router = useRouter();
   const [state, setViewState] = useState(null);
   const [productsReady, setProductsReady] = useState(false);
+  const [products, setProducts] = useState([]);
+  const [topicPresets, setTopicPresets] = useState([]);
+  const [topicPresetsLoading, setTopicPresetsLoading] = useState(false);
+  // Confirming the image setup is the point where prompts/card copy are derived.
+  const [setupOpen, setSetupOpen] = useState(true);
+  const [preparingImage, setPreparingImage] = useState(false);
+  const setupInitialized = useRef(false);
   const [active, setActive] = useState(0);
   const [bitmaps, setBitmaps] = useState([]);
   const [clippedSlots, setClippedSlots] = useState([]);
@@ -216,29 +244,112 @@ export default function TemplatePage() {
     // 무조건 매거진형으로 되돌렸는데, 그러면 조건 단계에서 고른 템플릿이 무시된다.
     setViewState(getState());
     const unsubscribe = subscribe(setViewState);
-    loadProducts().finally(() => setProductsReady(true));
+    loadProducts()
+      .then((items) => setProducts(items))
+      .finally(() => setProductsReady(true));
     return unsubscribe;
   }, []);
 
   const product = state && productsReady ? getProduct(state.productId) : null;
   const concept = state ? getConcept(state.concept) : null;
-
+  const selectedConceptIds = state
+    ? (Array.isArray(state.concepts) ? state.concepts : [state.concept]).filter(
+        (id) => CONCEPTS.some((item) => item.id === id),
+      )
+    : [];
+  const selectedTemplates = selectedConceptIds
+    .map((id) => CONCEPTS.find((item) => item.id === id))
+    .filter(Boolean);
   const hasDraft = state
     ? Object.values(state.drafts || {}).some((v) => String(v || "").trim())
     : false;
 
+  // Image-only work needs the proposal-grounded outline, not a finished blog.
+  // `buildDeck` turns this core into card copy and `buildPrompt` turns each
+  // card into an image prompt, so generating a blog and a social bundle here
+  // would only add latency and usage without affecting the image workflow.
+  const prepareImageContent = useCallback(async () => {
+    const current = getState();
+    const currentProduct = getProduct(current.productId);
+    const topic = String(current.topic || "").trim();
+    if (!currentProduct || topic.length < 2) return;
+    setPreparingImage(true);
+    try {
+      const cached = readContentCache(current.productId, topic);
+      if (cached?.outline?.core) {
+        setState({
+          outline: cached.outline,
+          card: null,
+        });
+        toast("저장된 제안서 분석 결과로 카드 문구와 이미지 프롬프트를 준비했습니다.");
+      } else {
+        const tone = current.tone || "trust";
+        const cardCount = Number(current.cardCount) || 4;
+        const base = { ...current, tone, cardCount };
+        const { core, outline } = await coreWithOutline({
+          product: currentProduct, topic, tone, cardCount,
+          focusPoint: String(current.focusPoint || "").trim(),
+          contentOutline: current.contentOutline || null,
+        });
+        const patch = {
+          tone, cardCount,
+          outline: { key: outlineKeyOf(base), core, outline },
+          // Do not retain card copy derived from an old blog: the image-only
+          // deck is intentionally built directly from the proposal outline.
+          cardCopy: null, card: null,
+        };
+        setState(patch);
+        writeContentCache(current.productId, topic, {
+          // Preserve any text-flow cache that already exists. Image-only work
+          // owns just the reusable proposal outline.
+          ...cached,
+          outline: patch.outline,
+        });
+        toast("제안서를 바탕으로 이미지 프롬프트와 카드 문구를 만들었습니다.");
+      }
+      setSetupOpen(false);
+    } catch (error) {
+      console.error("[image-content] preparation failed", error);
+      toast(error?.message || "이미지용 문구를 만들지 못했습니다.");
+    } finally {
+      setPreparingImage(false);
+    }
+  }, []);
+
   // 상품·주제가 없거나 초안이 없으면 여기 있을 이유가 없다 (옛 guard()/render() 상단 체크)
   useEffect(() => {
-    if (!state || !productsReady) return;
+    if (!state || !productsReady || setupInitialized.current) return;
+    setupInitialized.current = true;
     if (!getProduct(state.productId) || !state.topic?.trim()) {
-      router.replace("/");
+      setSetupOpen(true);
       return;
     }
     if (!hasDraft) {
-      toast("현재 주제로 AI 글을 먼저 생성해 주세요.");
-      router.replace("/text");
+      setSetupOpen(true);
     }
   }, [state, productsReady, hasDraft, router]);
+
+  const refreshTopicPresets = useCallback(async (productId = state?.productId, options) => {
+    if (!productId) {
+      setTopicPresets([]);
+      return;
+    }
+    setTopicPresetsLoading(true);
+    try {
+      setTopicPresets(await loadRandomTopicPresets(productId, options));
+    } catch (error) {
+      console.error("[topics] 추천 주제 조회에 실패했습니다.", error);
+      const fallback =
+        products.find((item) => item.id === productId)?.topicPresets || [];
+      setTopicPresets(fallback.slice(0, 4));
+    } finally {
+      setTopicPresetsLoading(false);
+    }
+  }, [products, state?.productId]);
+
+  useEffect(() => {
+    refreshTopicPresets();
+  }, [refreshTopicPresets]);
 
   const deck = useMemo(() => {
     if (!state || !product) return [];
@@ -288,13 +399,13 @@ export default function TemplatePage() {
 
   // 문구 상태(state.card)를 지금 템플릿·조건에 맞춰 다시 세운다 (옛 ensureTexts)
   useEffect(() => {
-    if (!state || !product || !deck.length) return;
+    if (setupOpen || !state || !product || !deck.length) return;
     const sig = `${product.id}|${state.concept}|${deck.length}`;
     if (lastReconciled.current === sig) return;
     lastReconciled.current = sig;
     const next = reconcileCard(getState(), deck, product);
     if (next) setState({ card: next });
-  }, [state, product, deck]);
+  }, [state, product, deck, setupOpen]);
 
   // 카드별 배경/아이콘 이미지를 IndexedDB 에서 불러온다 (옛 loadBitmaps)
   useEffect(() => {
@@ -312,7 +423,14 @@ export default function TemplatePage() {
     return () => {
       cancelled = true;
     };
-  }, [state?.productId, state?.concept, state?.postId, imageScopeForState(state), deck.length, product]);
+  }, [
+    state?.productId,
+    state?.concept,
+    state?.postId,
+    imageScopeForState(state),
+    deck.length,
+    product,
+  ]);
 
   useEffect(() => {
     setCanSaveLibrary(hasLibraryChanges());
@@ -467,7 +585,11 @@ export default function TemplatePage() {
   // 톤과 함께 남긴다 — 톤이 바뀌면 이 선택은 버리고 새 톤의 컨셉으로 돌아간다.
   function handleAdConceptChange(ids) {
     const id = ids[0] || AD_CONCEPTS[0]?.id;
-    setState({ adConcept: id, adConcepts: id ? [id] : [], adConceptTone: getState().tone });
+    setState({
+      adConcept: id,
+      adConcepts: id ? [id] : [],
+      adConceptTone: getState().tone,
+    });
     toast(
       id
         ? `${getAdConcept(id).name} 컨셉으로 전 장을 다시 만들었습니다.`
@@ -482,7 +604,9 @@ export default function TemplatePage() {
   function handleAdCopyChange(index, patch) {
     const s = getState();
     const all = s.adCopyOverrides || {};
-    setState({ adCopyOverrides: { ...all, [index]: { ...all[index], ...patch } } });
+    setState({
+      adCopyOverrides: { ...all, [index]: { ...all[index], ...patch } },
+    });
   }
 
   function handleAdCopyReset(index) {
@@ -639,12 +763,14 @@ export default function TemplatePage() {
         footer: 500,
       };
       nextBox.fontSize =
-        lastSizes()[slotIdForObject(state.concept, deck[active].kind, objId)]?.size ||
+        lastSizes()[slotIdForObject(state.concept, deck[active].kind, objId)]
+          ?.size ||
         defaultSizes[objId] ||
         (objId.startsWith("extra-") ? 40 : 30);
       nextBox.fontWeight =
         Number(nextBox.fontWeight) ||
-        lastSizes()[slotIdForObject(state.concept, deck[active].kind, objId)]?.weight ||
+        lastSizes()[slotIdForObject(state.concept, deck[active].kind, objId)]
+          ?.weight ||
         defaultWeights[objId] ||
         (objId.startsWith("extra-") ? 400 : 500);
     }
@@ -764,7 +890,10 @@ export default function TemplatePage() {
   function canvasBlob(canvas) {
     return new Promise((resolve, reject) => {
       canvas.toBlob(
-        (blob) => (blob ? resolve(blob) : reject(new Error("카드 이미지를 만들지 못했습니다."))),
+        (blob) =>
+          blob
+            ? resolve(blob)
+            : reject(new Error("카드 이미지를 만들지 못했습니다.")),
         "image/png",
       );
     });
@@ -779,7 +908,9 @@ export default function TemplatePage() {
       const s = getState();
       const accounts = await getInstagramAccounts();
       if (!accounts.length) {
-        toast("연결된 Instagram 계정이 없습니다. 마이페이지에서 계정을 먼저 연결해 주세요.");
+        toast(
+          "연결된 Instagram 계정이 없습니다. 마이페이지에서 계정을 먼저 연결해 주세요.",
+        );
         return;
       }
       const activeAccountId = getActiveInstagramAccountId();
@@ -797,7 +928,9 @@ export default function TemplatePage() {
         previews,
         caption: s.drafts?.instagram || "",
         accounts,
-        accountId: activeAccountId || (accounts.length === 1 ? accounts[0].instagram_user_id : ""),
+        accountId:
+          activeAccountId ||
+          (accounts.length === 1 ? accounts[0].instagram_user_id : ""),
         accountLocked: Boolean(activeAccountId),
       });
     } catch (error) {
@@ -888,6 +1021,58 @@ export default function TemplatePage() {
     return () => clearInterval(id);
   }, []);
 
+  if (state && productsReady && setupOpen) {
+    return (
+      <main className="min-h-dvh bg-[#1a1a1a] pb-10 text-[#4e5968]">
+        <div className="w-full px-[clamp(20px,3.85vw,74px)] py-6">
+          <div className="mb-6">
+            <ContentsTab />
+          </div>
+          {/* <p className="mb-3 text-[18px] font-bold text-white">
+            콘텐츠 이미지를 생성해보세요.
+          </p> */}
+          <TextPageHeader>콘텐츠 이미지를 생성해보세요.</TextPageHeader>
+          <ImagePostSetup
+            loading={!productsReady}
+            products={products}
+            productId={state.productId}
+            topic={state.topic || ""}
+            presets={topicPresets}
+            presetsLoading={topicPresetsLoading}
+            concept={state.concept}
+            selectedConceptIds={selectedConceptIds}
+            onProductChange={(productId) =>
+              setState({ productId, topic: "", card: null, images: {} })
+            }
+            onTopicChange={(topic) => setState({ topic, card: null })}
+            onRefreshPresets={() => refreshTopicPresets(undefined, { force: true })}
+            onConceptSelectionChange={(conceptId) => {
+              const concepts = selectedConceptIds.includes(conceptId)
+                ? selectedConceptIds.filter((id) => id !== conceptId)
+                : [...selectedConceptIds, conceptId];
+              const concept = concepts.includes(state.concept)
+                ? state.concept
+                : concepts[0] || null;
+              setState({ concept, concepts, card: null });
+            }}
+            onConceptPreviewChange={(concept) => setState({ concept })}
+            generating={preparingImage}
+            onStart={() => {
+              setState({
+                tone: state.tone || "trust",
+                cardCount: Number(state.cardCount) || 4,
+                concepts: selectedConceptIds,
+                postId: state.postId || `p${Date.now().toString(36)}`,
+                card: null,
+              });
+              prepareImageContent();
+            }}
+          />
+        </div>
+      </main>
+    );
+  }
+
   if (
     !state ||
     !productsReady ||
@@ -899,9 +1084,11 @@ export default function TemplatePage() {
     return <LoadingScreen />;
   }
 
-  if (concept.promptOnly) {
+  // Blog and advertising images contain their copy in the generated image.
+  // They intentionally bypass the card canvas and text editor.
+  if (concept.promptOnly || concept.id === "blog") {
     const adConceptIds = effectiveAdConceptIds(state);
-    const adPrompts = adConceptIds.length
+    const adPrompts = concept.promptOnly && adConceptIds.length
       ? buildAdPrompts({
           product,
           topic: state.topic.trim(),
@@ -910,6 +1097,18 @@ export default function TemplatePage() {
           copyOverrides: state.adCopyOverrides,
         })
       : [];
+    const blogPrompts = concept.id === "blog"
+      ? deck.map((card, index) => ({
+          n: index + 1,
+          prompt: buildPrompt(card, "blog", {
+            index,
+            eyebrow: product.short || product.name,
+            title: card.title,
+            body: card.body,
+            subject: card.shot || card.title,
+          }),
+        }))
+      : [];
 
     return (
       <main className="min-h-dvh bg-[#1a1a1a] pb-[40px] text-[#4e5968]">
@@ -917,48 +1116,64 @@ export default function TemplatePage() {
           <div className="flex min-h-[1050px] items-stretch rounded-[15px] bg-white/10 max-[860px]:min-h-0 max-[860px]:flex-col max-[860px]:overflow-clip">
             <TextStepper steps={STEPS} activeIndex={1} />
             <div className="min-w-0 flex-1 px-[clamp(24px,calc((39/1920)*100vw),39px)] py-14">
+              <div className="mb-6">
+                <ContentsTab />
+              </div>
               <header className="mb-6">
                 <p className="text-[25px] font-bold leading-[22.4px] text-white">
                   광고형 — 이미지 프롬프트를 만듭니다
                 </p>
                 <p className="mt-3 max-w-[720px] text-[15px] leading-[1.6] text-white/60">
-                  광고형은 카드를 그리지 않습니다. 글자까지 이미지 안에 들어가는 광고
-                  배너라 나중에 문구를 얹을 자리가 없기 때문입니다. 대신 원하는
-                  장수만큼 프롬프트를 만들어 드리니, 복사해서 이미지 생성 도구에서
-                  뽑으면 됩니다.
+                  광고형은 카드를 그리지 않습니다. 글자까지 이미지 안에 들어가는
+                  광고 배너라 나중에 문구를 얹을 자리가 없기 때문입니다. 대신
+                  원하는 장수만큼 프롬프트를 만들어 드리니, 복사해서 이미지 생성
+                  도구에서 뽑으면 됩니다.
                 </p>
               </header>
 
-              <ContextBar
-                product={product}
-                topic={state.topic}
-                focusPoint={state.focusPoint}
-                toneLabel={TONE_LABEL[state.tone] || state.tone}
-                onEditText={() => router.push("/text")}
-                onSave={() => saveToArchive()}
-                saveDisabled={libraryBusy || !canSaveLibrary}
-                saveBusy={libraryBusy}
-              />
+              <div className="mb-6">
+                <ImagePostSetup
+                  loading={!productsReady}
+                  products={products}
+                  productId={state.productId}
+                  topic={state.topic || ""}
+                  presets={topicPresets}
+                  presetsLoading={topicPresetsLoading}
+                  concept={state.concept}
+                  selectedConceptIds={selectedConceptIds}
+                  onProductChange={(productId) => setState({ productId, topic: "", card: null, images: {} })}
+                  onTopicChange={(topic) => setState({ topic, card: null })}
+                  onRefreshPresets={() => refreshTopicPresets(undefined, { force: true })}
+                  onConceptSelectionChange={(conceptId) => {
+                    const concepts = selectedConceptIds.includes(conceptId)
+                      ? selectedConceptIds.filter((id) => id !== conceptId)
+                      : [...selectedConceptIds, conceptId];
+                    setState({ concept: concepts.includes(state.concept) ? state.concept : concepts[0] || null, concepts, card: null });
+                  }}
+                  onConceptPreviewChange={(concept) => setState({ concept })}
+                  generating={preparingImage}
+                  onStart={prepareImageContent}
+                  expanded={setupOpen}
+                  onToggle={() => setSetupOpen((open) => !open)}
+                />
+              </div>
 
-              <ConceptPicker
-                concepts={CONCEPTS}
-                value={state.concept}
-                onChange={handleConceptChange}
-                adSelectedIds={adConceptIds}
-                onAdSelectionChange={handleAdConceptChange}
-              />
+              {selectedTemplates.length > 1 && (
+                <TemplateSubTabs
+                  templates={selectedTemplates}
+                  value={state.concept}
+                  onChange={handleConceptChange}
+                />
+              )}
 
               <div className="grid grid-cols-1 gap-8 rounded-[15px] border border-[#e5e8eb] bg-white p-5 lg:grid-cols-[minmax(0,1fr)_1px_minmax(0,1.15fr)] lg:gap-10 lg:p-6">
                 <div>
-                  <h2 className="mb-5 h-[47px] border-b border-[#e5e8eb] text-[18px] font-bold text-black lg:-mr-5 lg:pr-5">
-                    광고 컨셉
-                  </h2>
-                  <AdConceptPicker
+                  {concept.promptOnly && <AdConceptPicker
                     selectedIds={adConceptIds}
                     toneLabel={TONE_LABEL[state.tone] || state.tone}
                     isManualPick={state.adConceptTone === state.tone}
                     onChange={handleAdConceptChange}
-                  />
+                  />}
                 </div>
 
                 <div
@@ -967,19 +1182,40 @@ export default function TemplatePage() {
                 />
 
                 <div className="space-y-8">
-                  {adPrompts.length === 0 && (
+                  {concept.promptOnly && adPrompts.length === 0 && (
                     <p className="text-[14px] leading-[1.6] text-[#6b7684]">
-                      광고 컨셉을 한 개 이상 선택하면 이미지 프롬프트가 표시됩니다.
+                      광고 컨셉을 한 개 이상 선택하면 이미지 프롬프트가
+                      표시됩니다.
                     </p>
                   )}
-                  {adPrompts.map((item) => (
+                  {concept.promptOnly && adPrompts.map((item) => (
                     <div key={item.n}>
                       {adPrompts.length > 1 && (
                         <p className="mb-3 text-[13px] font-bold text-[#5f6b7a]">
                           이미지 {item.n} · {item.concept.name}
                         </p>
                       )}
-                      <AdPromptPanel item={item} tools={AD_TOOLS} onCopy={handleCopyAdPrompt} editable onChange={(patch) => handleAdCopyChange(item.n - 1, patch)} onRegenerate={handleAdPromptRegenerate} onReset={() => handleAdCopyReset(item.n - 1)} />
+                      <AdPromptPanel
+                        item={item}
+                        tools={AD_TOOLS}
+                        onCopy={handleCopyAdPrompt}
+                        editable={false}
+                      />
+                    </div>
+                  ))}
+                  {concept.id === "blog" && blogPrompts.map((item) => (
+                    <div key={item.n}>
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-[13px] font-bold text-[#5f6b7a]">이미지 {item.n}</p>
+                        <button
+                          type="button"
+                          onClick={() => copyText(item.prompt, "프롬프트를 복사했습니다.")}
+                          className="rounded-full border border-[#e5e8eb] px-3 py-1.5 text-[13px] font-bold text-[#5f6b7a]"
+                        >
+                          <Icon name="copy" className="mr-1 inline size-4" />프롬프트 복사
+                        </button>
+                      </div>
+                      <pre className="mt-3 max-h-[340px] overflow-y-auto whitespace-pre-wrap break-words rounded-[15px] bg-[#f2f4f6] p-3.5 text-[12px] leading-[1.6] text-[#5f6b7a]">{item.prompt}</pre>
                     </div>
                   ))}
                 </div>
@@ -992,7 +1228,8 @@ export default function TemplatePage() {
                   aria-label="글귀 단계로 돌아가기"
                   className="inline-flex items-center gap-1.5 rounded-full border border-white/20 px-5 py-2.5 text-[15px] font-bold text-white transition hover:bg-white/10"
                 >
-                  <Icon name="arrowLeft" className="size-4" />글귀 단계로
+                  <Icon name="arrowLeft" className="size-4" />
+                  글귀 단계로
                 </button>
                 <button
                   type="button"
@@ -1027,8 +1264,7 @@ export default function TemplatePage() {
   const selectedLayoutObj = objects.find((o) => o.id === selectedObj) || null;
   const dividerObj = objects.find((o) => o.id === "divider") || null;
   const dividerHidden = Boolean(
-    state.card?.layout?.[active]?.[magazineLayoutKey(state, "divider")]
-      ?.hidden,
+    state.card?.layout?.[active]?.[magazineLayoutKey(state, "divider")]?.hidden,
   );
   const clippedLabels = [...new Set(clippedSlots)].map(
     (id) => slots.find((s) => s.id === id)?.label || id,
@@ -1047,7 +1283,8 @@ export default function TemplatePage() {
       JSON.stringify(historyEntry.initial),
   );
   const coverRecommendations =
-    active === 0 && state.concept === "magazine" &&
+    active === 0 &&
+    state.concept === "magazine" &&
     state.cardCopy?.key === draftKeyOf(state)
       ? state.cardCopy.coverRecommendations || []
       : [];
@@ -1058,28 +1295,63 @@ export default function TemplatePage() {
         <div className="flex min-h-[1050px] items-stretch rounded-[15px] bg-white/10 max-[860px]:min-h-0 max-[860px]:flex-col max-[860px]:overflow-clip">
           <TextStepper steps={STEPS} activeIndex={1} />
           <div className="min-w-0 flex-1 px-[clamp(24px,calc((39/1920)*100vw),39px)] py-14">
+            <div className="mb-6">
+              <ContentsTab />
+            </div>
             <header className="mb-6">
               <p className="text-[25px] font-bold leading-[22.4px] text-white">
                 글에 맞는 카드뉴스를 생성해보세요.
               </p>
             </header>
 
-            <ContextBar
-              product={product}
-              topic={state.topic}
-              focusPoint={state.focusPoint}
-              toneLabel={TONE_LABEL[state.tone] || state.tone}
-              onEditText={() => router.push("/text")}
-              onSave={() => saveToArchive()}
-              saveDisabled={libraryBusy || !canSaveLibrary}
-              saveBusy={libraryBusy}
-            />
+            <div className="mb-6">
+              <ImagePostSetup
+                loading={!productsReady}
+                products={products}
+                productId={state.productId}
+                topic={state.topic || ""}
+                presets={topicPresets}
+                presetsLoading={topicPresetsLoading}
+                concept={state.concept}
+                selectedConceptIds={selectedConceptIds}
+                onProductChange={(productId) =>
+                  setState({ productId, topic: "", card: null, images: {} })
+                }
+                onTopicChange={(topic) => setState({ topic, card: null })}
+                onRefreshPresets={() => refreshTopicPresets(undefined, { force: true })}
+                onConceptSelectionChange={(conceptId) => {
+                  const concepts = selectedConceptIds.includes(conceptId)
+                    ? selectedConceptIds.filter((id) => id !== conceptId)
+                    : [...selectedConceptIds, conceptId];
+                  const concept = concepts.includes(state.concept)
+                    ? state.concept
+                    : concepts[0] || null;
+                  setState({ concept, concepts, card: null });
+                }}
+                onConceptPreviewChange={(concept) => setState({ concept })}
+                generating={preparingImage}
+                onStart={() => {
+                  setState({
+                    tone: state.tone || "trust",
+                    cardCount: Number(state.cardCount) || 4,
+                    concepts: selectedConceptIds,
+                    postId: state.postId || `p${Date.now().toString(36)}`,
+                    card: null,
+                  });
+                  prepareImageContent();
+                }}
+                expanded={setupOpen}
+                onToggle={() => setSetupOpen((open) => !open)}
+              />
+            </div>
 
-            <ConceptPicker
-              concepts={CONCEPTS}
-              value={state.concept}
-              onChange={handleConceptChange}
-            />
+            {selectedTemplates.length > 1 && (
+              <TemplateSubTabs
+                templates={selectedTemplates}
+                value={state.concept}
+                onChange={handleConceptChange}
+              />
+            )}
 
             <div className="sticky top-[60px] z-30 -mx-3 mb-[18px] mt-2 flex flex-wrap items-center justify-between gap-3 px-3 py-3">
               {state.concept === "magazine" ? (
@@ -1205,13 +1477,21 @@ export default function TemplatePage() {
                               type="button"
                               onClick={(event) => {
                                 handleCoverRecommendation(option);
-                                event.currentTarget.closest("details")?.removeAttribute("open");
+                                event.currentTarget
+                                  .closest("details")
+                                  ?.removeAttribute("open");
                               }}
                               className="block w-full rounded-[10px] px-3 py-3 text-left transition hover:bg-[#f2f6ff]"
                             >
-                              <span className="mb-1 block text-[12px] font-bold text-[#287aff]">추천 {index + 1}</span>
-                              <span className="block text-[15px] font-bold text-[#333d4b]">{option.title}</span>
-                              <span className="mt-0.5 block text-[14px] text-[#5f6b7a]">{option.highlight}</span>
+                              <span className="mb-1 block text-[12px] font-bold text-[#287aff]">
+                                추천 {index + 1}
+                              </span>
+                              <span className="block text-[15px] font-bold text-[#333d4b]">
+                                {option.title}
+                              </span>
+                              <span className="mt-0.5 block text-[14px] text-[#5f6b7a]">
+                                {option.highlight}
+                              </span>
                             </button>
                           ))}
                         </div>
@@ -1232,9 +1512,7 @@ export default function TemplatePage() {
                         type="button"
                         onClick={handleToggleDivider}
                         aria-label={
-                          dividerHidden
-                            ? "구분선 다시 만들기"
-                            : "구분선 지우기"
+                          dividerHidden ? "구분선 다시 만들기" : "구분선 지우기"
                         }
                         className="inline-flex items-center gap-1.5 rounded-full border border-[#e5e8eb] bg-white px-[18px] py-[10px] text-[15px] font-bold text-[#5F6B7A] transition hover:bg-[#f7f8fa]"
                       >
@@ -1323,7 +1601,11 @@ export default function TemplatePage() {
                   label={IMAGE_ROLE[concept.id] || IMAGE_ROLE.magazine}
                   disabled={!usesImage(state.concept, card.kind)}
                   hasImage={state.images?.[active]?.concept === state.concept}
-                  source={state.images?.[active]?.concept === state.concept ? state.images[active].source : null}
+                  source={
+                    state.images?.[active]?.concept === state.concept
+                      ? state.images[active].source
+                      : null
+                  }
                   prompt={buildPrompt(card, state.concept, {
                     index: active,
                     title: texts.title || card.title,
@@ -1362,11 +1644,44 @@ export default function TemplatePage() {
         accountId={instagramDialog?.accountId || ""}
         accountLocked={Boolean(instagramDialog?.accountLocked)}
         busy={publishingInstagram}
-        onAccountChange={(accountId) => setInstagramDialog((current) => current ? { ...current, accountId } : current)}
-        onCaptionChange={(caption) => setInstagramDialog((current) => current ? { ...current, caption } : current)}
+        onAccountChange={(accountId) =>
+          setInstagramDialog((current) =>
+            current ? { ...current, accountId } : current,
+          )
+        }
+        onCaptionChange={(caption) =>
+          setInstagramDialog((current) =>
+            current ? { ...current, caption } : current,
+          )
+        }
         onClose={handleCloseInstagram}
         onPublish={handlePublishInstagram}
       />
     </main>
+  );
+}
+
+function TemplateSubTabs({ templates, value, onChange }) {
+  return (
+    <nav className="mb-6 flex flex-wrap gap-2" aria-label="선택한 이미지 템플릿">
+      {templates.map((template) => {
+        const active = template.id === value;
+        return (
+          <button
+            key={template.id}
+            type="button"
+            onClick={() => onChange(template.id)}
+            aria-current={active ? "page" : undefined}
+            className={`rounded-full border px-4 py-2 text-[14px] font-bold transition ${
+              active
+                ? "border-[#287aff] bg-[#287aff] text-white"
+                : "border-white/25 bg-white/10 text-white hover:bg-white/20"
+            }`}
+          >
+            {template.name}
+          </button>
+        );
+      })}
+    </nav>
   );
 }

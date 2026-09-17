@@ -111,6 +111,7 @@ export function TemplateSection({ product, state, onUpdate }) {
             onPreviewChange={handlePreviewChange}
             adSelectedIds={adSelectedIds}
             onAdSelectionChange={handleAdSelectionChange}
+            variant="legacy"
           />
         </fieldset>
       ) : (
