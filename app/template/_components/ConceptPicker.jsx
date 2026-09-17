@@ -92,10 +92,9 @@ export function ConceptPicker({
                 value={c.id}
                 checked={checked}
                 autoComplete="off"
-                onClick={(event) => {
+                onChange={() => {
                   // A click first opens an inactive template. Only a repeat
                   // click on the open template changes its checkbox state.
-                  event.preventDefault();
                   if (active) onChange(c.id);
                   else onPreviewChange?.(c.id);
                 }}
