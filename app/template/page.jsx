@@ -997,7 +997,7 @@ export default function TemplatePage() {
       try {
         const s = getState();
         const thumb = await makeThumb(s);
-        const result = await saveToLibrary(s, thumb);
+        const result = await saveToLibrary(s, thumb, { type: "image" });
         if (!result.ok) {
           toast(result.error, 6000);
           return;

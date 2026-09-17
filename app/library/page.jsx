@@ -56,6 +56,7 @@ export default function LibraryPage() {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState("recent");
   const [productFilter, setProductFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState("all");
   const [activeInstagramId, setActiveInstagramId] = useState("");
 
   useEffect(() => {
@@ -87,16 +88,18 @@ export default function LibraryPage() {
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
-    let list = accountItems.filter(
-      (it) => productFilter === "all" || it.productId === productFilter,
-    );
+    let list = accountItems.filter((it) => (
+      (productFilter === "all" || it.productId === productFilter)
+      && (typeFilter === "all" || (it.type || "text_image") === typeFilter)
+    ));
     if (q) list = list.filter((it) => haystack(it).includes(q));
     return list.slice().sort(SORT_COMPARATORS[sort] || SORT_COMPARATORS.recent);
-  }, [accountItems, query, productFilter, sort]);
+  }, [accountItems, query, productFilter, sort, typeFilter]);
 
   function clearFilters() {
     setQuery("");
     setProductFilter("all");
+    setTypeFilter("all");
   }
 
   /**
@@ -169,6 +172,30 @@ export default function LibraryPage() {
           <h2 className="mb-4 text-[20px] font-bold text-white">
             저장한 게시물
           </h2>
+          {accountItems.length > 0 && (
+            <div className="mb-5 flex gap-2" role="tablist" aria-label="생성 유형">
+              {[
+                ["all", "전체"],
+                ["text_image", "글 + 이미지"],
+                ["image", "이미지"],
+              ].map(([type, label]) => (
+                <button
+                  key={type}
+                  type="button"
+                  role="tab"
+                  aria-selected={typeFilter === type}
+                  onClick={() => setTypeFilter(type)}
+                  className={`rounded-full px-4 py-2 text-[14px] font-bold transition ${
+                    typeFilter === type
+                      ? "bg-[#287aff] text-white"
+                      : "bg-white/10 text-white/70 hover:bg-white/20"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
           {accountItems.length > 0 && (
             <LibraryToolbar
               items={accountItems}
