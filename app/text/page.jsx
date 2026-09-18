@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { CHANNELS } from "../../data/channels.js";
 import { derivePosts, extractProposalContext, generateWithAI } from "../../lib/copyai.js";
+import { getOrCreateProposalContext } from "../../lib/proposalContext.js";
 import { reviewCompliance } from "../../lib/compliance.js";
 import { copyChatContextKey, getMemorySummary } from "../../lib/copymemory.js";
 import { getConcept } from "../../lib/concepts.js";
@@ -71,8 +72,29 @@ import {
   nextDraftState,
 } from "./_lib/draftState.js";
 
+// Every current output template consumes the generated card copy, including
+// the blog-style and direct-response ad layouts.
+const CARD_COPY_CONCEPT_IDS = new Set([
+  "card",
+  "note",
+  "magazine",
+  "blog",
+  "intuitive",
+]);
+
+function needsCardCopy(state) {
+  const conceptIds = Array.isArray(state?.concepts)
+    ? state.concepts
+    : [state?.concept];
+  return conceptIds.some((id) => CARD_COPY_CONCEPT_IDS.has(id));
+}
+
 export default function CopyPage() {
   const router = useRouter();
+  // Subscribe to query-only App Router navigations so `edit` and the rendered
+  // workflow cannot drift apart.
+  const searchParams = useSearchParams();
+  const editMode = searchParams.get("edit") || "1";
   const topicRef = useRef(null);
   const [state, setViewState] = useState(null);
   const [activeId, setActiveId] = useState("");
@@ -127,13 +149,11 @@ export default function CopyPage() {
   useEffect(() => {
     if (!state || expandInitialized.current) return;
     expandInitialized.current = true;
-    const wantsEdit =
-      typeof window !== "undefined" &&
-      new URLSearchParams(window.location.search).get("edit") === "1";
+    const wantsEdit = editMode === "1";
     if (wantsEdit || !(state.productId && String(state.topic || "").trim())) {
       setExpanded(true);
     }
-  }, [state]);
+  }, [state, editMode]);
 
   // 조건 요약 바가 펼침→접힘으로 바뀌는 순간(「게시물 생성하기」를 눌렀을 때 등)에만
   // 그 접힌 바 맨 위로 화면을 이동한다 — 사용자가 직접 펼칠 때는 스크롤을 건드리지 않는다.
@@ -492,6 +512,13 @@ export default function CopyPage() {
               .length,
         ),
       );
+      setGeneration((progress) => ({ ...progress, current: 1, channelName: "제안서 사실 정리" }));
+      const { context: proposalContext, cached: proposalCached } = await getOrCreateProposalContext(
+        product,
+        extractProposalContext,
+        { signal: controller.signal },
+      );
+
       const { core, error: outlineError } = await ensureOutline(current, {
         round,
         researchStyle,
@@ -507,10 +534,9 @@ export default function CopyPage() {
       // 챗봇에서 정리된 이 사용자의 스타일 메모 — 있으면 채널 프롬프트에 참고로 들어간다.
       const memory = await getMemorySummary().catch(() => null);
 
-      setGeneration((progress) => ({ ...progress, current: 1, channelName: "제안서 사실 정리" }));
-      const proposalContext = await extractProposalContext({ product }, {
-        signal: controller.signal,
-      });
+      if (proposalCached) {
+        setGeneration((progress) => ({ ...progress, channelName: "저장된 제안서 사실 확인" }));
+      }
 
       const drafts = {};
       let instagramDrafts = null;
@@ -581,7 +607,9 @@ export default function CopyPage() {
         drafts.blog || getState().drafts?.blog || "",
       ).trim();
       let derivedCardCopy = null;
-      if (blogForCards) {
+      // Card copy consumes a separate AI call, so make it only when an output
+      // template is selected. Channel selection alone must not trigger it.
+      if (needsCardCopy(current) && blogForCards) {
         setGeneration((generation) => ({
           ...generation,
           channelName: "카드뉴스 요약",
@@ -905,9 +933,7 @@ export default function CopyPage() {
 
   if (!state || !productsReady) return <LoadingScreen />;
 
-  const isImageTopicSetup =
-    typeof window !== "undefined" &&
-    new URLSearchParams(window.location.search).get("edit") === "2";
+  const isImageTopicSetup = editMode === "2";
 
   if (isImageTopicSetup) {
     const selectedConceptIds = (Array.isArray(state.concepts)

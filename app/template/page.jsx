@@ -54,6 +54,8 @@ import {
 } from "../../lib/cardrender.js";
 import { buildPrompt } from "../../lib/imageprompt.js";
 import { coreWithOutline } from "../../lib/outline.js";
+import { extractProposalContext } from "../../lib/copyai.js";
+import { getOrCreateProposalContext } from "../../lib/proposalContext.js";
 import { readContentCache, writeContentCache } from "../../lib/contentCache.js";
 import { buildAdPrompts, getAdConcept } from "../../lib/adprompt.js";
 import { saveToLibrary, hasLibraryChanges } from "../../lib/librarystore.js";
@@ -293,6 +295,10 @@ export default function TemplatePage() {
         const tone = current.tone || "trust";
         const cardCount = Number(current.cardCount) || 4;
         const base = { ...current, tone, cardCount };
+        const { context: proposalContext } = await getOrCreateProposalContext(
+          currentProduct,
+          extractProposalContext,
+        );
         const { core, outline } = await coreWithOutline({
           product: currentProduct,
           topic,
@@ -300,6 +306,7 @@ export default function TemplatePage() {
           cardCount,
           focusPoint: String(current.focusPoint || "").trim(),
           contentOutline: current.contentOutline || null,
+          proposalContext,
         });
         const patch = {
           tone,
@@ -1079,7 +1086,17 @@ export default function TemplatePage() {
       try {
         const s = getState();
         const thumb = await makeThumb(s);
-        const result = await saveToLibrary(s, thumb, { type: "image" });
+        // This editor is shared by both creation flows.  Saving from here used
+        // to mark every post as an image-only post, including cards that came
+        // from 글 + 이미지 (`preview=1`).  The library then restored those
+        // cards into the wrong flow.  Keep the creation flow in the library
+        // metadata so its load route and its saved card agree.
+        const preview = typeof window === "undefined"
+          ? ""
+          : new URLSearchParams(window.location.search).get("preview");
+        const result = await saveToLibrary(s, thumb, {
+          type: preview === "2" ? "image" : "text_image",
+        });
         if (!result.ok) {
           toast(result.error, 6000);
           return;
