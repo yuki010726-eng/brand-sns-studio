@@ -14,7 +14,7 @@
  * Instagram 게시는 여기서 쓰지 않는다 — 보관함 저장(`saveToArchive`)만 캔버스 화면과 공유한다.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   getProduct,
   loadProducts,
@@ -214,8 +214,17 @@ const contentSnapshot = (s) =>
       : null,
   });
 
-export default function TemplatePage() {
+export function TemplatePage() {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  // Query URLs remain supported for old bookmarks; all in-app navigation uses
+  // the pathname routes below.
+  const previewMode =
+    pathname.endsWith("/image") ||
+    (pathname === "/template" && searchParams.get("preview") === "2")
+      ? "2"
+      : "1";
   const [state, setViewState] = useState(null);
   const [productsReady, setProductsReady] = useState(false);
   const [products, setProducts] = useState([]);
@@ -371,15 +380,10 @@ export default function TemplatePage() {
   useEffect(() => {
     if (!state || !productsReady || setupInitialized.current) return;
     setupInitialized.current = true;
-    const preview =
-      typeof window === "undefined"
-        ? ""
-        : new URLSearchParams(window.location.search).get("preview");
-
     // A saved 글+이미지 post has already passed its topic/template setup.
     // `preview=1` must therefore open the card preview, not the image-only
     // topic setup panel.
-    if (preview === "1" || (preview === "2" && state.card)) {
+    if (previewMode === "1" || (previewMode === "2" && state.card)) {
       setSetupOpen(false);
       return;
     }
@@ -390,9 +394,9 @@ export default function TemplatePage() {
     if (!hasDraft) {
       setSetupOpen(true);
     }
-  }, [state, productsReady, hasDraft, router]);
+  }, [state, productsReady, hasDraft, previewMode]);
 
-  // The image-topic setup lives at `/text?edit=2`; arriving here with
+  // The image-topic setup lives at `/text/image`; arriving here with
   // `preview=2` is its explicit hand-off into the image preview workflow.
   useEffect(() => {
     if (
@@ -402,7 +406,7 @@ export default function TemplatePage() {
       typeof window === "undefined"
     )
       return;
-    if (new URLSearchParams(window.location.search).get("preview") !== "2") {
+    if (previewMode !== "2") {
       return;
     }
     previewInitialized.current = true;
@@ -413,7 +417,7 @@ export default function TemplatePage() {
       return;
     }
     prepareImageContent();
-  }, [state, productsReady, prepareImageContent]);
+  }, [state, productsReady, prepareImageContent, previewMode]);
 
   const refreshTopicPresets = useCallback(
     async (productId = state?.productId, options) => {
@@ -1091,11 +1095,8 @@ export default function TemplatePage() {
         // from 글 + 이미지 (`preview=1`).  The library then restored those
         // cards into the wrong flow.  Keep the creation flow in the library
         // metadata so its load route and its saved card agree.
-        const preview = typeof window === "undefined"
-          ? ""
-          : new URLSearchParams(window.location.search).get("preview");
         const result = await saveToLibrary(s, thumb, {
-          type: preview === "2" ? "image" : "text_image",
+          type: previewMode === "2" ? "image" : "text_image",
         });
         if (!result.ok) {
           toast(result.error, 6000);
@@ -1107,7 +1108,7 @@ export default function TemplatePage() {
         setCanSaveLibrary(hasLibraryChanges());
       }
     },
-    [buildRenderOpts],
+    [buildRenderOpts, previewMode],
   );
 
   const saveToArchiveRef = useRef(saveToArchive);
@@ -1348,7 +1349,7 @@ export default function TemplatePage() {
               <div className="mt-8 flex flex-wrap justify-between gap-3">
                 <button
                   type="button"
-                  onClick={() => router.push("/text?edit=1")}
+                  onClick={() => router.push("/text/text-image")}
                   aria-label="글귀 단계로 돌아가기"
                   className="inline-flex items-center gap-1.5 rounded-full border border-white/20 px-5 py-2.5 text-[15px] font-bold text-white transition hover:bg-white/10"
                 >
@@ -1786,6 +1787,8 @@ export default function TemplatePage() {
     </main>
   );
 }
+
+export default TemplatePage;
 
 function TemplateSubTabs({ templates, value, onChange }) {
   return (

@@ -1,17 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
+import { CONTENT_MODE, textPath } from "../../lib/contentRoutes.js";
 
 const TABS = [
-  { path: "/text?edit=1", label: "글 + 이미지" },
-  { path: "/text?edit=2", label: "이미지" },
+  { mode: CONTENT_MODE.TEXT_IMAGE, label: "글 + 이미지" },
+  { mode: CONTENT_MODE.IMAGE, label: "이미지" },
 ];
 
-/** 새 게시물 작성 방식 전환 탭. 탭을 바꿔도 현재 작업 상태는 유지한다. */
 export function ContentsTab() {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
+  const mode = pathname.endsWith(`/${CONTENT_MODE.IMAGE}`)
+    ? CONTENT_MODE.IMAGE
+    : CONTENT_MODE.TEXT_IMAGE;
 
   return (
     <nav
@@ -19,17 +21,11 @@ export function ContentsTab() {
       aria-label="게시물 만들기 방식"
     >
       {TABS.map((tab) => {
-        // 미리보기 화면도 어느 작성 흐름에서 왔는지 그대로 표시한다.
-        const mode =
-          pathname === "/template"
-            ? searchParams.get("preview") || "1"
-            : searchParams.get("edit") || "1";
-        const active = tab.path === `/text?edit=${mode}`;
-        const href = tab.path;
+        const active = tab.mode === mode;
         return (
           <Link
-            key={tab.path}
-            href={href}
+            key={tab.mode}
+            href={textPath(tab.mode)}
             aria-current={active ? "page" : undefined}
             className={`rounded-full px-4 py-1.5 text-[13px] font-bold transition-colors ${
               active

@@ -134,7 +134,9 @@ export default function LibraryPage() {
     }
     toast(`「${target.title}」을(를) 불러왔습니다.`);
     router.push(
-      target.type === "image" ? "/template?preview=2" : "/template?preview=1",
+      target.type === "image"
+        ? "/template/image"
+        : "/text/text-image?fromLibrary=1",
     );
   }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CHANNELS } from "../../data/channels.js";
 import { derivePosts, extractProposalContext, generateWithAI } from "../../lib/copyai.js";
 import { getOrCreateProposalContext } from "../../lib/proposalContext.js";
@@ -89,12 +89,18 @@ function needsCardCopy(state) {
   return conceptIds.some((id) => CARD_COPY_CONCEPT_IDS.has(id));
 }
 
-export default function CopyPage() {
+export function CopyPage() {
   const router = useRouter();
-  // Subscribe to query-only App Router navigations so `edit` and the rendered
-  // workflow cannot drift apart.
+  const pathname = usePathname();
   const searchParams = useSearchParams();
-  const editMode = searchParams.get("edit") || "1";
+  // Query URLs remain supported for old bookmarks; all in-app navigation uses
+  // the pathname routes below.
+  const editMode =
+    pathname.endsWith("/image") ||
+    (pathname === "/text" && searchParams.get("edit") === "2")
+      ? "2"
+      : "1";
+  const openedFromLibrary = searchParams.get("fromLibrary") === "1";
   const topicRef = useRef(null);
   const [state, setViewState] = useState(null);
   const [activeId, setActiveId] = useState("");
@@ -150,10 +156,13 @@ export default function CopyPage() {
     if (!state || expandInitialized.current) return;
     expandInitialized.current = true;
     const wantsEdit = editMode === "1";
-    if (wantsEdit || !(state.productId && String(state.topic || "").trim())) {
+    if (
+      (!openedFromLibrary && wantsEdit) ||
+      !(state.productId && String(state.topic || "").trim())
+    ) {
       setExpanded(true);
     }
-  }, [state, editMode]);
+  }, [state, editMode, openedFromLibrary]);
 
   // 조건 요약 바가 펼침→접힘으로 바뀌는 순간(「게시물 생성하기」를 눌렀을 때 등)에만
   // 그 접힌 바 맨 위로 화면을 이동한다 — 사용자가 직접 펼칠 때는 스크롤을 건드리지 않는다.
@@ -346,7 +355,7 @@ export default function CopyPage() {
       });
       setExpanded(false);
       toast("같은 상품·주제의 저장된 제안서 분석 결과를 불러왔습니다.");
-      router.push("/template?preview=1");
+      router.push("/template/text-image");
       return;
     }
     const existing = getLibrary().find(
@@ -362,7 +371,7 @@ export default function CopyPage() {
       const result = await loadFromLibrary(existing.id);
       if (!result.ok) return toast(result.error);
       setExpanded(false);
-      router.push("/template?preview=1");
+      router.push("/template/text-image");
       return;
     }
     if (!isEditingExisting) clearLibraryEdit();
@@ -373,7 +382,7 @@ export default function CopyPage() {
     // generated, card 등을 초기화하지 않는다. 선택했던 시안도 유지된다.
     if (conditionsUnchanged && (latest.aiRuns?.list || []).length > 0) {
       setExpanded(false);
-      router.push("/template?preview=1");
+      router.push("/template/text-image");
       return;
     }
 
@@ -383,7 +392,7 @@ export default function CopyPage() {
       ...nextDraftState(latest),
     });
     setExpanded(false);
-    router.push("/template?preview=1");
+    router.push("/template/text-image");
   }
 
   function waitIfPaused() {
@@ -972,7 +981,7 @@ export default function CopyPage() {
             }}
             onConceptPreviewChange={(concept) => setState({ concept })}
             generating={false}
-            onStart={() => router.push("/template?preview=2")}
+            onStart={() => router.push("/template/image")}
             expanded
             onToggle={() => {}}
           />
@@ -1196,3 +1205,5 @@ export default function CopyPage() {
     </main>
   );
 }
+
+export default CopyPage;

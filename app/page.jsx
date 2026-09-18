@@ -18,7 +18,7 @@ export default function HomeRedirect() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace("/text?edit=1");
+    router.replace("/text/text-image");
   }, [router]);
 
   return <LoadingScreen />;
