@@ -29,6 +29,9 @@ export function BlogConceptSelector({
       role="group"
       aria-label="블로그 카드뉴스 템플릿 선택"
     >
+      <span className="w-full text-[13px] font-bold text-white/75">
+        선택한 템플릿
+      </span>
       {visibleConcepts.map((concept) => (
         <button
           key={concept.id}

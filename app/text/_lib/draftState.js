@@ -6,7 +6,7 @@ import { buildCore } from "../../../lib/copywriter.js";
 
 export const EMPTY_OUTPUT = {
   drafts: {}, generated: {}, variants: {}, sources: {}, draftKey: "", aiKey: {},
-  outline: null, researchStyle: null, activeAiRun: null, image: null, images: {}, card: null,
+  outline: null, researchStyle: null, activeAiRun: null, pendingTemplateSelection: null, image: null, images: {}, card: null,
 };
 
 export function nextDraftState(latest) {

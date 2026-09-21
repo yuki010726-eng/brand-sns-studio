@@ -125,19 +125,19 @@ export function reconcileCard(state, deck, product) {
 /* ---------------- 블로그 원문에서 카드 재료 뽑기 ---------------- */
 
 function draftImageCaptions(state) {
-  const drafts = [state.drafts?.blog, ...Object.values(state.drafts || {})];
-  for (const draft of drafts) {
-    const lines = String(draft || '').split(/\r?\n/);
-    const captions = {};
-    lines.forEach((line, i) => {
-      const imageNo = line.match(/^\s*📷\s*\[이미지\s*(\d+)(?:\s*[·・-][^\]]*)?\]/)?.[1];
-      if (!imageNo) return;
-      const caption = String(lines[i + 1] || '').match(/^\s*⤷\s*(.+?)\s*$/)?.[1];
-      if (caption) captions[Number(imageNo) - 1] = caption;
-    });
-    if (Object.keys(captions).length) return captions;
-  }
-  return {};
+  // `drafts` holds outputs for every channel.  Looking through all of them
+  // made a blog draft without a matching slot silently borrow the first
+  // caption found in another output (usually the first AI run).  Image
+  // prompts must only use the blog text currently selected in the editor.
+  const lines = String(state?.drafts?.blog || '').split(/\r?\n/);
+  const captions = {};
+  lines.forEach((line, i) => {
+    const imageNo = line.match(/^\s*📷\s*\[이미지\s*(\d+)(?:\s*[·・-][^\]]*)?\]/)?.[1];
+    if (!imageNo) return;
+    const caption = String(lines[i + 1] || '').match(/^\s*⤷\s*(.+?)\s*$/)?.[1];
+    if (caption) captions[Number(imageNo) - 1] = caption;
+  });
+  return captions;
 }
 
 export function imageCaptionFor(state, index) {

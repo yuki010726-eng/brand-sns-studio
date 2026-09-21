@@ -113,7 +113,6 @@ lib/copyai.js         LLM 글귀 생성 + 사실성 검증 게이트 (통과 못
 lib/llm.js            글귀 생성 제공자 선택
 lib/imagegen.js       이미지 생성 제공자 선택 (화면은 이 파일만 본다)
 lib/gemini.js         Gemini(Nano Banana) 호출 — 4:5 그대로 지원
-lib/openai.js         OpenAI 호출 — 1024x1536 을 받아 잘라 씀
 lib/outline.js        주제 아웃라인 — 모델이 주제를 쪼개 뼈대를 만든다 (세 채널·카드가 공유)
 lib/librarystore.js   보관함 저장·불러오기·삭제 (썸네일은 IndexedDB)
 lib/serverapi.js      서버 프록시 클라이언트 + 서버/로컬 모드 판정

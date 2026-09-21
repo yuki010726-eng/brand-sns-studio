@@ -14,6 +14,7 @@ import {
   getSavedNaverBlogId,
   saveNaverBlogId,
 } from "../../../lib/naverFillClient.js";
+import { detectNaverExtension, fillNaverViaExtension } from "../../../lib/naverExtensionClient.js";
 import { addNaverAccount, getNaverAccounts } from "../../../lib/naverAccounts.js";
 import { parseBlogDoc } from "../../../lib/blogDoc.js";
 import { publishInstagramCarousel, removeInstagramCards, uploadInstagramCards } from "../../../lib/instagram.js";
@@ -302,7 +303,12 @@ export function CopyEditor({
       setNaverAddOpen(false);
       setNaverNewBlogId("");
       setNaverNewLabel("");
-      toast(`${account.label || account.blog_id} 계정을 등록했습니다. 이 컴퓨터에서 로그인 세션을 아직 안 만들었다면 npm run naver:setup -- ${account.id} 로 한 번 로그인해 주세요.`);
+      const hasExtension = await detectNaverExtension();
+      toast(
+        hasExtension
+          ? `${account.label || account.blog_id} 계정을 등록했습니다. 이 브라우저에서 네이버에 로그인돼 있으면 바로 채울 수 있어요.`
+          : `${account.label || account.blog_id} 계정을 등록했습니다. 채우려면 「네이버 채우기」 확장 프로그램을 설치해 주세요.`,
+      );
     } catch (error) {
       toast(error?.message || "네이버 계정을 등록하지 못했습니다.");
     } finally {
@@ -337,6 +343,22 @@ export function CopyEditor({
       toast("채워 넣을 글이 없습니다.");
       return;
     }
+    // 확장 프로그램이 있으면 이 브라우저(이미 네이버에 로그인된)에서 채운다 — 배포 환경에서도 된다.
+    // 없으면 예전 서버(Playwright) 방식은 이 컴퓨터에서 직접 `npm run dev` 로 띄운 경우에만 뜻이 있다.
+    const hasExtension = await detectNaverExtension();
+    const isLocalServer = ["localhost", "127.0.0.1"].includes(window.location.hostname);
+    if (!hasExtension && !isLocalServer) {
+      toast(
+        "「네이버 채우기」 확장 프로그램이 필요합니다. 설치한 뒤 이 페이지를 새로고침해 주세요. (설치: 크롬 주소창에 chrome://extensions → 개발자 모드 → 「압축해제된 확장 프로그램을 로드합니다」 → 프로젝트의 extension/naver-filler 폴더)",
+      );
+      return;
+    }
+    const selectedAccount = naverAccounts.find((account) => account.id === naverAccountId);
+    const targetBlogId = usingAccount ? selectedAccount?.blog_id : blogId;
+    if (hasExtension && !targetBlogId) {
+      toast("선택한 네이버 블로그 계정의 아이디를 확인하지 못했습니다.");
+      return;
+    }
     if (usingAccount) saveNaverAccountId(naverAccountId);
     else saveNaverBlogId(blogId);
     setNaverFilling(true);
@@ -364,15 +386,25 @@ export function CopyEditor({
       // 제목은 원고 안 인용구 두 줄이 아니라 "글 구조 요약"에서 고른 제목을 쓴다
       // (요청자 지시, 2026-09-09) — 그 제목이 카드뉴스 표지 문구 등 나머지 글의
       // 기준이므로, 네이버에 올라가는 제목도 같은 것이어야 한다.
-      await fillNaverDraft({
-        rawDraft: value,
-        accountId: usingAccount ? naverAccountId : undefined,
-        blogId: usingAccount ? undefined : blogId,
-        images,
-        imageLayout,
-        title: blogTitle,
-      });
-      toast("네이버 글쓰기 화면에 채워 넣었습니다. 뜬 브라우저 창에서 내용을 확인하고 직접 발행해 주세요.");
+      if (hasExtension) {
+        const doc = parseBlogDoc(value);
+        const title =
+          (typeof blogTitle === "string" && blogTitle.trim()) ||
+          doc.title.filter(Boolean).join(" ").trim() ||
+          "(제목 없음)";
+        await fillNaverViaExtension({ blogId: targetBlogId, title, doc, images, imageLayout });
+        toast("네이버 글쓰기 탭을 열었습니다. 그 탭에서 채우기가 끝나면 내용을 확인하고 직접 발행해 주세요.");
+      } else {
+        await fillNaverDraft({
+          rawDraft: value,
+          accountId: usingAccount ? naverAccountId : undefined,
+          blogId: usingAccount ? undefined : blogId,
+          images,
+          imageLayout,
+          title: blogTitle,
+        });
+        toast("네이버 글쓰기 화면에 채워 넣었습니다. 뜬 브라우저 창에서 내용을 확인하고 직접 발행해 주세요.");
+      }
     } catch (error) {
       toast(error?.message || "네이버에 채워 넣지 못했습니다.");
     } finally {
@@ -551,7 +583,7 @@ export function CopyEditor({
                 type="button"
                 onClick={handleNaverFill}
                 disabled={naverFilling}
-                title="제목·본문만 채우고 멈춥니다. 발행은 뜬 브라우저 창에서 직접 눌러야 합니다."
+                title="제목·본문과 만들어 둔 카드뉴스 이미지를 함께 채우고 멈춥니다. 발행은 뜬 브라우저 창에서 직접 눌러야 합니다."
                 className="inline-flex h-[45px] items-center gap-[5px] rounded-full border border-[#03c75a] bg-white px-[19px] text-[15px] font-bold text-[#03c75a] disabled:opacity-50"
               >
                 <Icon

@@ -5,6 +5,8 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CHANNELS } from "../../data/channels.js";
 import { derivePosts, extractProposalContext, generateWithAI } from "../../lib/copyai.js";
 import { getOrCreateProposalContext } from "../../lib/proposalContext.js";
+import { getTopicSuggestions } from "../../lib/topicSuggestions.js";
+import { readTopicSuggestions, saveTopicSuggestions } from "../../lib/topicSuggestionStore.js";
 import { reviewCompliance } from "../../lib/compliance.js";
 import { copyChatContextKey, getMemorySummary } from "../../lib/copymemory.js";
 import { getConcept } from "../../lib/concepts.js";
@@ -89,7 +91,22 @@ function needsCardCopy(state) {
   return conceptIds.some((id) => CARD_COPY_CONCEPT_IDS.has(id));
 }
 
-export function CopyPage() {
+/** The template checkboxes are a distinct AI-run condition, while all runs
+ * must stay in one aiRuns list so the 시안 1/2 selector never disappears. */
+function conceptSelectionOf(value) {
+  const ids = Array.isArray(value?.concepts) ? value.concepts : [value?.concept];
+  return [...new Set(ids.filter(Boolean))].sort();
+}
+
+function hasSameTemplateSelection(run, state) {
+  const saved = conceptSelectionOf(run?.conditions);
+  const current = conceptSelectionOf(state);
+  return saved.length === current.length && saved.every((id, index) => id === current[index]);
+}
+
+// `template/text-image` is the post-result URL. It reuses this preview, but
+// must not reopen the condition form immediately after post generation.
+export function CopyPage({ resultOnly = false }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -155,14 +172,20 @@ export function CopyPage() {
   useEffect(() => {
     if (!state || expandInitialized.current) return;
     expandInitialized.current = true;
-    const wantsEdit = editMode === "1";
+    // `/text/text-image` is the explicit "open post setup" route.  The
+    // result route (`/template/text-image`) renders this same component with
+    // `resultOnly`, so keeping the route in this decision is important: the
+    // two screens must not accidentally inherit each other's open state.
+    const wantsEdit =
+      pathname === "/text/text-image" ||
+      (editMode === "1" && !resultOnly);
     if (
       (!openedFromLibrary && wantsEdit) ||
       !(state.productId && String(state.topic || "").trim())
     ) {
       setExpanded(true);
     }
-  }, [state, editMode, openedFromLibrary]);
+  }, [state, editMode, openedFromLibrary, pathname, resultOnly]);
 
   // 조건 요약 바가 펼침→접힘으로 바뀌는 순간(「게시물 생성하기」를 눌렀을 때 등)에만
   // 그 접힌 바 맨 위로 화면을 이동한다 — 사용자가 직접 펼칠 때는 스크롤을 건드리지 않는다.
@@ -185,6 +208,27 @@ export function CopyPage() {
     }
     setPresetsLoading(true);
     try {
+      const currentProduct = products.find((item) => item.id === productId);
+      if (options?.force && currentProduct) {
+        const { context } = await getOrCreateProposalContext(
+          currentProduct,
+          extractProposalContext,
+        );
+        const generated = await getTopicSuggestions(currentProduct, [], {
+          forceRefresh: true,
+          facts: context,
+        });
+        setPresets(generated);
+        await saveTopicSuggestions(currentProduct, generated);
+        return;
+      }
+      if (currentProduct) {
+        const saved = await readTopicSuggestions(currentProduct);
+        if (saved?.length) {
+          setPresets(saved.slice(0, 4));
+          return;
+        }
+      }
       setPresets(await loadRandomTopicPresets(productId, options));
     } catch (error) {
       console.error("[topics] 추천 주제 조회에 실패했습니다.", error);
@@ -345,7 +389,21 @@ export function CopyPage() {
     // A proposal-derived result can be reused from the image editor even when
     // the user did not save this work to the library.
     const cachedContent = readContentCache(nextState.productId, nextState.topic);
-    if (cachedContent?.drafts?.blog && cachedContent?.cardCopy?.cards?.length) {
+    // 같은 주제로 이미 시안이 있는데 템플릿 선택만 달라졌다면 이 캐시 분기를 타면 안 된다.
+    // 여기서 결과 화면으로 넘겨 버리면 아래의 `pendingTemplateSelection` 이 저장되지 않아
+    // 결과 화면이 템플릿 선택을 직전 시안의 것으로 되돌리고, 새 시안에도 그 템플릿만 남는다.
+    const priorRuns =
+      nextState.aiRuns?.key === aiRunsKeyOf(nextState)
+        ? nextState.aiRuns?.list || []
+        : [];
+    const templatesChangedForNewRun =
+      priorRuns.length > 0 &&
+      !hasSameTemplateSelection(priorRuns.at(-1), nextState);
+    if (
+      !templatesChangedForNewRun &&
+      cachedContent?.drafts?.blog &&
+      cachedContent?.cardCopy?.cards?.length
+    ) {
       setState({
         drafts: { ...nextState.drafts, ...cachedContent.drafts },
         generated: { ...nextState.generated, ...(cachedContent.generated || cachedContent.drafts) },
@@ -380,7 +438,63 @@ export function CopyPage() {
 
     // 기존 시안이 있는 글의 조건이 실제로 달라지지 않았다면 drafts,
     // generated, card 등을 초기화하지 않는다. 선택했던 시안도 유지된다.
-    if (conditionsUnchanged && (latest.aiRuns?.list || []).length > 0) {
+    const latestRun = latest.aiRuns?.list?.at(-1);
+    // Do not silently reopen 시안 1 after the user changes template
+    // checkboxes. The new selection needs its own immutable run snapshot,
+    // but remains alongside previous runs in the same selector.
+    const templatesUnchanged = hasSameTemplateSelection(latestRun, latest);
+    if (
+      conditionsUnchanged &&
+      templatesUnchanged &&
+      (latest.aiRuns?.list || []).length > 0
+    ) {
+      setExpanded(false);
+      router.push("/template/text-image");
+      return;
+    }
+
+    // A changed template selection prepares the *next* AI run; it must not
+    // repaint the run currently on screen before the user presses AI 생성.
+    // Keep the existing result alive and project its immutable template
+    // snapshot back onto the preview while the new settings wait in the
+    // condition panel / next generation request.
+    const existingRuns = latest.aiRuns?.list || [];
+    if (existingRuns.length) {
+      const previewChannelId = latest.channels?.[0];
+      const channelRuns = existingRuns.filter((run) =>
+        Object.hasOwn(run.drafts || {}, previewChannelId),
+      );
+      const activeIndex =
+        typeof latest.activeAiRun === "object"
+          ? latest.activeAiRun?.[previewChannelId]
+          : latest.activeAiRun;
+      const previewRun = channelRuns[activeIndex] || latestRun;
+      const runConcept = previewRun?.conditions?.concept;
+      const runConcepts = Array.isArray(previewRun?.conditions?.concepts)
+        ? previewRun.conditions.concepts.filter(Boolean)
+        : runConcept
+          ? [runConcept]
+          : [latest.concept].filter(Boolean);
+      const previewConcept = runConcepts.includes(runConcept)
+        ? runConcept
+        : runConcepts[0] || latest.concept;
+
+      setState({
+        postId: isEditingExisting ? latest.postId : latest.postId || newPostId(),
+        ...nextDraftState(latest),
+        // Hold the requested templates until AI generation.  `concept` itself
+        // is restored below because it controls the currently visible run.
+        pendingTemplateSelection: {
+          concept: latest.concept,
+          concepts: [...new Set((latest.concepts || []).filter(Boolean))],
+        },
+        concept: previewConcept,
+        concepts: runConcepts,
+        cardCopy: previewRun?.cardCopy
+          ? { key: draftKeyOf(latest), ...previewRun.cardCopy }
+          : latest.cardCopy,
+        card: null,
+      });
       setExpanded(false);
       router.push("/template/text-image");
       return;
@@ -456,6 +570,34 @@ export function CopyPage() {
   const chatContextKey = activeRunEntry
     ? copyChatContextKey(state.aiRuns.key, activeId, activeRun)
     : "";
+
+  // The condition form temporarily keeps a future-run template selection.
+  // On the result route, however, the visible preview is always owned by the
+  // selected AI run.  Guard this at render time as well as at navigation time:
+  // it covers an already-mounted page and prevents a pending "card" choice
+  // from repainting 시안 1 before 시안 2 exists.
+  useEffect(() => {
+    if (!resultOnly || !activeRunEntry) return;
+    const current = getState();
+    const runConcept = activeRunEntry.run.conditions?.concept;
+    const runConcepts = Array.isArray(activeRunEntry.run.conditions?.concepts)
+      ? activeRunEntry.run.conditions.concepts.filter(Boolean)
+      : runConcept
+        ? [runConcept]
+        : [];
+    if (!runConcepts.length || runConcepts.includes(current.concept)) return;
+    const concept = runConcepts.includes(runConcept)
+      ? runConcept
+      : runConcepts[0];
+    setState({
+      concept,
+      concepts: runConcepts,
+      cardCopy: activeRunEntry.run.cardCopy
+        ? { key: draftKeyOf(current), ...activeRunEntry.run.cardCopy }
+        : current.cardCopy,
+      card: null,
+    });
+  }, [activeRunEntry, resultOnly]);
 
   function updateDraft(value) {
     const current = getState();
@@ -618,7 +760,19 @@ export function CopyPage() {
       let derivedCardCopy = null;
       // Card copy consumes a separate AI call, so make it only when an output
       // template is selected. Channel selection alone must not trigger it.
-      if (needsCardCopy(current) && blogForCards) {
+      const pendingTemplates = current.pendingTemplateSelection;
+      const generationConcepts = Array.isArray(pendingTemplates?.concepts)
+        ? pendingTemplates.concepts.filter(Boolean)
+        : (current.concepts || []).filter(Boolean);
+      const generationConcept = generationConcepts.includes(pendingTemplates?.concept)
+        ? pendingTemplates.concept
+        : generationConcepts[0] || current.concept;
+      const generationState = {
+        ...current,
+        concept: generationConcept,
+        concepts: generationConcepts,
+      };
+      if (needsCardCopy(generationState) && blogForCards) {
         setGeneration((generation) => ({
           ...generation,
           channelName: "카드뉴스 요약",
@@ -661,6 +815,10 @@ export function CopyPage() {
       const run = {
         drafts,
         generated: { ...drafts },
+        // Card copy is generated from the draft, so it belongs to this AI
+        // run as well.  Keeping it here prevents selecting 시안 1 after
+        // creating 시안 2 from showing 시안 2's card/image copy.
+        cardCopy: derivedCardCopy,
         // 이 시안을 만들 때 실제로 썼던 조건 — 나중에 다른 시안을 만들며 제목·톤을
         // 바꿔도, 이 시안을 다시 선택하면 그때 조건 그대로 보여줘야 하기 때문에 남긴다.
         // `concept`(카드뉴스 템플릿)은 조건이 다 같은데 템플릿만 바꿔 다시 생성했을 때
@@ -669,11 +827,11 @@ export function CopyPage() {
           title: current.contentOutline?.title || "",
           focusPoint: current.focusPoint || "",
           tone: current.tone,
-          concept: current.concept,
+          concept: generationConcept,
           // A run owns the template choices that existed when it was made.
           // Later edits to the condition panel must not change which preview
           // formats an older run can use.
-          concepts: [...new Set((current.concepts || []).filter(Boolean))],
+          concepts: generationConcepts,
         },
         ...(instagramDrafts
           ? {
@@ -695,8 +853,14 @@ export function CopyPage() {
               index === pendingIndex
                 ? {
                     ...item,
+                    // A resumed/incomplete run must keep the same immutable
+                    // template snapshot as a newly-created run.  Without it
+                    // the result UI fell back to whichever template happens
+                    // to be selected globally.
+                    conditions: run.conditions,
                     drafts: { ...item.drafts, ...drafts },
                     generated: { ...item.generated, ...drafts },
+                    cardCopy: run.cardCopy,
                     pending: Object.values({ ...item.drafts, ...drafts }).some(
                       (value) => !String(value || "").trim(),
                     ),
@@ -741,6 +905,9 @@ export function CopyPage() {
           list,
         },
         activeAiRun,
+        concept: generationConcept,
+        concepts: generationConcepts,
+        pendingTemplateSelection: null,
         cardCopy: derivedCardCopy
           ? { key: draftKeyOf(latest), ...derivedCardCopy }
           : null,
@@ -882,6 +1049,12 @@ export function CopyPage() {
       },
       concept: selectedConcept,
       concepts: runConcepts,
+      // Restore the card copy made for the selected run.  A previous run may
+      // legitimately have no card copy (older data or a failed card-copy
+      // request), in which case the renderer safely falls back to its draft.
+      cardCopy: entry.run.cardCopy
+        ? { key: draftKeyOf(current), ...entry.run.cardCopy }
+        : null,
       card: null,
     });
   }
@@ -1079,7 +1252,14 @@ export function CopyPage() {
                       topic={state.topic}
                       focusPoint={summaryFocusPoint}
                       writingStyle={TONE_LABEL[summaryTone] || summaryTone}
-                      onEditConditions={() => setExpanded(true)}
+                      onEditConditions={() => {
+                        // Editing conditions is always the setup flow.  From
+                        // the result URL, move to its dedicated route before
+                        // expanding so browser reload/back behavior remains
+                        // deterministic as well.
+                        if (resultOnly) router.push("/text/text-image");
+                        setExpanded(true);
+                      }}
                     />
                   </div>
                   {titlesLoading ? (

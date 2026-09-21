@@ -111,6 +111,8 @@ const INITIAL = {
   aiRuns: { key: "", list: [] },
   /** 지금 화면에 보이는 게 aiRuns.list 의 몇 번째인지 (0-based) — 규칙 기반을 보고 있으면 null */
   activeAiRun: null,
+  // Next-run template choice stays separate while an older AI run is previewed.
+  pendingTemplateSelection: null,
   draftKey: "",
   concept: "blog", // 카드뉴스 템플릿 id (lib/concepts.js)
   concepts: ["blog"], // 선택한 카드뉴스 템플릿 id 목록
@@ -300,6 +302,7 @@ export function resetFlow() {
     researchStyle: null,
     aiRuns: { key: "", list: [] },
     activeAiRun: null,
+    pendingTemplateSelection: null,
     image: null,
     images: {},
     blogImageLayout: {},

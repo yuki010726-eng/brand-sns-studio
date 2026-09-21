@@ -75,8 +75,9 @@ export function TemplateSection({ product, state, onUpdate }) {
               role="radiogroup"
               aria-label="카드뉴스 장수 선택"
             >
-              {[4, 5, 6].map((count) => {
-                const checked = Number(state.cardCount) === count;
+              {[5, 6, 7].map((count) => {
+                // 기존에 저장된 4장 선택값은 새 5장 옵션으로 표시한다.
+                const checked = Number(state.cardCount) === count || (count === 5 && Number(state.cardCount) === 4);
                 return (
                   <label
                     key={count}

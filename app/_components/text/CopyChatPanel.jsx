@@ -137,7 +137,11 @@ export function CopyChatPanel({
         .then((nextSummary) => {
           if (getUser()?.id !== requestUserId) return null;
           setSummary({ summary: nextSummary, message_count: withReply.length });
-          return saveMemorySummary(nextSummary, withReply.length, requestUserId);
+          return saveMemorySummary(
+            nextSummary,
+            withReply.length,
+            requestUserId,
+          );
         })
         .catch((error) => console.warn("[copy-chat] 요약 갱신 실패", error));
     } catch (error) {
