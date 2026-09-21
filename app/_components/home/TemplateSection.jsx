@@ -12,10 +12,20 @@
  * 화면은 `/template` 의 `ConceptPicker` 를 그대로 재사용한다. 컨셉마다 다른 미리보기
  * 이미지·설명을 이미 갖고 있어서 여기서 새로 만들 이유가 없다.
  */
-import { CONCEPTS, getConcept } from "../../../lib/concepts.js";
+import {
+  CONCEPTS,
+  IMAGE_TOPIC_CONCEPT_IDS,
+  getConcept,
+} from "../../../lib/concepts.js";
 import { AD_CONCEPTS } from "../../../lib/adprompt.js";
 import { toast } from "../../../components/toast.js";
 import { ConceptPicker } from "../../template/_components/ConceptPicker.jsx";
+
+// 이미지 주제 설정에서는 블로그 본문용 템플릿을 제공하지 않는다.
+// 이 순서가 ConceptPicker의 A~D 표기 순서가 된다.
+const IMAGE_TOPIC_CONCEPTS = IMAGE_TOPIC_CONCEPT_IDS
+  .map((id) => CONCEPTS.find((concept) => concept.id === id))
+  .filter(Boolean);
 
 export function TemplateSection({ product, state, onUpdate }) {
   const hasTopic = state.topic.trim().length >= 2;
@@ -24,7 +34,7 @@ export function TemplateSection({ product, state, onUpdate }) {
   const selectedIds = (Array.isArray(state.concepts)
     ? state.concepts
     : [state.concept]
-  ).filter((id) => CONCEPTS.some((concept) => concept.id === id));
+  ).filter((id) => IMAGE_TOPIC_CONCEPT_IDS.includes(id));
   const savedAdConcept = Array.isArray(state.adConcepts)
     ? state.adConcepts.find((id) => AD_CONCEPTS.some((concept) => concept.id === id))
     : state.adConcept;
@@ -105,7 +115,7 @@ export function TemplateSection({ product, state, onUpdate }) {
             템플릿을 여러 개 선택할 수 있습니다.
           </p>
           <ConceptPicker
-            concepts={CONCEPTS}
+            concepts={IMAGE_TOPIC_CONCEPTS}
             value={state.concept}
             selectedIds={selectedIds}
             onChange={handleChange}

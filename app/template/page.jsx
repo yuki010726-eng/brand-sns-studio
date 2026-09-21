@@ -23,6 +23,7 @@ import {
 import {
   getConcept,
   CONCEPTS,
+  IMAGE_TOPIC_CONCEPT_IDS,
   MAGAZINE_TEMPLATES,
   DEFAULT_MAGAZINE_TEMPLATE,
   getMagazineTemplate,
@@ -266,7 +267,7 @@ export function TemplatePage() {
   const concept = state ? getConcept(state.concept) : null;
   const selectedConceptIds = state
     ? (Array.isArray(state.concepts) ? state.concepts : [state.concept]).filter(
-        (id) => CONCEPTS.some((item) => item.id === id),
+        (id) => IMAGE_TOPIC_CONCEPT_IDS.includes(id),
       )
     : [];
   const selectedTemplates = selectedConceptIds

@@ -3,7 +3,11 @@
 import { ConceptPicker } from "./ConceptPicker.jsx";
 import { ProductSection } from "../../_components/home/ProductSection.jsx";
 import { Icon } from "../../_components/Icon.jsx";
-import { CONCEPTS } from "../../../lib/concepts.js";
+import { CONCEPTS, IMAGE_TOPIC_CONCEPT_IDS } from "../../../lib/concepts.js";
+
+const IMAGE_TOPIC_CONCEPTS = IMAGE_TOPIC_CONCEPT_IDS
+  .map((id) => CONCEPTS.find((concept) => concept.id === id))
+  .filter(Boolean);
 
 /** 이미지 탭에서 글 작성 흐름 없이 바로 시작할 때 쓰는 최소 설정 화면입니다. */
 export function ImagePostSetup({
@@ -30,7 +34,7 @@ export function ImagePostSetup({
   );
   const hasTopic = topic.trim().length >= 2;
   const productName = products.find((product) => product.id === productId)?.name;
-  const templateNames = CONCEPTS
+  const templateNames = IMAGE_TOPIC_CONCEPTS
     .filter((item) => selectedConceptIds.includes(item.id))
     .map((item) => item.name)
     .join(", ");
@@ -146,7 +150,7 @@ export function ImagePostSetup({
         >
           <legend className="sr-only">템플릿 선택</legend>
           <ConceptPicker
-            concepts={CONCEPTS}
+            concepts={IMAGE_TOPIC_CONCEPTS}
             value={hasTopic ? concept : null}
             selectedIds={hasTopic ? selectedConceptIds : []}
             onChange={onConceptSelectionChange}
