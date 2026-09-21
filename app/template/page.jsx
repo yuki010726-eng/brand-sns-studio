@@ -265,11 +265,16 @@ export function TemplatePage() {
 
   const product = state && productsReady ? getProduct(state.productId) : null;
   const concept = state ? getConcept(state.concept) : null;
-  const selectedConceptIds = state
+  const allSelectedConceptIds = state
     ? (Array.isArray(state.concepts) ? state.concepts : [state.concept]).filter(
-        (id) => IMAGE_TOPIC_CONCEPT_IDS.includes(id),
+        (id) => CONCEPTS.some((item) => item.id === id),
       )
     : [];
+  // 블로그형은 글+이미지 흐름에서는 유지한다. 이미지 단독 설정에서만 제외한다.
+  const selectedConceptIds =
+    previewMode === "2"
+      ? allSelectedConceptIds.filter((id) => IMAGE_TOPIC_CONCEPT_IDS.includes(id))
+      : allSelectedConceptIds;
   const selectedTemplates = selectedConceptIds
     .map((id) => CONCEPTS.find((item) => item.id === id))
     .filter(Boolean);
