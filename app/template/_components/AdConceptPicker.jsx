@@ -1,4 +1,14 @@
-import { AD_CONCEPTS, adThumbSvg } from "../../../lib/adprompt.js";
+import Image from "next/image.js";
+import { AD_CONCEPTS } from "../../../lib/adprompt.js";
+
+const AD_PREVIEW_IMAGES = {
+  "woman-yellow": "/concept-preview/ad-1.webp",
+  "man-navy": "/concept-preview/ad-2.webp",
+  "duo-cartoon": "/concept-preview/ad-3.webp",
+  "icon-3d": "/concept-preview/ad-4.webp",
+  "emblem-festival": "/concept-preview/ad-5.webp",
+  "impact-success-banner": "/concept-preview/ad-6.webp",
+};
 
 /** 광고형 전용 이미지 템플릿을 미리보기 카드에서 하나 선택한다. */
 export function AdConceptPicker({ selectedIds = [], toneLabel, isManualPick, onChange }) {
@@ -21,7 +31,15 @@ export function AdConceptPicker({ selectedIds = [], toneLabel, isManualPick, onC
           return (
             <button type="button" key={concept.id} onClick={() => select(concept.id)} aria-pressed={checked}
               className={`relative overflow-hidden rounded-[11px] border p-2 text-left transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#287aff] ${checked ? "border-[#287aff] bg-[#f3f7ff] ring-1 ring-[#287aff]" : "border-[#e5e8eb] bg-white hover:bg-[#f7f8fa]"}`}>
-              <span className="block aspect-square w-full overflow-hidden rounded-[7px]" aria-hidden="true" dangerouslySetInnerHTML={{ __html: adThumbSvg(concept, { size: 180, id: `pick-${concept.id}` }) }} />
+              <span className="block aspect-square w-full overflow-hidden rounded-[7px] bg-[#f2f4f6]">
+                <Image
+                  src={AD_PREVIEW_IMAGES[concept.id]}
+                  alt={`${concept.name} 예시`}
+                  width={400}
+                  height={400}
+                  className="h-full w-full object-cover"
+                />
+              </span>
               <span className="mt-2 block text-[13px] font-bold text-[#191f28]">{concept.name}</span>
               <span className={`absolute right-3 top-3 grid size-6 place-items-center rounded-full text-[14px] font-bold ${checked ? "bg-[#287aff] text-white" : "bg-white/90 text-[#8b95a1]"}`} aria-hidden="true">{checked ? "✓" : "+"}</span>
             </button>

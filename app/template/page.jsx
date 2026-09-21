@@ -716,7 +716,8 @@ export function TemplatePage() {
     toast("추천 문구로 되돌렸습니다.");
   }
 
-  function handleAdPromptRegenerate() {
+  function handleAdPromptRegenerate(index, copy) {
+    handleAdCopyChange(index, copy);
     toast("수정한 문구로 이미지 프롬프트를 다시 만들었습니다.");
   }
 
@@ -1322,7 +1323,9 @@ export function TemplatePage() {
                           item={item}
                           tools={AD_TOOLS}
                           onCopy={handleCopyAdPrompt}
-                          editable={false}
+                          editable
+                          onRegenerate={(copy) => handleAdPromptRegenerate(item.n - 1, copy)}
+                          onReset={() => handleAdCopyReset(item.n - 1)}
                         />
                       </div>
                     ))}
