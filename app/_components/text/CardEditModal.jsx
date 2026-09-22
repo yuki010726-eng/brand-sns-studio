@@ -25,6 +25,7 @@ import {
 import { objectsFor, roleOf, slotIdForObject } from "../../../lib/templates.js";
 import { buildPrompt } from "../../../lib/imageprompt.js";
 import { buildAdPrompts } from "../../../lib/adprompt.js";
+import { getBlogConcept } from "../../../lib/blogprompt.js";
 import {
   getImageForState,
   imageScopeForState,
@@ -44,6 +45,7 @@ import {
   reconcileCard,
   cloneTexts,
   imageCaptionFor,
+  blogImageContextFor,
 } from "../../template/_lib/deckBuilder.js";
 import { getState, setState, subscribe } from "../../../store.js";
 import { toast } from "../../../components/toast.js";
@@ -330,6 +332,9 @@ export function CardEditModal({
   // Do not expose the card canvas/editor here, which would overlay that copy
   // again and make the generated layout impossible to preserve.
   if (state.concept === "blog") {
+    const blogConceptId = state.blogConcept;
+    const blogConcept = getBlogConcept(blogConceptId);
+    const isPeopleStory = Boolean(blogConcept.peopleOnly);
     const prompt = buildPrompt(card, state.concept, {
       index: cardIndex,
       eyebrow: texts.eyebrow,
@@ -337,6 +342,10 @@ export function CardEditModal({
       body: texts.body || card.body,
       footer: texts.footer,
       subject: imageCaptionFor(state, cardIndex),
+      articleContext: blogImageContextFor(state, cardIndex),
+      // This modal used to omit the selected blog sub-template, causing
+      // buildPrompt() to fall back to editorial-pr every time.
+      blogConceptId,
     });
     const uploadBlogImage = async (file) => {
       if (!file.type.startsWith("image/")) {
@@ -373,7 +382,11 @@ export function CardEditModal({
             <button type="button" onClick={onClose} aria-label="닫기" className="grid size-9 place-items-center rounded-full text-[#8b95a1] transition hover:bg-[#f2f4f6] hover:text-[#333d4b]"><Icon name="close" className="size-5" /></button>
           </header>
           <div className="min-h-0 flex-1 overflow-y-auto p-6">
-            <p className="mb-4 text-[14px] leading-6 text-[#5f6b7a]">카드 편집 없이, 레퍼런스처럼 한글 문구까지 포함된 완성 이미지로 생성합니다.</p>
+            <p className="mb-4 text-[14px] leading-6 text-[#5f6b7a]">
+              {isPeopleStory
+                ? "현장 인물이 실제 작업하는 텍스트 없는 사진으로 생성합니다."
+                : "카드 편집 없이, 레퍼런스처럼 한글 문구까지 포함된 완성 이미지로 생성합니다."}
+            </p>
             <div className="rounded-xl bg-[#f2f4f6] p-4 text-[13px] leading-6 text-[#333d4b] whitespace-pre-wrap">{prompt}</div>
             <div className="mt-5 flex flex-wrap gap-2">
               <button type="button" onClick={copyBlogPrompt} className="inline-flex items-center gap-2 rounded-full border border-[#e5e8eb] px-4 py-2.5 text-[14px] font-bold text-[#4e5968]"><Icon name="copy" className="size-4" />프롬프트 복사</button>

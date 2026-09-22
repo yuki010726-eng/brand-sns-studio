@@ -1,6 +1,7 @@
 import Image from "next/image.js";
 import { Icon } from "../../_components/Icon.jsx";
 import { AD_CONCEPTS } from "../../../lib/adprompt.js";
+import { BLOG_CONCEPTS } from "../../../lib/blogprompt.js";
 
 /**
  * 템플릿 선택 — 왼쪽 목록 + 오른쪽 미리보기 패널.
@@ -30,6 +31,8 @@ export function ConceptPicker({
   onPreviewChange,
   adSelectedIds = [],
   onAdSelectionChange,
+  blogSelectedIds = [],
+  onBlogSelectionChange,
   emptyPreview = false,
   variant = "image",
 }) {
@@ -43,8 +46,9 @@ export function ConceptPicker({
     ? visible.find((c) => c.id === value)
     : visible.find((c) => c.id === value) || visible[0];
   const isBlogPreview = selected?.id === "blog";
-  const previewSlots =
-    selected?.previewImages?.length > 0
+  const previewSlots = isBlogPreview
+    ? BLOG_CONCEPTS.map((concept) => concept.previewImage)
+    : selected?.previewImages?.length > 0
       ? selected.previewImages
       : new Array(PLACEHOLDER_COUNT).fill(null);
 
@@ -151,6 +155,9 @@ export function ConceptPicker({
                 adConcept={selected.promptOnly ? AD_CONCEPTS[i] : null}
                 adSelectedIds={adSelectedIds}
                 onAdSelectionChange={onAdSelectionChange}
+                blogConcept={isBlogPreview ? BLOG_CONCEPTS[i] : null}
+                blogSelectedIds={blogSelectedIds}
+                onBlogSelectionChange={onBlogSelectionChange}
                 variant={variant}
               />
             ))}
@@ -179,10 +186,16 @@ function PreviewCard({
   adConcept,
   adSelectedIds,
   onAdSelectionChange,
+  blogConcept,
+  blogSelectedIds,
+  onBlogSelectionChange,
   variant,
 }) {
-  const selectable = Boolean(adConcept && onAdSelectionChange);
-  const selected = selectable && adSelectedIds[0] === adConcept.id;
+  const selectableConcept = adConcept || blogConcept;
+  const onSelectionChange = adConcept ? onAdSelectionChange : onBlogSelectionChange;
+  const selectedIds = adConcept ? adSelectedIds : blogSelectedIds;
+  const selectable = Boolean(selectableConcept && onSelectionChange);
+  const selected = selectable && selectedIds[0] === selectableConcept.id;
   const className = `${
     promptOnly
       ? variant === "legacy"
@@ -204,7 +217,7 @@ function PreviewCard({
       width={400}
       height={400}
       src={src}
-      alt={adConcept?.name || ""}
+      alt={selectableConcept?.name || ""}
       className="block h-full w-full object-cover object-center"
     />
   );
@@ -223,8 +236,8 @@ function PreviewCard({
       className={className}
       style={{ zIndex: total - index }}
       aria-pressed={selected}
-      aria-label={`${adConcept.name} 템플릿 ${selected ? "선택 해제" : "선택"}`}
-      onClick={() => onAdSelectionChange([adConcept.id])}
+      aria-label={`${selectableConcept.name} 템플릿 ${selected ? "선택 해제" : "선택"}`}
+      onClick={() => onSelectionChange([selectableConcept.id])}
     >
       {image}
       <span
@@ -236,7 +249,7 @@ function PreviewCard({
         {selected ? "✓" : "+"}
       </span>
       <span className="absolute inset-x-0 bottom-0 bg-black/65 px-2 py-2 text-center text-[12px] font-bold leading-tight text-white">
-        {adConcept.name}
+        {selectableConcept.name}
       </span>
     </button>
   );

@@ -14,6 +14,7 @@
  */
 import { CONCEPTS, getConcept } from "../../../lib/concepts.js";
 import { AD_CONCEPTS } from "../../../lib/adprompt.js";
+import { BLOG_CONCEPTS } from "../../../lib/blogprompt.js";
 import { toast } from "../../../components/toast.js";
 import { ConceptPicker } from "../../template/_components/ConceptPicker.jsx";
 
@@ -29,6 +30,12 @@ export function TemplateSection({ product, state, onUpdate }) {
     ? state.adConcepts.find((id) => AD_CONCEPTS.some((concept) => concept.id === id))
     : state.adConcept;
   const adSelectedIds = [savedAdConcept || AD_CONCEPTS[0]?.id].filter(Boolean);
+  const savedBlogConcept = BLOG_CONCEPTS.some((concept) => concept.id === state.blogConcept)
+    ? state.blogConcept
+    : Array.isArray(state.blogConcepts)
+    ? state.blogConcepts.find((id) => BLOG_CONCEPTS.some((concept) => concept.id === id))
+    : null;
+  const blogSelectedIds = [savedBlogConcept || BLOG_CONCEPTS[0]?.id].filter(Boolean);
 
   function handleChange(id) {
     const alreadySelected = selectedIds.includes(id);
@@ -53,6 +60,14 @@ export function TemplateSection({ product, state, onUpdate }) {
       adConcept: id,
       adConcepts: id ? [id] : [],
       adConceptTone: state.tone,
+    });
+  }
+
+  function handleBlogSelectionChange(ids) {
+    const id = ids[0] || BLOG_CONCEPTS[0]?.id;
+    onUpdate({
+      blogConcept: id,
+      blogConcepts: id ? [id] : [],
     });
   }
 
@@ -112,6 +127,8 @@ export function TemplateSection({ product, state, onUpdate }) {
             onPreviewChange={handlePreviewChange}
             adSelectedIds={adSelectedIds}
             onAdSelectionChange={handleAdSelectionChange}
+            blogSelectedIds={blogSelectedIds}
+            onBlogSelectionChange={handleBlogSelectionChange}
             variant="legacy"
           />
         </fieldset>

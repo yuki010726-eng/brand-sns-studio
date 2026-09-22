@@ -59,6 +59,7 @@ import { extractProposalContext } from "../../lib/copyai.js";
 import { getOrCreateProposalContext } from "../../lib/proposalContext.js";
 import { readContentCache, writeContentCache } from "../../lib/contentCache.js";
 import { buildAdPrompts, getAdConcept } from "../../lib/adprompt.js";
+import { BLOG_CONCEPTS, getBlogConcept } from "../../lib/blogprompt.js";
 import { saveToLibrary, hasLibraryChanges } from "../../lib/librarystore.js";
 import {
   draftKeyOf,
@@ -76,6 +77,7 @@ import {
   reconcileCard,
   cloneTexts,
   imageCaptionFor,
+  blogImageContextFor,
   deckFromBlog,
   withFollowCard,
 } from "./_lib/deckBuilder.js";
@@ -90,6 +92,7 @@ import { ImagePanel } from "./_components/ImagePanel.jsx";
 import { SaveActions } from "./_components/SaveActions.jsx";
 import { InstagramPublishDialog } from "./_components/InstagramPublishDialog.jsx";
 import { AdConceptPicker } from "./_components/AdConceptPicker.jsx";
+import { BlogConceptPicker } from "./_components/BlogConceptPicker.jsx";
 import { AdPromptPanel } from "./_components/AdPromptPanel.jsx";
 import { ImagePostSetup } from "./_components/ImagePostSetup.jsx";
 import {
@@ -142,6 +145,19 @@ const effectiveAdConceptIds = (s) => {
   // Advertising uses one sub-template. Default to the first option until the
   // user explicitly chooses another one.
   return [selected || s.adConcept || AD_CONCEPTS[0]?.id].filter(Boolean);
+};
+
+const effectiveBlogConceptIds = (s) => {
+  // `blogConcept` is the canonical single-choice value.  Prefer it over the
+  // legacy array so a stale saved `['editorial-pr']` cannot override a newer
+  // people-at-work selection.
+  const direct = BLOG_CONCEPTS.some((concept) => concept.id === s.blogConcept)
+    ? s.blogConcept
+    : null;
+  const selected = Array.isArray(s.blogConcepts)
+    ? s.blogConcepts.find((id) => BLOG_CONCEPTS.some((concept) => concept.id === id))
+    : null;
+  return [direct || selected || BLOG_CONCEPTS[0]?.id].filter(Boolean);
 };
 
 /**
@@ -273,7 +289,9 @@ export function TemplatePage() {
   // 블로그형은 글+이미지 흐름에서는 유지한다. 이미지 단독 설정에서만 제외한다.
   const selectedConceptIds =
     previewMode === "2"
-      ? allSelectedConceptIds.filter((id) => IMAGE_TOPIC_CONCEPT_IDS.includes(id))
+      ? allSelectedConceptIds.filter((id) =>
+          IMAGE_TOPIC_CONCEPT_IDS.includes(id),
+        )
       : allSelectedConceptIds;
   const selectedTemplates = selectedConceptIds
     .map((id) => CONCEPTS.find((item) => item.id === id))
@@ -694,6 +712,12 @@ export function TemplatePage() {
         ? `${getAdConcept(id).name} 컨셉으로 전 장을 다시 만들었습니다.`
         : "광고 컨셉 선택을 해제했습니다.",
     );
+  }
+
+  function handleBlogConceptChange(ids) {
+    const id = ids[0] || BLOG_CONCEPTS[0]?.id;
+    setState({ blogConcept: id, blogConcepts: id ? [id] : [] });
+    toast(`${getBlogConcept(id).name}으로 바꿨습니다.`);
   }
 
   function handleCopyAdPrompt(item) {
@@ -1197,6 +1221,7 @@ export function TemplatePage() {
   // They intentionally bypass the card canvas and text editor.
   if (concept.promptOnly || concept.id === "blog") {
     const adConceptIds = effectiveAdConceptIds(state);
+    const blogConceptIds = effectiveBlogConceptIds(state);
     const adPrompts =
       concept.promptOnly && adConceptIds.length
         ? buildAdPrompts({
@@ -1217,6 +1242,8 @@ export function TemplatePage() {
               title: card.title,
               body: card.body,
               subject: card.shot || card.title,
+              articleContext: blogImageContextFor(state, index),
+              blogConceptId: blogConceptIds[0],
             }),
           }))
         : [];
@@ -1297,6 +1324,12 @@ export function TemplatePage() {
                       onChange={handleAdConceptChange}
                     />
                   )}
+                  {concept.id === "blog" && (
+                    <BlogConceptPicker
+                      selectedIds={blogConceptIds}
+                      onChange={handleBlogConceptChange}
+                    />
+                  )}
                 </div>
 
                 <div
@@ -1324,7 +1357,9 @@ export function TemplatePage() {
                           tools={AD_TOOLS}
                           onCopy={handleCopyAdPrompt}
                           editable
-                          onRegenerate={(copy) => handleAdPromptRegenerate(item.n - 1, copy)}
+                          onRegenerate={(copy) =>
+                            handleAdPromptRegenerate(item.n - 1, copy)
+                          }
                           onReset={() => handleAdCopyReset(item.n - 1)}
                         />
                       </div>
@@ -1334,7 +1369,7 @@ export function TemplatePage() {
                       <div key={item.n}>
                         <div className="flex items-center justify-between gap-3">
                           <p className="text-[13px] font-bold text-[#5f6b7a]">
-                            이미지 {item.n}
+                            이미지 {item.n} · {getBlogConcept(blogConceptIds[0]).name}
                           </p>
                           <button
                             type="button"

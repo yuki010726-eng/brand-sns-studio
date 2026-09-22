@@ -145,6 +145,20 @@ export function imageCaptionFor(state, index) {
 }
 
 /**
+ * 블로그 원문의 현재 이미지 자리와 연결된 소제목·문단·캡션을 하나의 장면 지문으로
+ * 돌려준다. `shot`은 짧은 촬영 힌트라 글의 주장과 어긋날 수 있으므로, 특히
+ * 현장 인물 스토리에서는 이 원문 맥락을 이미지 프롬프트의 우선 근거로 쓴다.
+ */
+export function blogImageContextFor(state, index) {
+  const source = blogCardSource(state)[index] || {};
+  return [source.head, source.para, source.caption]
+    .map((value) => String(value || '').replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+    .join('\n')
+    .slice(0, 900);
+}
+
+/**
  * 블로그 원문에서 카드별 재료(소제목·문단·캡션)를 뽑는다.
  * 자세한 배경은 옛 pages/template.js 의 blogCardSource 머리말 참고.
  */
